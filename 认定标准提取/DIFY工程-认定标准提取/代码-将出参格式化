@@ -1,0 +1,59 @@
+import json
+import re
+
+def main(llm_output: str) -> dict:
+    """
+    将LLM输出的字符串解析为结构化的数组对象
+    
+    Args:
+        llm_output: 模型输出的字符串，可能包含JSON数组或markdown代码块中的JSON
+    
+    Returns:
+        dict: 包含result字段的字典，result为array of object
+    """
+    result = []
+    
+    if not llm_output or not llm_output.strip():
+        return {"result": result}
+    
+    text = llm_output.strip()
+    
+    # 尝试从markdown代码块中提取JSON
+    # 匹配 ```json ... ``` 或 ``` ... ```
+    code_block_pattern = r'```(?:json)?\s*([\s\S]*?)```'
+    matches = re.findall(code_block_pattern, text)
+    
+    if matches:
+        # 使用最后一个匹配的代码块（通常是最终输出）
+        json_str = matches[-1].strip()
+    else:
+        # 没有代码块，尝试直接解析
+        json_str = text
+    
+    # 尝试解析JSON
+    try:
+        parsed = json.loads(json_str)
+        
+        # 确保结果是数组
+        if isinstance(parsed, list):
+            result = parsed
+        elif isinstance(parsed, dict):
+            # 如果是对象，尝试获取可能的数组字段
+            if 'ruleKeywordGuide' in parsed:
+                result = parsed['ruleKeywordGuide']
+            elif 'result' in parsed:
+                result = parsed['result']
+            else:
+                # 将单个对象包装为数组
+                result = [parsed]
+    except json.JSONDecodeError:
+        # JSON解析失败，尝试查找数组部分
+        array_pattern = r'\[[\s\S]*\]'
+        array_match = re.search(array_pattern, json_str)
+        if array_match:
+            try:
+                result = json.loads(array_match.group())
+            except json.JSONDecodeError:
+                result = []
+    
+    return {"result": result}

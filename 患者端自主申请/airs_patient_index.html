@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>病种申请</title>
+  <style>
+    :root {
+      --bg: #f4f7fc;
+      --card: #ffffff;
+      --line: #e5ebf5;
+      --text: #1f2a37;
+      --subtext: #6b7280;
+      --primary: #4f7df0;
+      --primary-soft: #edf3ff;
+      --success: #27ae60;
+      --danger: #ef4444;
+      --shadow: 0 18px 40px rgba(79, 125, 240, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(79, 125, 240, 0.16), transparent 28%),
+        linear-gradient(180deg, #f7faff 0%, #eef3fb 100%);
+      min-height: 100vh;
+    }
+
+    .shell {
+      max-width: 460px;
+      margin: 0 auto;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .header {
+      padding: 24px 20px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .back {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      border: 1px solid rgba(79, 125, 240, 0.12);
+      background: rgba(255, 255, 255, 0.78);
+      display: grid;
+      place-items: center;
+      font-size: 22px;
+      color: var(--text);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+    }
+
+    .title {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+
+    .panel {
+      margin: 0 16px;
+      background: rgba(255, 255, 255, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .steps {
+      padding: 22px 18px 18px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      position: relative;
+    }
+
+    .steps::before {
+      content: "";
+      position: absolute;
+      top: 38px;
+      left: 62px;
+      right: 62px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--primary) 0 var(--progress, 0%), #d6deed var(--progress, 0%) 100%);
+      z-index: 0;
+    }
+
+    .step {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      color: var(--subtext);
+    }
+
+    .step-dot {
+      width: 18px;
+      height: 18px;
+      margin: 0 auto 12px;
+      border-radius: 999px;
+      background: #bcc8da;
+      border: 4px solid #eef4ff;
+      box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.9);
+    }
+
+    .step.active .step-dot,
+    .step.done .step-dot {
+      background: var(--primary);
+    }
+
+    .step.active {
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    .step.done {
+      color: #334155;
+    }
+
+    .content {
+      padding: 18px 16px 120px;
+      flex: 1;
+    }
+
+    .section {
+      display: none;
+      animation: fade 0.24s ease;
+    }
+
+    .section.active {
+      display: block;
+    }
+
+    @keyframes fade {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 28px;
+      padding: 22px 18px;
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(79, 125, 240, 0.08);
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      margin: 0 0 20px;
+      font-size: 28px;
+      font-weight: 800;
+    }
+
+    .sub-title {
+      margin: 0 0 16px;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .field {
+      margin-bottom: 18px;
+    }
+
+    .field label,
+    .field legend {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 15px;
+      color: #374151;
+      font-weight: 600;
+    }
+
+    .required::after {
+      content: " *";
+      color: var(--danger);
+    }
+
+    input[type="text"],
+    input[type="tel"],
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #fbfdff;
+      border-radius: 16px;
+      padding: 15px 16px;
+      font-size: 16px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      appearance: none;
+    }
+
+    textarea {
+      min-height: 92px;
+      resize: vertical;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(79, 125, 240, 0.12);
+    }
+
+    .radio-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin: 0;
+      padding: 0;
+      border: 0;
+    }
+
+    .radio-option {
+      flex: 1;
+      min-width: 92px;
+    }
+
+    .radio-option input {
+      display: none;
+    }
+
+    .radio-option span {
+      display: block;
+      text-align: center;
+      padding: 13px 10px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: #4b5563;
+      font-weight: 600;
+    }
+
+    .radio-option input:checked + span {
+      border-color: rgba(79, 125, 240, 0.4);
+      background: var(--primary-soft);
+      color: var(--primary);
+    }
+
+    .radio-option input:disabled + span {
+      background: #f3f4f6;
+      border-color: #e5e7eb;
+      color: #9ca3af;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .tip {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 18px;
+      padding: 15px 16px;
+      border-radius: 18px;
+      background: #f8fbff;
+      color: #4b5563;
+      line-height: 1.65;
+    }
+
+    .tip-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 10px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      display: grid;
+      place-items: center;
+      font-size: 16px;
+      flex: none;
+    }
+
+    .upload-box {
+      border: 1px dashed rgba(79, 125, 240, 0.35);
+      border-radius: 22px;
+      background: linear-gradient(180deg, #f8fbff 0%, #fdfefe 100%);
+      padding: 18px;
+    }
+
+    .upload-meta {
+      margin: 8px 0 16px;
+      color: var(--subtext);
+      font-size: 14px;
+    }
+
+    .upload-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 150px;
+      padding: 14px 18px;
+      border-radius: 16px;
+      background: var(--primary);
+      color: #fff;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      border: 0;
+      box-shadow: 0 12px 24px rgba(79, 125, 240, 0.22);
+    }
+
+    .upload-input {
+      display: none;
+    }
+
+    .file-list {
+      margin-top: 16px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+
+    .file-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .file-tag {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: #eaf8ef;
+      color: var(--success);
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+      font-weight: 800;
+      flex: none;
+    }
+
+    .file-name {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-size: 15px;
+    }
+
+    .remove-file {
+      border: 0;
+      background: transparent;
+      color: #9ca3af;
+      font-size: 24px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0;
+    }
+
+    .summary-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .summary-item {
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: #f8fbff;
+      border: 1px solid #e9effb;
+    }
+
+    .summary-label {
+      font-size: 13px;
+      color: var(--subtext);
+      margin-bottom: 6px;
+    }
+
+    .summary-value {
+      font-size: 16px;
+      font-weight: 600;
+      word-break: break-all;
+    }
+
+    .success-page {
+      display: none;
+      flex: 1;
+      padding: 28px 16px 120px;
+      align-items: center;
+      justify-content: flex-start;
+      flex-direction: column;
+      animation: fade 0.24s ease;
+    }
+
+    .success-page.active {
+      display: flex;
+    }
+
+    .success-hero {
+      width: 100%;
+      max-width: 380px;
+      min-height: 280px;
+      margin-top: 24px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .success-hero::before {
+      content: "";
+      position: absolute;
+      inset: 48px 24px 36px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(79, 125, 240, 0.08), rgba(79, 125, 240, 0.01) 68%, transparent 72%);
+    }
+
+    .success-envelope {
+      position: relative;
+      width: 180px;
+      height: 132px;
+      border-radius: 18px;
+      background: linear-gradient(180deg, #ffffff 0%, #eef3fb 100%);
+      box-shadow: 0 30px 60px rgba(15, 23, 42, 0.08);
+    }
+
+    .success-envelope::before,
+    .success-envelope::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      margin: auto;
+      border-style: solid;
+    }
+
+    .success-envelope::before {
+      top: 0;
+      width: 0;
+      height: 0;
+      border-width: 0 90px 62px;
+      border-color: transparent transparent #dfe7f5;
+    }
+
+    .success-envelope::after {
+      bottom: 0;
+      width: 0;
+      height: 0;
+      border-width: 58px 90px 0;
+      border-color: #edf2fb transparent transparent;
+    }
+
+    .success-paper {
+      position: absolute;
+      top: -34px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 108px;
+      height: 126px;
+      border-radius: 12px;
+      background: linear-gradient(180deg, #ffffff 0%, #f6f8fc 100%);
+      box-shadow: 0 20px 36px rgba(15, 23, 42, 0.08);
+    }
+
+    .success-paper::before,
+    .success-paper::after {
+      content: "";
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      height: 8px;
+      border-radius: 999px;
+      background: #e5e7eb;
+    }
+
+    .success-paper::before {
+      top: 34px;
+    }
+
+    .success-paper::after {
+      top: 56px;
+      box-shadow: 0 22px 0 #eef2f7;
+    }
+
+    .success-check {
+      position: absolute;
+      right: 42px;
+      bottom: 24px;
+      width: 76px;
+      height: 76px;
+      border-radius: 50%;
+      background: #25c05a;
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 40px;
+      font-weight: 700;
+      box-shadow: 0 18px 40px rgba(37, 192, 90, 0.28);
+    }
+
+    .success-card {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.94);
+      border-radius: 28px;
+      padding: 28px 22px;
+      box-shadow: var(--shadow);
+      text-align: center;
+      border: 1px solid rgba(79, 125, 240, 0.08);
+    }
+
+    .success-title {
+      margin: 0 0 28px;
+      font-size: 26px;
+      font-weight: 800;
+    }
+
+    .success-info {
+      color: #6b7280;
+      font-size: 17px;
+      line-height: 1.7;
+    }
+
+    .footer {
+      position: sticky;
+      bottom: 0;
+      padding: 14px 16px 20px;
+      background: linear-gradient(180deg, rgba(244, 247, 252, 0) 0%, rgba(244, 247, 252, 0.92) 18%, rgba(244, 247, 252, 1) 100%);
+    }
+
+    .footer-inner {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      max-width: 460px;
+      margin: 0 auto;
+    }
+
+    .footer-inner.success-mode {
+      grid-template-columns: minmax(180px, 1fr);
+      max-width: 300px;
+      justify-content: center;
+    }
+
+    .btn {
+      height: 52px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.88);
+      color: #374151;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn.primary {
+      background: var(--primary);
+      border-color: transparent;
+      color: #fff;
+      box-shadow: 0 12px 24px rgba(79, 125, 240, 0.22);
+    }
+
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .draft {
+      margin-top: 12px;
+      text-align: center;
+      color: var(--subtext);
+      font-size: 13px;
+      min-height: 18px;
+    }
+
+    @media (max-width: 420px) {
+      .title {
+        font-size: 28px;
+      }
+
+      .section-title {
+        font-size: 24px;
+      }
+
+      .sub-title {
+        font-size: 20px;
+      }
+
+      .footer-inner {
+        gap: 8px;
+      }
+
+      .btn {
+        font-size: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="header">
+      <button class="back" type="button" aria-label="返回">‹</button>
+      <div class="title">病种申请</div>
+    </header>
+
+    <section class="panel">
+      <div class="steps" id="steps" style="--progress: 0%;">
+        <div class="step active">
+          <div class="step-dot"></div>
+          <div>在线填表</div>
+        </div>
+        <div class="step">
+          <div class="step-dot"></div>
+          <div>材料上报</div>
+        </div>
+        <div class="step">
+          <div class="step-dot"></div>
+          <div>信息确认</div>
+        </div>
+      </div>
+    </section>
+
+    <main class="content">
+      <section class="section active" data-step="0">
+        <div class="card">
+          <h2 class="section-title">基本信息</h2>
+
+          <div class="field">
+            <label class="required">申请对象</label>
+            <fieldset class="radio-group">
+              <label class="radio-option">
+                <input type="radio" name="targetType" value="本人" checked />
+                <span>本人</span>
+              </label>
+            </fieldset>
+          </div>
+
+          <div class="field">
+            <label class="required" for="applicantName">申请人姓名</label>
+            <input id="applicantName" name="applicantName" type="text" placeholder="请输入申请人姓名" value="张三" />
+          </div>
+
+          <div class="field">
+            <label class="required" for="idType">申请人证件类型</label>
+            <select id="idType" name="idType">
+              <option>居民身份证</option>
+              <option>港澳居民居住证</option>
+              <option>护照</option>
+              <option>其他证件</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="required" for="idNumber">证件号码</label>
+            <input id="idNumber" name="idNumber" type="text" placeholder="请输入证件号码" value="370729195001012520" />
+          </div>
+
+          <div class="field">
+            <label class="required" for="phone">申请人手机号</label>
+            <input id="phone" name="phone" type="tel" placeholder="请输入手机号" value="13800138000" />
+          </div>
+
+          <div class="field">
+            <label for="address">申请人地址</label>
+            <textarea id="address" name="address" placeholder="请输入联系地址">山东省泰安市高新区北集坡街道</textarea>
+          </div>
+
+          <div class="field">
+            <label class="required" for="hospital">定点医院</label>
+            <select id="hospital" name="hospital">
+              <option>泰安市中心医院</option>
+              <option>山东大学齐鲁医院</option>
+              <option>山东省立医院</option>
+              <option>青岛大学附属医院</option>
+            </select>
+          </div>
+
+          <div class="field" style="margin-bottom: 0;">
+            <label class="required" for="disease">疾病名称</label>
+            <select id="disease" name="disease">
+              <option>高血压</option>
+              <option>糖尿病</option>
+              <option>冠心病</option>
+              <option>恶性肿瘤</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" data-step="1">
+        <div class="card">
+          <h2 class="section-title">材料上报</h2>
+          <div class="tip">
+            <div class="tip-icon">i</div>
+            <div>请先上传所有申报必要材料，然后点击下一步继续。支持上传确诊病历、检查化验单等。</div>
+          </div>
+
+          <div class="upload-box">
+            <h3 class="sub-title">1. 确诊病历、检查化验单</h3>
+            <div class="upload-meta">材料必要性：必要　附件要求：png、jpg，每张图片大小在10MB以内</div>
+            <label class="upload-button" for="fileUpload">点击上传</label>
+            <input class="upload-input" id="fileUpload" type="file" multiple accept=".jpg,.jpeg,.png" />
+            <div class="file-list" id="fileList">
+              <div class="file-item">
+                <div class="file-info">
+                  <div class="file-tag">JPG</div>
+                  <div class="file-name">IMG1041.PNG</div>
+                </div>
+                <button class="remove-file" type="button" aria-label="删除文件">×</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" data-step="2">
+        <div class="card">
+          <h2 class="section-title">信息确认</h2>
+          <div class="tip">
+            <div class="tip-icon">✓</div>
+            <div>请确认填写信息与上传材料无误，确认后即可提交。</div>
+          </div>
+          <div class="summary-grid" id="summaryGrid"></div>
+        </div>
+      </section>
+    </main>
+
+    <section class="success-page" id="successPage">
+      <div class="success-hero">
+        <div class="success-envelope">
+          <div class="success-paper"></div>
+        </div>
+        <div class="success-check">✓</div>
+      </div>
+
+      <div class="success-card">
+        <h2 class="success-title">申请提交成功</h2>
+        <div class="success-info">
+          <div>业务流水号：009520602553</div>
+          <div>查询密码：485276</div>
+          <div>病种申请已提交，申请结果将以短信形式通知</div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <button class="btn" type="button" id="draftBtn">保存草稿</button>
+        <button class="btn" type="button" id="prevBtn">上一步</button>
+        <button class="btn primary" type="button" id="nextBtn">下一步</button>
+      </div>
+      <div class="draft" id="draftText"></div>
+    </footer>
+  </div>
+
+  <script>
+    const steps = Array.from(document.querySelectorAll(".step"));
+    const sections = Array.from(document.querySelectorAll(".section"));
+    const stepsBar = document.getElementById("steps");
+    const prevBtn = document.getElementById("prevBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const draftBtn = document.getElementById("draftBtn");
+    const draftText = document.getElementById("draftText");
+    const fileUpload = document.getElementById("fileUpload");
+    const fileList = document.getElementById("fileList");
+    const summaryGrid = document.getElementById("summaryGrid");
+    const content = document.querySelector(".content");
+    const panel = document.querySelector(".panel");
+    const successPage = document.getElementById("successPage");
+    const headerTitle = document.querySelector(".title");
+
+    let currentStep = 0;
+    let isSubmitted = false;
+
+    function getFormData() {
+      return {
+        "申请对象": document.querySelector('input[name="targetType"]:checked')?.value || "",
+        "申请人姓名": document.getElementById("applicantName").value.trim(),
+        "申请人证件类型": document.getElementById("idType").value,
+        "证件号码": document.getElementById("idNumber").value.trim(),
+        "申请人手机号": document.getElementById("phone").value.trim(),
+        "申请人地址": document.getElementById("address").value.trim() || "未填写",
+        "定点医院": document.getElementById("hospital").value,
+        "疾病名称": document.getElementById("disease").value,
+        "已上传材料": Array.from(fileList.querySelectorAll(".file-name")).map((item) => item.textContent).join("、") || "未上传"
+      };
+    }
+
+    function renderSummary() {
+      const data = getFormData();
+      summaryGrid.innerHTML = "";
+
+      Object.entries(data).forEach(([label, value]) => {
+        const item = document.createElement("div");
+        item.className = "summary-item";
+        item.innerHTML = `
+          <div class="summary-label">${label}</div>
+          <div class="summary-value">${value}</div>
+        `;
+        summaryGrid.appendChild(item);
+      });
+    }
+
+    function updateSteps() {
+      content.style.display = isSubmitted ? "none" : "block";
+      panel.style.display = isSubmitted ? "none" : "block";
+      successPage.classList.toggle("active", isSubmitted);
+      draftBtn.style.display = isSubmitted ? "none" : "block";
+      prevBtn.style.display = isSubmitted ? "none" : "block";
+      document.querySelector(".footer-inner").classList.toggle("success-mode", isSubmitted);
+
+      if (isSubmitted) {
+        nextBtn.textContent = "返回";
+        headerTitle.textContent = "病种申请";
+        draftText.textContent = "";
+        return;
+      }
+
+      sections.forEach((section, index) => {
+        section.classList.toggle("active", index === currentStep);
+      });
+
+      steps.forEach((step, index) => {
+        step.classList.toggle("active", index === currentStep);
+        step.classList.toggle("done", index < currentStep);
+      });
+
+      const progress = currentStep === 0 ? "0%" : currentStep === 1 ? "50%" : "100%";
+      stepsBar.style.setProperty("--progress", progress);
+
+      prevBtn.disabled = currentStep === 0;
+      nextBtn.textContent = currentStep === sections.length - 1 ? "提交" : "下一步";
+
+      if (currentStep === 2) {
+        renderSummary();
+      }
+    }
+
+    function addFileItem(name) {
+      const ext = name.split(".").pop()?.slice(0, 3).toUpperCase() || "FILE";
+      const item = document.createElement("div");
+      item.className = "file-item";
+      item.innerHTML = `
+        <div class="file-info">
+          <div class="file-tag">${ext}</div>
+          <div class="file-name">${name}</div>
+        </div>
+        <button class="remove-file" type="button" aria-label="删除文件">×</button>
+      `;
+      fileList.appendChild(item);
+    }
+
+    fileUpload.addEventListener("change", (event) => {
+      Array.from(event.target.files).forEach((file) => {
+        if (file.size > 10 * 1024 * 1024) {
+          draftText.textContent = `文件 ${file.name} 超过10MB，未加入列表`;
+          return;
+        }
+
+        addFileItem(file.name);
+      });
+      event.target.value = "";
+    });
+
+    fileList.addEventListener("click", (event) => {
+      if (event.target.classList.contains("remove-file")) {
+        event.target.closest(".file-item")?.remove();
+      }
+    });
+
+    prevBtn.addEventListener("click", () => {
+      currentStep = Math.max(0, currentStep - 1);
+      updateSteps();
+    });
+
+    nextBtn.addEventListener("click", () => {
+      if (isSubmitted) {
+        isSubmitted = false;
+        currentStep = 0;
+        updateSteps();
+        return;
+      }
+
+      if (currentStep < sections.length - 1) {
+        currentStep += 1;
+        updateSteps();
+        return;
+      }
+
+      isSubmitted = true;
+      updateSteps();
+    });
+
+    draftBtn.addEventListener("click", () => {
+      draftText.textContent = `草稿已暂存：${new Date().toLocaleString("zh-CN")}`;
+    });
+
+    updateSteps();
+  </script>
+</body>
+</html>

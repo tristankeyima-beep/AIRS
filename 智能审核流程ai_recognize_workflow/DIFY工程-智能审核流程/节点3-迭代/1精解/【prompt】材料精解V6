@@ -1,0 +1,92 @@
+# 输入变量
+- items: {{#1767236686721.item#}}
+- materialList: {{#context#}}
+
+# 任务
+根据 `items.ruleKeywordGuide` 的要求，从 `materialList` 中提取结构化结果。
+
+# 证据范围
+可用于提取和判断的证据，既包括材料正文，也包括材料结构化字段：
+- `materialContent`
+- `materialName`
+- `materialType`
+- `sourceHospital`
+- `hospitalLevel`
+- `reportDate`
+- `uploadTime`
+
+# 提取原则
+1. 只能依据输入材料中已有信息提取，禁止使用常识补全、推测或改写原意。
+2. 每个 `ruleKeywordGuide` 项都必须输出一个结果对象。
+3. 若 `dataType=enum`，`value` 必须严格从 `enumOptions` 中选择。
+4. 找到明确否定、排除、未见、否认、未诊断等反向证据时，仍视为已找到相关证据：
+   - `found=true`
+   - `results` 正常返回
+   - `value` 取最匹配的枚举值
+5. 只有完全找不到相关证据时，才返回：
+   - `found=false`
+   - `results=[]`
+
+# 结构化字段取证规则
+1. 若规则涉及医院级别、医疗机构资质、材料来源、报告时间等信息，优先使用结构化字段判断，不要求必须在 `materialContent` 中命中。
+2. 若证据来自结构化字段，允许 `rawText` 使用标准化证据串，格式如下：
+   - `sourceHospital=泰安市中心医院；hospitalLevel=三级`
+   - `materialName=住院病历-1；reportDate=2025-12-26 00:00:00`
+3. 若正文和结构化字段均可支持，优先返回更直接、更稳定的证据。
+
+# 结果字段要求
+`results` 中每条结果必须包含：
+- `materialId`
+- `materialName`
+- `materialSource`
+- `rawText`
+- `value`
+
+说明：
+- `materialSource` 取 `sourceHospital`
+- `rawText` 优先取正文原文片段；若依据的是结构化字段，可使用标准化证据串
+- `value` 必须能被 `rawText` 或对应结构化字段直接支持
+
+# keywordCode 规则
+1. 若当前 `ruleKeywordGuide` 中存在 `keywordCode`，必须原样输出。
+2. 若不存在 `keywordCode`，使用稳定兜底编码：
+   - 格式：`{{items.ruleCode}}_01`、`{{items.ruleCode}}_02`……
+   - 按 `ruleKeywordGuide` 在输入中的顺序编号
+3. 禁止生成临时编码，如 `kw1`、`kw2`
+4. 禁止直接用 `keywordContent` 充当 `keywordCode`
+
+# 多结果规则
+1. 同一字段命中多条证据时，全部返回。
+2. 按时间新到旧排序；无法判断时间时按材料出现顺序返回。
+3. 同一材料内多个命中片段可返回多条，也可合并为一条最有代表性的证据。
+
+# 输出格式
+只输出 JSON 数组，不要输出解释、Markdown、前后缀、思考过程或 `<think>`。
+
+[
+  {
+    "keywordCode": "关键词编码",
+    "found": true,
+    "results": [
+      {
+        "materialId": "材料ID",
+        "materialName": "材料名称",
+        "materialSource": "材料来源医院",
+        "rawText": "原文证据片段或结构化字段证据串",
+        "value": "规范化结果"
+      }
+    ]
+  }
+]
+
+未找到证据时：
+[
+  {
+    "keywordCode": "关键词编码",
+    "found": false,
+    "results": []
+  }
+]
+
+# 现在开始
+请直接输出 JSON 数组结果：

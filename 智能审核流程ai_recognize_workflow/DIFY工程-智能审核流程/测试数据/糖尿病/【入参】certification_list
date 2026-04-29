@@ -1,0 +1,271 @@
+{
+    "meta": {
+        "version": "V2026042702",
+        "chronicDiseaseName": "糖尿病",
+        "chronicDiseaseCode": "M01603",
+        "createdAt": "2026-04-27",
+        "description": "改为急性或慢性并发症"
+    },
+    "ruleRepository": [
+        {
+            "airsCdCriteriaRuleId": "2016315280699105280",
+            "ruleCode": "1002001",
+            "ruleContent": "二型糖尿病确诊",
+            "ruleSource": "关于规范统一全省门诊慢特病基本病种提高慢特病医疗保障能力的通知（鲁医保发〔2022〕42号）",
+            "experience": "",
+            "ruleKeywordGuide": [
+                {
+                    "instruction": "",
+                    "dataType": "enum",
+                    "required": true,
+                    "keywordCode": "1002001001",
+                    "keywordContent": "是否确诊为二型糖尿病",
+                    "enumOptions": [
+                        "已确诊",
+                        "未确诊",
+                        "无法判断"
+                    ]
+                }
+            ],
+            "groupLevel1": {
+                "type": "GROUP",
+                "operator": "AND",
+                "groupCode": "1002",
+                "level": 1,
+                "children": [
+                    {
+                        "type": "RULE_REF",
+                        "ruleCode": "1002001"
+                    },
+                    {
+                        "type": "RULE_REF",
+                        "ruleCode": "1002002"
+                    },
+                    {
+                        "type": "RULE_REF",
+                        "ruleCode": "1002003"
+                    }
+                ],
+                "rowSpan": 3
+            },
+            "groupLevel0": {
+                "type": "GROUP",
+                "operator": "OR",
+                "groupCode": "1",
+                "level": 0,
+                "children": [
+                    {
+                        "type": "GROUP",
+                        "operator": "AND",
+                        "groupCode": "1002",
+                        "level": 1,
+                        "children": [
+                            {
+                                "type": "RULE_REF",
+                                "ruleCode": "1002001"
+                            },
+                            {
+                                "type": "RULE_REF",
+                                "ruleCode": "1002002"
+                            },
+                            {
+                                "type": "RULE_REF",
+                                "ruleCode": "1002003"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "GROUP",
+                        "operator": "AND",
+                        "groupCode": "1003",
+                        "level": 1,
+                        "children": [
+                            {
+                                "type": "RULE_REF",
+                                "ruleCode": "1003001"
+                            },
+                            {
+                                "type": "RULE_REF",
+                                "ruleCode": "1003002"
+                            }
+                        ]
+                    }
+                ],
+                "rowSpan": 5
+            }
+        },
+        {
+            "airsCdCriteriaRuleId": "2016315433493405696",
+            "ruleCode": "1002002",
+            "ruleContent": "合并急性或者慢性并发症",
+            "ruleSource": "关于规范统一全省门诊慢特病基本病种提高慢特病医疗保障能力的通知（鲁医保发〔2022〕42号）",
+            "experience": "",
+            "ruleKeywordGuide": [
+                {
+                    "instruction": "",
+                    "dataType": "enum",
+                    "required": true,
+                    "keywordCode": "1002002001",
+                    "keywordContent": "是否存在糖尿病急性或慢性并发症",
+                    "enumOptions": [
+                        "是",
+                        "否",
+                        "未提及"
+                    ]
+                },
+                {
+                    "instruction": "",
+                    "dataType": "enum",
+                    "required": true,
+                    "keywordCode": "1002002002",
+                    "keywordContent": "并发症类型",
+                    "enumOptions": [
+                        "急性并发症",
+                        "慢性并发症",
+                        "急性和慢性并发症",
+                        "无法判断"
+                    ]
+                }
+            ]
+        },
+        {
+            "airsCdCriteriaRuleId": "2016327670622789632",
+            "ruleCode": "1002003",
+            "ruleContent": "经二级及以上医疗机构确诊",
+            "ruleSource": "关于规范统一全省门诊慢特病基本病种提高慢特病医疗保障能力的通知（鲁医保发〔2022〕42号）",
+            "experience": "",
+            "ruleKeywordGuide": [
+                {
+                    "instruction": "",
+                    "dataType": "enum",
+                    "required": true,
+                    "keywordCode": "1002003001",
+                    "keywordContent": "确诊机构的等级是否为二级或以上医疗机构（包括二级、三级）",
+                    "enumOptions": [
+                        "是",
+                        "否",
+                        "无法判断"
+                    ]
+                }
+            ],
+            "groupLevel1": {
+                "rowSpan": 0
+            },
+            "groupLevel0": {
+                "rowSpan": 0
+            }
+        },
+        {
+            "airsCdCriteriaRuleId": "2016327877125152768",
+            "ruleCode": "1003001",
+            "ruleContent": "经二级及以上医疗机构确诊",
+            "ruleSource": "关于规范统一全省门诊慢特病基本病种提高慢特病医疗保障能力的通知（鲁医保发〔2022〕42号）",
+            "experience": "",
+            "ruleKeywordGuide": [
+                {
+                    "instruction": "",
+                    "dataType": "enum",
+                    "required": true,
+                    "keywordCode": "1003001001",
+                    "keywordContent": "确诊机构的等级是否为二级或以上医疗机构（包括二级、三级）",
+                    "enumOptions": [
+                        "是",
+                        "否",
+                        "无法判断"
+                    ]
+                }
+            ],
+            "groupLevel1": {
+                "type": "GROUP",
+                "operator": "AND",
+                "groupCode": "1003",
+                "level": 1,
+                "children": [
+                    {
+                        "type": "RULE_REF",
+                        "ruleCode": "1003001"
+                    },
+                    {
+                        "type": "RULE_REF",
+                        "ruleCode": "1003002"
+                    }
+                ],
+                "rowSpan": 2
+            },
+            "groupLevel0": {
+                "rowSpan": 0
+            }
+        },
+        {
+            "airsCdCriteriaRuleId": "2016328101532999680",
+            "ruleCode": "1003002",
+            "ruleContent": "一型糖尿病确诊",
+            "ruleSource": "关于规范统一全省门诊慢特病基本病种提高慢特病医疗保障能力的通知（鲁医保发〔2022〕42号）",
+            "experience": "",
+            "ruleKeywordGuide": [
+                {
+                    "instruction": "",
+                    "dataType": "enum",
+                    "required": true,
+                    "keywordCode": "1003002001",
+                    "keywordContent": "是否确诊为一型糖尿病",
+                    "enumOptions": [
+                        "确诊",
+                        "未确诊",
+                        "无法判断"
+                    ]
+                }
+            ],
+            "groupLevel1": {
+                "rowSpan": 0
+            },
+            "groupLevel0": {
+                "rowSpan": 0
+            }
+        }
+    ],
+    "logicTopology": {
+        "type": "GROUP",
+        "operator": "OR",
+        "groupCode": "1",
+        "level": 0,
+        "children": [
+            {
+                "type": "GROUP",
+                "operator": "AND",
+                "groupCode": "1002",
+                "level": 1,
+                "children": [
+                    {
+                        "type": "RULE_REF",
+                        "ruleCode": "1002001"
+                    },
+                    {
+                        "type": "RULE_REF",
+                        "ruleCode": "1002002"
+                    },
+                    {
+                        "type": "RULE_REF",
+                        "ruleCode": "1002003"
+                    }
+                ]
+            },
+            {
+                "type": "GROUP",
+                "operator": "AND",
+                "groupCode": "1003",
+                "level": 1,
+                "children": [
+                    {
+                        "type": "RULE_REF",
+                        "ruleCode": "1003001"
+                    },
+                    {
+                        "type": "RULE_REF",
+                        "ruleCode": "1003002"
+                    }
+                ]
+            }
+        ]
+    }
+}

@@ -1,0 +1,30 @@
+## 审核结果：{{ final_result }}
+
+{% for item in final_results %}
+---
+### 规则 {{ item.rule_id }}：{{ item.result }}
+
+{% if item.content %}
+**规则说明**：{{ item.content }}
+{% endif %}
+
+{% if item.reasoning_content %}
+**推理过程**：
+{{ item.reasoning_content }}
+{% endif %}
+
+{%- if item.suspicion %}
+{%- for suspicion_item in item.suspicion %}
+#### 不符合点 {{ loop.index }}：{{ suspicion_item.type }}
+
+**详情**：{{ suspicion_item.detail }}
+
+**证据来源**：
+{%- for src in suspicion_item.sources %}
+- **{{ src.material_name }}**（{{ src.material_id }}）
+  > {{ src.excerpt }}
+{%- endfor %}
+
+{%- endfor %}
+{%- endif %}
+{% endfor %}

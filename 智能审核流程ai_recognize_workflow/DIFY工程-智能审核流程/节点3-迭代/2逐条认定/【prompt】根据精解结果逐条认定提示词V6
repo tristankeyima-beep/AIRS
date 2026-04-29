@@ -1,0 +1,75 @@
+# 输入变量
+- items: {{#1767236686721.item#}}
+
+# 任务
+你需要根据“结构化审核证据”判断该规则是否通过。
+
+# 判定依据
+- 以“结构化审核证据”中的 found、results、value、rawText 作为判定依据
+- 当 value 已经落在当前关键词的 enumOptions 中时，优先按 value 判断，保持规则原意和选项口径一致
+- found=false 或 results 为空时，按证据不足处理
+- sources 中的 refContent 直接取自 rawText，保持原文含义
+- suspicionList.detail 使用面向审核人员的表述，避免出现“精解结果”“关键词”“value”等内部流程词
+- suspicionList.detail 中描述的具体事实，必须能在 sources.refContent 中直接找到对应表述；不要引用 keywordContent 示例词或未进入 sources 的材料事实。
+
+
+# 规则信息
+- ruleCode: {{items.ruleCode}}
+- ruleContent: {{items.ruleContent}}
+{{#if items.experience}}- experience: {{items.experience}}{{/if}}
+
+# 异常类型选项
+{{#1765526650874.suspicion_type_options#}}
+
+# 结构化审核证据
+{{#1767236864578.text#}}
+
+# 输出要求
+- 输出一个合法 JSON 对象
+- 直接输出 JSON 对象本身
+- JSON 中保留 ruleCode、ruleResult、ruleContent；不通过时补充 suspicionList
+
+# 输出格式
+
+通过时：
+{
+  "ruleCode": "{{items.ruleCode}}",
+  "ruleResult": "通过",
+  "ruleContent": "{{items.ruleContent}}"
+}
+
+不通过时：
+{
+  "ruleCode": "{{items.ruleCode}}",
+  "ruleResult": "不通过",
+  "ruleContent": "{{items.ruleContent}}",
+  "suspicionList": [
+    {
+      "suspicionType": "从异常类型选项中选择；无合适项则用“其他异常”",
+      "detail": "仅描述一个不通过点，并说明其与规则不符之处",
+      "sources": [
+        {
+          "materialName": "来自 results.materialName",
+          "materialId": "来自 results.materialId",
+          "refContent": "来自 results.rawText"
+        }
+      ]
+    }
+  ]
+}
+
+证据缺失时：
+{
+  "ruleCode": "{{items.ruleCode}}",
+  "ruleResult": "不通过",
+  "ruleContent": "{{items.ruleContent}}",
+  "suspicionList": [
+    {
+      "suspicionType": "信息缺失",
+      "detail": "现有审核材料中未见满足该规则要求的有效证据。",
+      "sources": []
+    }
+  ]
+}
+
+现在直接输出 JSON 对象：

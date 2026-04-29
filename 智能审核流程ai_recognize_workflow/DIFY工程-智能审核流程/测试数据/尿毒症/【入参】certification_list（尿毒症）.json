@@ -1,0 +1,86 @@
+{
+  "meta": {
+    "criteriaVersion": "V2026011001",
+    "chronicDiseaseName": "尿毒症肾透析治疗",
+    "chronicDiseaseCode": "M4105",
+    "createdAt": "2026-01-11",
+    "description": "初始版本"
+  },
+
+  "ruleRepository": [
+    {
+      "ruleCode": "10001",
+      "ruleContent": "各种原因造成慢性肾脏损伤，并出现肾功能异常达到尿毒症期",
+      "ruleSource": "统一病种泰医保发〔2023〕14号转发关于规范统一全省门诊慢特病基本病种提高慢特病医疗保障能力的通知",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "10001001",
+          "keywordContent": "提取慢性肾脏病、慢性肾衰竭、尿毒症等相关诊断名称",
+          "dataType": "string",
+          "required": true
+        },
+        {
+          "keywordCode": "10001002",
+          "keywordContent": "提取CKD分期描述，如CKD5期、尿毒症期等",
+          "dataType": "enum",
+          "enumOptions": ["CKD1期", "CKD2期", "CKD3期", "CKD4期", "CKD5期", "尿毒症期"],
+          "required": true
+        }
+      ]
+    },
+    {
+      "ruleCode": "10002",
+      "ruleContent": "需长期透析治疗",
+      "ruleSource": "统一病种泰医保发〔2023〕14号转发关于规范统一全省门诊慢特病基本病种提高慢特病医疗保障能力的通知",
+      "experience": "患者已在进行透析治疗即可",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "10002001",
+          "keywordContent": "患者当前是否已在进行透析治疗",
+          "dataType": "enum",
+          "enumOptions": ["是", "否"],
+          "required": true
+        }
+      ]
+    },
+    {
+      "ruleCode": "10003",
+      "ruleContent": "有二级及以上医疗机构出具的病历资料",
+      "ruleSource": "统一病种泰医保发〔2023〕14号转发关于规范统一全省门诊慢特病基本病种提高慢特病医疗保障能力的通知",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "10003001",
+          "keywordContent": "提取出具病历资料的医疗机构全称",
+          "dataType": "string",
+          "required": true
+        },
+        {
+          "keywordCode": "10003002",
+          "keywordContent": "提取医院等级，如三级甲等、二级甲等等",
+          "dataType": "enum",
+          "enumOptions": ["三级", "二级", "一级", "未知"],
+          "required": true
+        }
+      ]
+    }
+  ],
+
+  "logicTopology": {
+    "type": "GROUP",
+    "operator": "AND",
+    "children": [
+      {
+        "type": "RULE_REF",
+        "ruleCode": "10001"
+      },
+      {
+        "type": "RULE_REF",
+        "ruleCode": "10002"
+      },
+      {
+        "type": "RULE_REF",
+        "ruleCode": "10003"
+      }
+    ]
+  }
+}
