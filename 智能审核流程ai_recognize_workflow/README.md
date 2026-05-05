@@ -187,9 +187,19 @@ graph TD
    - 修改规则内容（如阈值）：只更新 ruleRepository。
    - 拖拽/排序规则：只更新 logicTopology。
 
-### 后端执行逻辑 (Dify 工作流)
+### 后端执行逻辑（平台无关）
 
-基于 Dify 搭建的审核工作流，包含以下节点：
+审核流程的核心逻辑不依赖具体工作流平台。Dify 和腾讯智能体平台都应围绕同一套核心协议实现：
+
+- **输入协议**：完整的认定标准 JSON（`meta` + `ruleRepository` + `logicTopology`）和患者材料列表。
+- **规则拆解**：把 `ruleRepository` 转成可迭代的 `rulesArray`，保留 `logicTopology` 作为最终合并依据。
+- **材料精解**：按每条规则的 `ruleKeywordGuide` 从材料中提取结构化证据。
+- **逐条认定**：基于精解结果判断单条规则是否通过，不允许脱离证据推断。
+- **结果聚合**：把单条审核结果、推理过程、精解结果合并成统一结构。
+- **逻辑合并**：按 `logicTopology` 的 AND/OR 树计算最终审核结果。
+- **输出建议**：基于最终结果和不通过明细生成面向审核人员的简洁结论。
+
+平台差异只应体现在变量绑定、代码节点入参包装、LLM 结构化输出 schema、结束节点出参包装等适配层，不应改变核心审核协议。
 
 #### 工作流入参
 
@@ -214,6 +224,7 @@ graph TD
   "chronicDiseaseCode": "M4105",
   "chronicDiseaseName": "尿毒症肾透析治疗",
   "logicTopology": { ... },
+  "logicTopologyStr": "{\"type\":\"GROUP\",\"operator\":\"AND\",\"children\":[...]}",
   "rulesArray": [
     {
       "ruleCode": "10001",
@@ -226,6 +237,11 @@ graph TD
   "rulesCount": 4
 }
 ```
+
+说明：
+
+- `logicTopology` 是平台无关的标准结构。
+- `logicTopologyStr` 是腾讯平台适配字段，用于规避递归对象在平台 schema 中被裁剪的问题；Dify 可直接使用 `logicTopology`。
 
 ---
 
@@ -247,8 +263,9 @@ graph TD
 **输出结构**：
 
 ```json
-{
-  "10001001": {
+[
+  {
+    "keywordCode": "10001001",
     "found": true,
     "results": [
       {
@@ -260,11 +277,12 @@ graph TD
       }
     ]
   },
-  "10002001": {
+  {
+    "keywordCode": "10002001",
     "found": false,
     "results": []
   }
-}
+]
 ```
 
 ##### 2.2 逐条认定（LLM 节点）
@@ -289,7 +307,7 @@ graph TD
 ```json
 {
   "ruleCode": "10003",
-  "result": "符合",
+  "ruleResult": "通过",
   "ruleContent": "有二级及以上医疗机构出具的病历资料"
 }
 ```
@@ -299,9 +317,9 @@ graph TD
 ```json
 {
   "ruleCode": "10001",
-  "result": "不符合",
+  "ruleResult": "不通过",
   "ruleContent": "各种原因造成慢性肾脏损伤，并出现肾功能异常达到尿毒症期",
-  "suspicion": [
+  "suspicionList": [
     {
       "type": "指标异常",
       "detail": "精解结果显示患者慢性肾脏病分期为CKD4期，但认定规则要求需达到尿毒症期（通常对应CKD5期）。",
@@ -309,12 +327,12 @@ graph TD
         {
           "materialName": "入院诊断",
           "materialId": "MAT-20250110-001",
-          "excerpt": "【诊断】1.慢性肾脏病4期 2.慢性肾小球肾炎"
+          "refContent": "【诊断】1.慢性肾脏病4期 2.慢性肾小球肾炎"
         },
         {
           "materialName": "病史摘要",
           "materialId": "MAT-20250110-003",
-          "excerpt": "【病史】半年前升至365μmol/L(CKD4期)。"
+          "refContent": "【病史】半年前升至365μmol/L(CKD4期)。"
         }
       ]
     }
@@ -354,33 +372,33 @@ graph TD
 
 **逻辑计算**：
 
-- `GROUP` + `AND`：所有子节点必须为"符合"
-- `GROUP` + `OR`：子节点任一为"符合"即可
+- `GROUP` + `AND`：所有子节点必须为"通过"
+- `GROUP` + `OR`：子节点任一为"通过"即可
 - `RULE_REF`：查找对应 ruleCode 的判断结果
 
 **输出结构**：
 
 ```json
 {
-  "finalResult": "不合规",
+  "finalResult": "不通过",
   "ruleResults": [
     {
       "ruleCode": "10001",
-      "result": "不符合",
+      "ruleResult": "不通过",
       "ruleContent": "各种原因造成慢性肾脏损伤...",
       "reasoningContent": "好的，我是一名经验丰富的医保审核专家...",
-      "suspicion": [...]
+      "suspicionList": [...]
     },
     {
       "ruleCode": "10002",
-      "result": "不符合",
+      "ruleResult": "不通过",
       "ruleContent": "需长期透析治疗",
       "reasoningContent": "...",
-      "suspicion": [...]
+      "suspicionList": [...]
     },
     {
       "ruleCode": "10003",
-      "result": "符合",
+      "ruleResult": "通过",
       "ruleContent": "有二级及以上医疗机构出具的病历资料",
       "reasoningContent": "..."
     }
@@ -390,48 +408,51 @@ graph TD
 
 ---
 
-#### 节点 4：审核结果输出（Jinja 模板）
+#### 节点 4：输出 advice
 
-**功能**：将结构化审核结果渲染为可读的 Markdown 格式。
+**功能**：根据 `finalResult` 和 `ruleResults` 生成面向审核人员的简洁结论。
 
-**模板示例**：
+核心要求：
 
-```jinja
-## 审核结果：{{ finalResult }}
-
-{% for item in ruleResults %}
----
-### 规则 {{ item.ruleCode }}：{{ item.result }}
-
-{% if item.ruleContent %}
-**规则说明**：{{ item.ruleContent }}
-{% endif %}
-
-{% if item.reasoningContent %}
-**推理过程**：
-{{ item.reasoningContent }}
-{% endif %}
-
-{%- if item.suspicion %}
-{%- for suspicionItem in item.suspicion %}
-#### 不符合点 {{ loop.index }}：{{ suspicionItem.type }}
-
-**详情**：{{ suspicionItem.detail }}
-
-**证据来源**：
-{%- for src in suspicionItem.sources %}
-- **{{ src.materialName }}**（{{ src.materialId }}）
-  > {{ src.excerpt }}
-{%- endfor %}
-
-{%- endfor %}
-{%- endif %}
-{% endfor %}
-```
+- 总审核结论只能以 `finalResult` 为准，不能因为存在单条不通过规则就反推总结果。
+- `finalResult` 为 `通过` 时，输出固定通过结论，不展开备选分支中的单条不通过规则。
+- `finalResult` 为 `不通过` 时，优先总结真正导致整体不通过的规则和证据。
+- 若未获取到有效 `finalResult`，不得自行判断通过或不通过。
 
 ---
 
-## 5. 工作流架构图
+## 5. Dify 与腾讯平台实现差异
+
+当前目录下同时维护两套平台落地文件：
+
+| 平台 | 目录 | 说明 |
+| ---- | ---- | ---- |
+| Dify | `DIFY工程-智能审核流程/` | 原始工作流工程，包含互斥病种并列审核、规则迭代、逻辑合并和 advice 输出。 |
+| 腾讯智能体平台 | `腾讯智能体平台-智能审核流程/` | 用于在腾讯智能体平台复刻审核流程，重点处理腾讯变量绑定、结构化输出 schema、子工作流出参包装等问题。 |
+
+### 主要差异点
+
+| 环节 | Dify | 腾讯智能体平台 |
+| ---- | ---- | ---- |
+| 代码节点入参 | 通常按函数参数传入，例如 `main(ruleResults, logicTopology, ...)` | 通常按 `main(params)` 接收整体对象，再从 `params` 中取字段 |
+| 逻辑拓扑传递 | 可直接传 `logicTopology` 对象 | 建议传 `logicTopologyStr` 字符串，代码节点再解析为对象 |
+| LLM 结构化输出 | 可按提示词约束输出数组或对象 | 结构化输出常有外层 `Output` 包装，需要在代码节点里拆包 |
+| 迭代子工作流出参 | 直接聚合迭代结果 | 可能包装为 `Output.one_rule_result`、`one_rule_result` 或 `output` |
+| 互斥病种审核 | Dify 工程中已有并列互斥病种审核节点 | 腾讯工程当前目录重点覆盖主规则审核链路，如需同等能力应单独补齐 |
+
+### 分层建议
+
+后续实现建议按“核心逻辑”和“平台适配”分层维护：
+
+- **核心逻辑层**：负责认定标准解析、规则数组生成、精解结果归一化、单条规则结果归一化、`logicTopology` AND/OR 计算、最终结果结构生成。
+- **Dify 适配层**：负责 Dify 节点函数签名、Dify 变量名、Dify 迭代输出结构、互斥病种并列节点输入输出。
+- **腾讯适配层**：负责 `params` 入参、`Output` 包装拆解、`logicTopologyStr` 解析、腾讯结构化输出 schema 兼容、子工作流出参拆包。
+
+这样可以保证两套平台共享同一套审核语义，只在平台边界处理差异，避免 Dify 和腾讯版本长期分叉。
+
+---
+
+## 6. 工作流架构图
 
 ```mermaid
 flowchart TD
@@ -440,23 +461,18 @@ flowchart TD
         A2[材料列表]
     end
 
-    subgraph 节点1-标准拆解
-        B[直接使用 ruleRepository<br/>作为可迭代数组]
+    subgraph 核心审核流程
+        B[节点1 标准拆解<br/>ruleRepository -> rulesArray]
+        C1[节点2.1 材料精解<br/>按 ruleKeywordGuide 提取证据]
+        C2[节点2.2 逐条认定<br/>生成 ruleResult]
+        C3[节点2.3 结果聚合<br/>合并认定/推理/精解]
+        D[节点3 逻辑合并<br/>按 logicTopology 计算 finalResult]
+        E[节点4 输出 advice<br/>生成审核结论]
     end
 
-    subgraph 节点2-迭代判断
-        C1[2.1 材料精解<br/>LLM 按指令提取结构化信息]
-        C2[2.2 逐条认定<br/>LLM 判断是否符合规则]
-        C3[2.3 结果聚合<br/>合并推理过程/精解/认定]
-        C1 --> C2 --> C3
-    end
-
-    subgraph 节点3-逻辑合并
-        D[根据 logicTopology<br/>AND/OR 逻辑合并结果]
-    end
-
-    subgraph 节点4-结果输出
-        E[Jinja 模板渲染<br/>生成审核报告]
+    subgraph 平台适配
+        P1[Dify 适配<br/>函数参数/迭代输出/互斥病种]
+        P2[腾讯适配<br/>params/Output包装/logicTopologyStr]
     end
 
     A1 --> B
@@ -466,11 +482,23 @@ flowchart TD
     C3 --> |迭代输出| D
     B --> |logicTopology| D
     D --> E
+    P1 -.-> B
+    P1 -.-> C1
+    P1 -.-> C2
+    P1 -.-> C3
+    P1 -.-> D
+    P1 -.-> E
+    P2 -.-> B
+    P2 -.-> C1
+    P2 -.-> C2
+    P2 -.-> C3
+    P2 -.-> D
+    P2 -.-> E
 ```
 
 ---
 
-## 6. 优势总结
+## 7. 优势总结
 
 1. **流量极简**：列表页只需加载拓扑树，无需加载沉重的规则文本。
 2. **复用性强**：同一条规则（如"三级医院校验"）可被多个逻辑组引用，修改一次处处生效。
@@ -478,3 +506,4 @@ flowchart TD
 4. **推理可追溯**：每条规则的判断都保留完整推理过程 (`reasoningContent`)，便于审计和问题排查。
 5. **精解与认定分离**：先提取结构化信息，再基于精解结果判断，避免 LLM 产生幻觉或依赖不存在的信息。
 6. **命名规范**：统一采用 camelCase 驼峰命名，与前端 JavaScript/TypeScript 代码风格保持一致。
+7. **平台可迁移**：核心审核协议与平台适配分离，便于在 Dify、腾讯智能体平台或其他工作流平台之间迁移。
