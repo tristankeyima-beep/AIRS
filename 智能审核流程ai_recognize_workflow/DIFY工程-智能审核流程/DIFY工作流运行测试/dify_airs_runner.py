@@ -799,91 +799,221 @@ def render_html(case_dir, record, workflow_run_id):
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AIRS 智能审核 Dify 调用记录</title>
   <style>
-    :root {{ --bg:#f3f5f7; --panel:#fff; --ink:#16212c; --muted:#65727d; --line:#d9e2e6; --green:#2f8f6b; --red:#b42318; --amber:#a15c07; --blue:#2f6f9f; --soft-green:#eef8f3; --soft-red:#fff1f0; --soft-amber:#fff8ec; --soft-blue:#eef6fb; }}
+    :root {{
+      color-scheme: light;
+      --bg: oklch(0.965 0.008 235);
+      --surface: oklch(0.992 0.004 235);
+      --surface-2: oklch(0.976 0.007 235);
+      --surface-3: oklch(0.947 0.01 235);
+      --ink: oklch(0.245 0.026 244);
+      --muted: oklch(0.515 0.027 244);
+      --faint: oklch(0.665 0.02 244);
+      --line: oklch(0.883 0.015 235);
+      --line-strong: oklch(0.81 0.018 235);
+      --accent: oklch(0.49 0.105 238);
+      --accent-ink: oklch(0.31 0.086 238);
+      --accent-soft: oklch(0.93 0.035 238);
+      --good: oklch(0.46 0.095 154);
+      --good-soft: oklch(0.94 0.04 154);
+      --bad: oklch(0.51 0.15 28);
+      --bad-soft: oklch(0.94 0.045 28);
+      --warn: oklch(0.58 0.11 72);
+      --warn-soft: oklch(0.95 0.045 72);
+      --shadow: 0 18px 44px oklch(0.34 0.03 240 / 0.08);
+      --shadow-tight: 0 8px 22px oklch(0.34 0.03 240 / 0.06);
+      --radius: 10px;
+      --radius-sm: 7px;
+    }}
     * {{ box-sizing: border-box; }}
     html {{ scroll-behavior: smooth; }}
-    body {{ margin: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.55; }}
-    .page {{ width: min(1440px, calc(100% - 32px)); margin: 0 auto; padding: 24px 0 56px; }}
-    .hero, .panel, .metric, .side-nav, .rule-card, .sub-panel {{ border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: 0 8px 24px rgba(23,33,43,.04); }}
-    .hero {{ display: grid; grid-template-columns: minmax(0,1fr) 220px; gap: 16px; padding: 22px; background: linear-gradient(135deg,#fff,var(--soft-blue)); }}
+    body {{
+      margin: 0;
+      background:
+        linear-gradient(180deg, oklch(0.982 0.008 235), var(--bg) 360px);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      line-height: 1.56;
+      text-rendering: optimizeLegibility;
+    }}
+    .page {{ width: min(1480px, calc(100% - 36px)); margin: 0 auto; padding: 22px 0 56px; }}
+    .hero, .panel, .metric, .side-nav, .rule-card, .sub-panel {{
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow-tight);
+    }}
+    .hero {{
+      display: grid;
+      grid-template-columns: minmax(0,1fr) auto;
+      gap: 20px;
+      align-items: center;
+      padding: 22px 24px;
+    }}
     h1,h2,h3,h4,p {{ margin: 0; }}
-    h1 {{ font-size: 26px; line-height: 1.25; }}
-    h2 {{ font-size: 18px; margin-bottom: 10px; }}
-    h3 {{ font-size: 16px; line-height: 1.45; }}
-    h4 {{ font-size: 14px; margin-bottom: 10px; }}
-    .section-subtitle {{ margin-top:16px; }}
+    h1 {{ font-size: 25px; line-height: 1.2; font-weight: 780; letter-spacing: 0; }}
+    h2 {{ font-size: 19px; line-height: 1.25; margin-bottom: 8px; font-weight: 760; }}
+    h3 {{ font-size: 16px; line-height: 1.42; font-weight: 730; }}
+    h4 {{ font-size: 13px; line-height: 1.3; margin-bottom: 8px; font-weight: 760; }}
+    .section-subtitle {{ margin-top:18px; }}
     .sub,.meta,.eyebrow {{ color: var(--muted); font-size: 13px; }}
-    .eyebrow {{ font-weight: 800; letter-spacing: 0; }}
-    .status-card {{ display: grid; align-content: center; justify-items: start; padding: 16px; border-radius: 8px; background: #102033; color: #fff; }}
-    .status-card strong {{ font-size: 30px; line-height: 1.15; }}
-    .layout {{ display: grid; grid-template-columns: 220px minmax(0,1fr); gap: 16px; margin-top: 16px; align-items: start; }}
-    .side-nav {{ position: sticky; top: 16px; padding: 12px; display: grid; gap: 8px; }}
-    .side-nav a {{ display: block; padding: 9px 10px; border-radius: 7px; color: var(--ink); text-decoration: none; font-size: 14px; }}
-    .side-nav a:hover {{ background: var(--soft-blue); }}
+    .eyebrow {{ font-weight: 800; letter-spacing: .01em; }}
+    .status-card {{
+      min-width: 178px;
+      display: grid;
+      align-content: center;
+      gap: 4px;
+      padding: 16px 18px;
+      border-radius: var(--radius);
+      background: var(--surface-2);
+      border: 1px solid var(--line-strong);
+    }}
+    .status-card span {{ color: var(--muted); font-size: 13px; font-weight: 760; }}
+    .status-card strong {{ font-size: 30px; line-height: 1.05; letter-spacing: 0; }}
+    .status-card.good {{ background: var(--good-soft); border-color: oklch(0.78 0.07 154); }}
+    .status-card.good strong {{ color: var(--good); }}
+    .status-card.bad {{ background: var(--bad-soft); border-color: oklch(0.82 0.08 28); }}
+    .status-card.bad strong {{ color: var(--bad); }}
+    .status-card.warn strong {{ color: var(--warn); }}
+    .layout {{ display: grid; grid-template-columns: 216px minmax(0,1fr); gap: 16px; margin-top: 16px; align-items: start; }}
+    .side-nav {{ position: sticky; top: 16px; padding: 10px; display: grid; gap: 4px; box-shadow: none; }}
+    .side-nav a {{
+      display: block;
+      padding: 10px 11px;
+      border-radius: var(--radius-sm);
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 720;
+      outline: none;
+    }}
+    .side-nav a:hover, .side-nav a:focus-visible {{ background: var(--accent-soft); color: var(--accent-ink); }}
     .content {{ min-width: 0; display: grid; gap: 16px; }}
-    .panel {{ padding: 18px; }}
-    .metrics {{ display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-top: 14px; }}
-    .metric {{ padding: 14px; box-shadow: none; }}
-    .metric strong {{ display:block; font-size:22px; line-height:1.2; }}
-    .pill,.value-pill {{ display:inline-flex; align-items:center; min-height:24px; padding:3px 9px; border-radius:999px; font-size:12px; font-weight:800; }}
-    .pill.good {{ background:var(--soft-green); color:var(--green); }}
-    .pill.bad {{ background:var(--soft-red); color:var(--red); }}
-    .pill.warn {{ background:var(--soft-amber); color:var(--amber); }}
-    .value-pill {{ background:var(--soft-blue); color:var(--blue); }}
-    .summary-grid {{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px; }}
-    .summary-box {{ border:1px solid var(--line); border-radius:8px; padding:14px; background:#fbfcfd; }}
-    .rule-overview-list {{ display:grid; gap:10px; margin-top:14px; }}
-    .overview-rule {{ border:1px solid var(--line); border-radius:8px; background:#fff; overflow:hidden; }}
-    .overview-rule summary {{ display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:12px; align-items:center; padding:12px 14px; cursor:pointer; }}
+    .panel {{ padding: 20px; }}
+    .metrics {{ display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin-top: 14px; }}
+    .metric {{ padding: 13px 14px; box-shadow: none; background: var(--surface-2); }}
+    .metric strong {{ display:block; font-size:22px; line-height:1.1; font-weight:780; }}
+    .metric span {{ color: var(--muted); font-size: 13px; }}
+    .pill,.value-pill {{
+      display:inline-flex;
+      align-items:center;
+      min-height:24px;
+      padding:3px 9px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:800;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }}
+    .pill.good {{ background:var(--good-soft); color:var(--good); border-color: oklch(0.82 0.055 154); }}
+    .pill.bad {{ background:var(--bad-soft); color:var(--bad); border-color: oklch(0.84 0.07 28); }}
+    .pill.warn {{ background:var(--warn-soft); color:var(--warn); border-color: oklch(0.86 0.065 72); }}
+    .value-pill {{ background:var(--accent-soft); color:var(--accent-ink); border-color: oklch(0.84 0.045 238); }}
+    .summary-grid {{ display:grid; grid-template-columns: 1.1fr .9fr; gap:10px; margin-top:12px; }}
+    .summary-box {{ border:1px solid var(--line); border-radius:var(--radius-sm); padding:14px; background:var(--surface-2); }}
+    .summary-box p {{ max-width: 74ch; }}
+    .rule-overview-list {{ display:grid; gap:10px; margin-top:12px; }}
+    .overview-rule {{ border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); overflow:hidden; }}
+    .overview-rule summary {{ display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:12px; align-items:center; padding:13px 14px; cursor:pointer; }}
     .overview-rule summary strong {{ display:block; font-size:14px; }}
-    .overview-rule summary em {{ display:inline-flex; margin-top:5px; padding:3px 8px; border-radius:999px; background:var(--soft-blue); color:var(--blue); font-style:normal; font-size:12px; font-weight:800; }}
-    .overview-rule-body {{ display:grid; grid-template-columns: 1.2fr 1fr; gap:12px; padding:0 14px 14px; border-top:1px solid var(--line); }}
-    .overview-rule-body > div {{ padding:12px; border-radius:8px; background:#fbfcfd; }}
-    .rule-card {{ margin-top: 14px; padding: 16px; box-shadow: none; }}
+    .overview-rule summary em {{
+      display:inline-flex;
+      margin-top:5px;
+      padding:3px 8px;
+      border-radius:999px;
+      background:var(--accent-soft);
+      color:var(--accent-ink);
+      font-style:normal;
+      font-size:12px;
+      font-weight:800;
+    }}
+    .overview-rule-body {{ display:grid; grid-template-columns: 1.25fr 1fr; gap:10px; padding:0 14px 14px; border-top:1px solid var(--line); }}
+    .overview-rule-body > div {{ padding:12px; border-radius:var(--radius-sm); background:var(--surface-2); }}
+    .overview-rule-body p {{ max-width: 75ch; }}
+    .rule-card {{ margin-top: 14px; padding: 0; box-shadow: none; overflow:hidden; }}
     .rule-card summary {{ cursor:pointer; }}
-    .rule-head {{ display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:12px; align-items:start; padding-bottom:14px; border-bottom:1px solid var(--line); }}
+    .rule-head {{ display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:12px; align-items:start; padding:16px; border-bottom:1px solid var(--line); }}
     .rule-head::-webkit-details-marker, .overview-rule summary::-webkit-details-marker {{ display:none; }}
-    .rule-head::before, .overview-rule summary::before {{ content:"展开"; justify-self:start; align-self:start; grid-column:1; grid-row:1; padding:3px 8px; border-radius:999px; background:#eef1f4; color:var(--muted); font-size:12px; font-weight:800; }}
+    .rule-head::before, .overview-rule summary::before {{
+      content:"展开";
+      justify-self:start;
+      align-self:start;
+      grid-column:1;
+      grid-row:1;
+      padding:3px 8px;
+      border-radius:999px;
+      background:var(--surface-3);
+      color:var(--muted);
+      font-size:12px;
+      font-weight:800;
+      border:1px solid var(--line);
+    }}
     .rule-card[open] > .rule-head::before, .overview-rule[open] > summary::before {{ content:"收起"; }}
     .rule-head > div, .overview-rule summary > span:first-of-type {{ grid-column:2; }}
     .rule-head > .pill, .overview-rule summary > .pill {{ grid-column:3; grid-row:1; }}
-    .rule-grid {{ display:grid; grid-template-columns: 1fr; gap:12px; margin-top:14px; }}
-    .sub-panel {{ padding:14px; box-shadow:none; background:#fbfcfd; }}
-    .keyword-card {{ border:1px solid var(--line); border-radius:8px; background:#fff; overflow:hidden; }}
+    .rule-grid {{ display:grid; grid-template-columns: 1fr; gap:12px; padding:14px; }}
+    .sub-panel {{ padding:14px; box-shadow:none; background:var(--surface-2); }}
+    .keyword-card {{ border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface); overflow:hidden; }}
     .keyword-card + .keyword-card {{ margin-top:10px; }}
     .keyword-card summary {{ display:flex; justify-content:space-between; gap:12px; align-items:center; padding:11px 12px; cursor:pointer; font-weight:800; }}
     table {{ width:100%; border-collapse:collapse; font-size:13px; }}
-    th,td {{ padding:9px 8px; border-top:1px solid var(--line); text-align:left; vertical-align:top; }}
-    th {{ color:var(--muted); font-weight:800; background:#f8fafb; }}
-    .evidence-text {{ color:#263746; }}
-    .decision-box {{ border-left:4px solid var(--blue); background:#f7fbfd; border-radius:8px; padding:12px; }}
+    th,td {{ padding:10px 9px; border-top:1px solid var(--line); text-align:left; vertical-align:top; }}
+    th {{ color:var(--muted); font-weight:800; background:var(--surface-3); }}
+    tr:hover td {{ background: oklch(0.982 0.006 238); }}
+    .evidence-text {{ color:var(--ink); max-width: 82ch; }}
+    .decision-box {{ border:1px solid oklch(0.82 0.055 238); background:var(--accent-soft); border-radius:var(--radius-sm); padding:13px; }}
     .decision-line {{ display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:8px; font-weight:800; }}
-    .reasoning-detail {{ margin-top:10px; border:1px solid var(--line); border-radius:8px; background:#fff; padding:10px 12px; }}
-    .reasoning-detail summary {{ cursor:pointer; font-weight:800; color:var(--blue); }}
+    .reasoning-detail {{ margin-top:10px; border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface); padding:10px 12px; }}
+    .reasoning-detail summary {{ cursor:pointer; font-weight:800; color:var(--accent-ink); }}
     .reasoning-detail pre {{ margin-top:10px; max-height:360px; }}
-    .suspicion-card {{ border-left:4px solid var(--blue); background:#f7fbfd; border-radius:8px; padding:12px; white-space:pre-wrap; }}
-    .suspicion-card {{ border-left-color:var(--red); background:#fff8f7; }}
+    .suspicion-card {{ border:1px solid oklch(0.84 0.07 28); background:var(--bad-soft); border-radius:var(--radius-sm); padding:13px; white-space:pre-wrap; }}
+    .suspicion-card h4 {{ color: var(--bad); }}
     .suspicion-card + .suspicion-card {{ margin-top:10px; }}
     .parallel-lanes {{ display:grid; gap:12px; margin:14px 0; }}
-    .rule-lane {{ border:1px solid var(--line); border-radius:8px; background:#fff; overflow:hidden; }}
-    .rule-lane summary {{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:center; padding:12px 14px; cursor:pointer; }}
+    .rule-lane {{ border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); overflow:hidden; }}
+    .rule-lane summary {{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:center; padding:13px 14px; cursor:pointer; }}
     .rule-lane summary strong {{ display:block; }}
     .rule-lane summary em {{ display:block; margin-top:2px; color:var(--muted); font-style:normal; font-size:12px; }}
-    .lane-total {{ font-weight:800; color:var(--blue); }}
-    .node-steps {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; padding:0 14px 14px; border-top:1px solid var(--line); }}
-    .node-step {{ padding:12px; border-radius:8px; background:#fbfcfd; border:1px solid var(--line); }}
+    .lane-total {{ font-weight:800; color:var(--accent-ink); }}
+    .node-steps {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(216px,1fr)); gap:10px; padding:0 14px 14px; border-top:1px solid var(--line); }}
+    .node-step {{ padding:12px; border-radius:var(--radius-sm); background:var(--surface-2); border:1px solid var(--line); }}
     .node-step-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:8px; min-height:32px; }}
-    .duration-bar {{ height:8px; margin:10px 0 8px; border-radius:999px; background:#e8eef2; overflow:hidden; }}
-    .duration-bar span {{ display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,var(--blue),#67a6c9); }}
+    .duration-bar {{ height:8px; margin:10px 0 8px; border-radius:999px; background:var(--surface-3); overflow:hidden; }}
+    .duration-bar span {{ display:block; height:100%; border-radius:999px; background:var(--accent); }}
     .source-list {{ margin:10px 0 0; padding-left:18px; }}
     .source-list p {{ margin-top:4px; }}
-    pre {{ overflow:auto; max-height:520px; margin:0; padding:12px; border-radius:8px; background:#0f1720; color:#d8e3ea; font-size:12px; line-height:1.55; white-space:pre-wrap; word-break:break-word; }}
-    details.raw-block {{ border:1px solid var(--line); border-radius:8px; background:#fff; padding:10px 12px; }}
+    pre {{
+      overflow:auto;
+      max-height:520px;
+      margin:0;
+      padding:12px;
+      border-radius:var(--radius-sm);
+      background:oklch(0.235 0.025 244);
+      color:oklch(0.91 0.018 235);
+      font-size:12px;
+      line-height:1.55;
+      white-space:pre-wrap;
+      word-break:break-word;
+    }}
+    details.raw-block {{ border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface); padding:10px 12px; }}
     details.raw-block + details.raw-block {{ margin-top:10px; }}
-    details.raw-block summary {{ cursor:pointer; font-weight:800; }}
+    details.raw-block summary {{ cursor:pointer; font-weight:800; color: var(--ink); }}
     .empty {{ color:var(--muted); font-size:13px; }}
-    @media (max-width: 980px) {{ .hero,.layout,.summary-grid,.rule-grid {{ grid-template-columns:1fr; }} .side-nav {{ position:static; }} .metrics {{ grid-template-columns:1fr 1fr; }} }}
-    @media (max-width: 620px) {{ .page {{ width:calc(100% - 20px); }} .metrics {{ grid-template-columns:1fr; }} .rule-head {{ grid-template-columns:1fr; }} }}
+    :focus-visible {{ outline: 2px solid var(--accent); outline-offset: 2px; }}
+    @media (max-width: 980px) {{
+      .hero,.layout,.summary-grid,.overview-rule-body {{ grid-template-columns:1fr; }}
+      .side-nav {{ position:static; grid-template-columns:repeat(2,minmax(0,1fr)); }}
+      .metrics {{ grid-template-columns:1fr 1fr; }}
+    }}
+    @media (max-width: 700px) {{
+      .page {{ width:calc(100% - 20px); padding-top:12px; }}
+      .metrics,.side-nav {{ grid-template-columns:1fr; }}
+      .hero {{ grid-template-columns:1fr; padding:18px; }}
+      .status-card {{ min-width:0; }}
+      .rule-head, .overview-rule summary {{ grid-template-columns:1fr; }}
+      .rule-head::before, .overview-rule summary::before, .rule-head > div, .overview-rule summary > span:first-of-type, .rule-head > .pill, .overview-rule summary > .pill {{ grid-column:1; grid-row:auto; }}
+      table {{ display:block; overflow-x:auto; white-space:nowrap; }}
+      .evidence-text {{ white-space:normal; min-width: 320px; }}
+    }}
   </style>
 </head>
 <body>
@@ -894,7 +1024,7 @@ def render_html(case_dir, record, workflow_run_id):
         <h1>{escape(str(metadata.get('patientName', '未知患者')))} · {escape(str(metadata.get('diseaseName', '未知病种')))}</h1>
         <p class="sub">{escape(record.get('startedAt', ''))} · workflow run id: {escape(workflow_run_id)}</p>
       </div>
-      <div class="status-card"><span>审核结论</span><strong>{escape(final_result)}</strong></div>
+      <div class="status-card {status_class(final_result)}"><span>审核结论</span><strong>{escape(final_result)}</strong></div>
     </header>
     <div class="layout">
       <nav class="side-nav" aria-label="结果导航">
