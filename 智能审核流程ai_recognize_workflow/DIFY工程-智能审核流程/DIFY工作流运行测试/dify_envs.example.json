@@ -1,0 +1,12 @@
+{
+  "test": {
+    "label": "测试环境",
+    "api_base": "https://dify.hzmarvel.com/v1",
+    "api_key": "app-your-test-key"
+  },
+  "prod": {
+    "label": "正式环境",
+    "api_base": "https://your-prod-dify.example.com/v1",
+    "api_key": "app-your-prod-key"
+  }
+}

@@ -6,19 +6,23 @@ import re
 import ssl
 import subprocess
 import tempfile
+import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 README_PATH = SCRIPT_DIR / "README.md"
+ENV_CONFIG_PATH = SCRIPT_DIR / "dify_envs.local.json"
 DEFAULT_API_BASE = "https://dify.hzmarvel.com/v1"
 DEFAULT_RESPONSE_MODE = "streaming"
 DEFAULT_USER = "dify-airs-workflow-test"
 LOCAL_TZ = ZoneInfo("Asia/Shanghai")
 INPUT_FILE_NAME = "入参.json"
+DEFAULT_ENV = "test"
+QC_REPORT_TEMPLATE_VERSION = 9
 
 
 class PrepareResult:
@@ -132,6 +136,41 @@ def read_api_key_from_readme(readme_path=README_PATH):
     return match.group(1)
 
 
+def load_environment(env_key=DEFAULT_ENV, config_path=ENV_CONFIG_PATH):
+    env_key = env_key or DEFAULT_ENV
+    path = Path(config_path)
+    if path.exists():
+        config = read_json_file(path)
+        if env_key not in config:
+            available = ", ".join(sorted(config.keys())) or "无"
+            raise RuntimeError(f"环境 {env_key} 未配置。可用环境：{available}")
+        env = dict(config[env_key])
+    elif env_key == DEFAULT_ENV:
+        env = {
+            "label": "测试环境",
+            "api_base": DEFAULT_API_BASE,
+            "api_key": read_api_key_from_readme(),
+        }
+    else:
+        raise RuntimeError(f"未找到环境配置文件：{path}")
+    env["key"] = env_key
+    env.setdefault("label", env_key)
+    env.setdefault("api_base", DEFAULT_API_BASE)
+    env.setdefault("verify_ssl", True)
+    if not env.get("api_key"):
+        raise RuntimeError(f"环境 {env_key} 未配置 api_key。")
+    return env
+
+
+def mask_secret_value(value):
+    text = str(value or "")
+    if not text:
+        return ""
+    if len(text) <= 8:
+        return "***"
+    return text[:4] + "***" + text[-4:]
+
+
 def shell_quote(value):
     text = str(value)
     if re.match(r"^[A-Za-z0-9_./:=@%+\-]+$", text):
@@ -139,19 +178,20 @@ def shell_quote(value):
     return '"' + re.sub(r'(["\\$`])', r"\\\1", text) + '"'
 
 
-def build_run_command(case_dir):
+def build_run_command(case_dir, env_key=""):
     relative_case = case_dir
     try:
         relative_case = case_dir.relative_to(SCRIPT_DIR)
     except ValueError:
         pass
+    env_arg = f" --env {shell_quote(env_key)}" if env_key else ""
     return (
         f"cd {shell_quote(SCRIPT_DIR)} && "
-        f"python3 dify_airs_runner.py run --case-dir {shell_quote(relative_case)}"
+        f"python3 dify_airs_runner.py run{env_arg} --case-dir {shell_quote(relative_case)}"
     )
 
 
-def prepare_input_file(input_path, output_root=None, now=None):
+def prepare_input_file(input_path, output_root=None, now=None, env_key=""):
     input_path = Path(input_path)
     output_root = Path(output_root) if output_root else SCRIPT_DIR / "userinput"
     now = now or now_local()
@@ -162,7 +202,7 @@ def prepare_input_file(input_path, output_root=None, now=None):
     safe_disease = sanitize_path_part(disease_name, "未知病种")
     case_dir = output_root / f"{safe_patient}_{safe_disease}_{compact_timestamp(now)}"
     case_dir.mkdir(parents=True, exist_ok=True)
-    terminal_command = build_run_command(case_dir)
+    terminal_command = build_run_command(case_dir, env_key)
     payload = {
         "metadata": {
             "patientName": patient_name,
@@ -170,6 +210,7 @@ def prepare_input_file(input_path, output_root=None, now=None):
             "recordedAt": display_timestamp(now),
             "timeZone": "Asia/Shanghai",
             "sourceInput": str(input_path),
+            "environment": env_key or "",
         },
         "raw_input": raw_input,
         "parsed_input": {
@@ -416,6 +457,110 @@ def collect_curl_response(record, stdout, stderr):
         collect_event_summary(record, event)
 
 
+def call_dify_json(api_base, api_key, path, params=None, timeout=120, verify_ssl=True):
+    query = urllib.parse.urlencode(params or {})
+    url = api_base.rstrip("/") + path
+    if query:
+        url += "?" + query
+    request = urllib.request.Request(
+        url,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        method="GET",
+    )
+    open_kwargs = {"timeout": timeout}
+    if url.startswith("https://"):
+        open_kwargs["context"] = create_ssl_context() if verify_ssl else ssl._create_unverified_context()
+    with urllib.request.urlopen(request, **open_kwargs) as response:
+        text = response.read().decode("utf-8", errors="replace")
+    return json.loads(text) if text.strip() else {}
+
+
+def parse_dify_time(value):
+    if value in (None, ""):
+        return None
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(float(value), LOCAL_TZ)
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.isdigit():
+        return datetime.fromtimestamp(int(text), LOCAL_TZ)
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    return datetime.fromisoformat(text).astimezone(LOCAL_TZ)
+
+
+def workflow_log_run(log_item):
+    if not isinstance(log_item, dict):
+        return {}
+    for key in ("workflow_run", "workflowRun", "run", "workflow_run_detail"):
+        if isinstance(log_item.get(key), dict):
+            merged = dict(log_item)
+            merged.update(log_item[key])
+            return merged
+    if isinstance(log_item.get("data"), dict) and (
+        log_item["data"].get("id") or log_item["data"].get("workflow_run_id")
+    ):
+        merged = dict(log_item)
+        merged.update(log_item["data"])
+        return merged
+    return log_item
+
+
+def workflow_run_id_from_log(log_item):
+    run = workflow_log_run(log_item)
+    for key in ("workflow_run_id", "workflowRunId", "id"):
+        if run.get(key):
+            return str(run[key])
+    return ""
+
+
+def is_log_within_range(log_item, start_time, end_time):
+    run = workflow_log_run(log_item)
+    created = parse_dify_time(run.get("created_at") or run.get("createdAt"))
+    if created is None:
+        return True
+    return start_time <= created <= end_time
+
+
+def fetch_workflow_logs(env, start_time, end_time, page_size=100):
+    logs = []
+    page = 1
+    while True:
+        payload = call_dify_json(
+            env["api_base"],
+            env["api_key"],
+            "/workflows/logs",
+            {"page": page, "limit": page_size},
+            verify_ssl=env.get("verify_ssl", True),
+        )
+        data = payload.get("data") if isinstance(payload, dict) else []
+        if not isinstance(data, list) or not data:
+            break
+        for item in data:
+            if is_log_within_range(item, start_time, end_time):
+                logs.append(item)
+        if len(data) < page_size or page >= 50:
+            break
+        page += 1
+    return logs
+
+
+def fetch_workflow_run_detail(env, run_id):
+    try:
+        payload = call_dify_json(
+            env["api_base"],
+            env["api_key"],
+            f"/workflows/run/{urllib.parse.quote(run_id)}",
+            verify_ssl=env.get("verify_ssl", True),
+        )
+        if isinstance(payload, dict) and isinstance(payload.get("data"), dict):
+            return payload["data"]
+        return payload
+    except Exception:
+        return {}
+
+
 def find_workflow_run_id(record):
     for event in record.get("events", []):
         payload = event.get("payload")
@@ -514,7 +659,7 @@ def render_keyword_guides(rule):
             continue
         found = "已命中" if guide.get("found") else "未命中"
         cards.append(
-            "<details class=\"keyword-card\">"
+            "<details class=\"keyword-card\" open>"
             f"<summary><span>{escape(str(guide.get('keywordCode', '提取项')))}</span><span class=\"pill {status_class(found)}\">{escape(found)}</span></summary>"
             f"{render_evidence_rows(guide.get('results') or [])}"
             "</details>"
@@ -592,43 +737,211 @@ def find_rule_relation(logic_node, rule_code, ancestors=None):
     return []
 
 
+def rule_repository_by_code(certification):
+    repository = certification.get("ruleRepository") if isinstance(certification, dict) else []
+    if not isinstance(repository, list):
+        return {}
+    return {
+        str(rule.get("ruleCode")): rule
+        for rule in repository
+        if isinstance(rule, dict) and rule.get("ruleCode")
+    }
+
+
+def rule_results_by_code(rules):
+    if not isinstance(rules, list):
+        return {}
+    return {
+        str(rule.get("ruleCode")): rule
+        for rule in rules
+        if isinstance(rule, dict) and rule.get("ruleCode")
+    }
+
+
+def rule_maintenance_issue(rule_repo):
+    if not isinstance(rule_repo, dict) or not rule_repo:
+        return "未在 ruleRepository 中维护该规则。"
+    guides = rule_repo.get("ruleKeywordGuide")
+    if not isinstance(guides, list) or not guides:
+        return "未维护提取项说明，规则库配置不完整。"
+    return ""
+
+
+def render_rule_maintenance_alert(rule_map, result_map):
+    issues = []
+    for rule_code in result_map:
+        issue = rule_maintenance_issue(rule_map.get(rule_code))
+        if issue:
+            title = ""
+            rule = rule_map.get(rule_code)
+            if isinstance(rule, dict):
+                title = rule.get("ruleContent") or ""
+            issues.append(
+                "<li>"
+                f"<strong>规则 {escape(rule_code)}</strong>"
+                f"<span>{escape(str(title))}</span>"
+                f"<em>{escape(issue)}</em>"
+                "</li>"
+            )
+    if not issues:
+        return ""
+    return (
+        "<div class=\"maintenance-alert\">"
+        "<h4>规则维护告警</h4>"
+        "<p>以下规则没有维护完整，会影响规则可解释性和质控追溯。</p>"
+        f"<ul>{''.join(issues)}</ul>"
+        "</div>"
+    )
+
+
+def render_overview_rule_detail(rule_code, rule, rule_map, relation_text, open_by_default=False):
+    rule = rule if isinstance(rule, dict) else {}
+    rule_repo = rule_map.get(rule_code) or {}
+    result = str(rule.get("ruleResult") or rule.get("reviewResult") or "未识别")
+    rule_title = rule.get("ruleContent") or rule_repo.get("ruleContent") or ""
+    open_attr = " open" if open_by_default else ""
+    maintenance_issue = rule_maintenance_issue(rule_repo)
+    maintenance_class = " maintenance-missing" if maintenance_issue else ""
+    maintenance_badge = (
+        f"<span class=\"maintenance-inline\">规则维护不完整：{escape(maintenance_issue)}</span>"
+        if maintenance_issue
+        else ""
+    )
+    return (
+        f"<details class=\"overview-rule logic-rule-detail{maintenance_class}\"{open_attr}>"
+        "<summary>"
+        "<span>"
+        f"<strong>规则 {escape(rule_code)}</strong>"
+        f"<em>{escape(relation_text)}</em>"
+        f"<span class=\"logic-rule-title\">规则原文：{escape(str(rule_title))}</span>"
+        f"{maintenance_badge}"
+        "</span>"
+        "<span class=\"summary-actions\">"
+        f"<span class=\"pill {status_class(result)}\">{escape(result)}</span>"
+        f"<button type=\"button\" class=\"process-link\" data-rule-code=\"{escape(rule_code)}\">查看审核过程</button>"
+        "</span>"
+        "</summary>"
+        "<div class=\"overview-rule-body\">"
+        f"{render_rule_repository_detail(rule_repo)}"
+        "</div>"
+        "</details>"
+    )
+
+
+def render_logic_topology_node(node, rule_map, result_map, logic_topology):
+    if not isinstance(node, dict):
+        return ""
+    node_type = str(node.get("type") or "").upper()
+    if node_type == "RULE_REF":
+        rule_code = str(node.get("ruleCode") or "")
+        operators = find_rule_relation(logic_topology, rule_code)
+        relation_text = " / ".join(operator_label(item) for item in operators) if operators else "未识别关系"
+        return (
+            "<li class=\"logic-rule-ref logic-rule-item\">"
+            f"{render_overview_rule_detail(rule_code, result_map.get(rule_code), rule_map, relation_text)}"
+            "</li>"
+        )
+    children = node.get("children") if isinstance(node.get("children"), list) else []
+    operator = str(node.get("operator") or "")
+    child_html = "".join(render_logic_topology_node(child, rule_map, result_map, logic_topology) for child in children)
+    return (
+        "<li class=\"logic-group\">"
+        f"<div class=\"logic-operator\">{escape(operator_label(operator))}</div>"
+        f"<ul>{child_html}</ul>"
+        "</li>"
+    )
+
+
+def render_logic_topology(logic_topology, rule_map, result_map):
+    if not isinstance(logic_topology, dict) or not logic_topology:
+        return "<p class=\"empty\">没有逻辑拓扑。</p>"
+    return (
+        "<section class=\"logic-topology\">"
+        "<h4>逻辑拓扑</h4>"
+        "<p class=\"sub\">按入参 logicTopology 展示规则之间的且或关系。</p>"
+        f"<ul class=\"logic-tree\">{render_logic_topology_node(logic_topology, rule_map, result_map, logic_topology)}</ul>"
+        "</section>"
+    )
+
+
+def render_keyword_definition_rows(guides):
+    if not isinstance(guides, list) or not guides:
+        return (
+            "<div class=\"maintenance-alert compact\">"
+            "<h4>规则维护不完整</h4>"
+            "<p>未维护提取项说明。请补充每一条提取项的数据结构，包括编号、内容、数据类型、是否必须等字段。</p>"
+            "</div>"
+        )
+    rows = []
+    for index, guide in enumerate(guides, 1):
+        if not isinstance(guide, dict):
+            continue
+        code = guide.get("keywordCode") or guide.get("code") or f"提取项{index}"
+        content = guide.get("keywordContent") or guide.get("content") or guide.get("name") or ""
+        data_type = guide.get("dataType") or guide.get("type") or ""
+        required = "是" if guide.get("required") is True else "否" if guide.get("required") is False else str(guide.get("required") or "")
+        rows.append(
+            "<tr>"
+            f"<td>{escape(str(code))}</td>"
+            f"<td>{escape(str(content))}</td>"
+            f"<td>{escape(str(data_type))}</td>"
+            f"<td>{escape(required)}</td>"
+            f"<td><pre>{escape(guide)}</pre></td>"
+            "</tr>"
+        )
+    return (
+        "<table class=\"keyword-definition-table\">"
+        "<thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>完整数据结构</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
+    )
+
+
+def render_rule_repository_detail(rule_repo):
+    if not isinstance(rule_repo, dict) or not rule_repo:
+        return "<div class=\"repo-detail\"><h4>规则库详情</h4><p class=\"empty\">未在 ruleRepository 中找到对应规则。</p></div>"
+    return (
+        "<div class=\"repo-detail\">"
+        "<h4>规则库详情</h4>"
+        "<div class=\"repo-grid\">"
+        "<div><h4>政策原文</h4>"
+        f"<p>{escape(str(rule_repo.get('ruleContent', '')))}</p></div>"
+        "<div><h4>政策依据</h4>"
+        f"<p>{escape(str(rule_repo.get('ruleSource', '')))}</p></div>"
+        "<div><h4>经验标准</h4>"
+        f"<p>{escape(str(rule_repo.get('experience', '')))}</p></div>"
+        "</div>"
+        "<h4>提取项说明</h4>"
+        f"{render_keyword_definition_rows(rule_repo.get('ruleKeywordGuide'))}"
+        "<details class=\"raw-block dev-data\"><summary>展开完整数据结构</summary>"
+        f"<pre>{escape(rule_repo)}</pre></details>"
+        "</div>"
+    )
+
+
 def render_rule_overview(final_outputs, certification):
     rules = final_outputs.get("ruleResults") if isinstance(final_outputs, dict) else []
     if not isinstance(rules, list) or not rules:
         return "<p class=\"empty\">没有规则判定总览。</p>"
     logic_topology = certification.get("logicTopology") if isinstance(certification, dict) else {}
+    rule_map = rule_repository_by_code(certification)
+    result_map = rule_results_by_code(rules)
+    if isinstance(logic_topology, dict) and logic_topology:
+        return render_logic_topology(logic_topology, rule_map, result_map)
     cards = []
     for index, rule in enumerate(rules, 1):
         if not isinstance(rule, dict):
             continue
         rule_code = str(rule.get("ruleCode") or f"规则{index}")
-        result = str(rule.get("ruleResult") or rule.get("reviewResult") or "未识别")
         operators = find_rule_relation(logic_topology, rule_code)
         relation_text = " / ".join(operator_label(item) for item in operators) if operators else "未识别关系"
-        cards.append(
-            "<details class=\"overview-rule\" open>"
-            "<summary>"
-            "<span>"
-            f"<strong>规则 {escape(rule_code)}</strong>"
-            f"<em>{escape(relation_text)}</em>"
-            "</span>"
-            f"<span class=\"pill {status_class(result)}\">{escape(result)}</span>"
-            "</summary>"
-            "<div class=\"overview-rule-body\">"
-            "<div><h4>规则原文</h4>"
-            f"<p>{escape(str(rule.get('ruleContent', '')))}</p></div>"
-            "<div><h4>不通过原因</h4>"
-            f"<p>{escape(rule_decision_summary(rule))}</p></div>"
-            "</div>"
-            "</details>"
-        )
+        cards.append(render_overview_rule_detail(rule_code, rule, rule_map, relation_text, open_by_default=True))
     return "<div class=\"rule-overview-list\">" + "".join(cards) + "</div>"
 
 
 def render_rule_cards(final_outputs):
     rules = final_outputs.get("ruleResults") if isinstance(final_outputs, dict) else []
     if not isinstance(rules, list) or not rules:
-        return "<section id=\"rules\" class=\"panel\"><h2>规则链路</h2><p class=\"empty\">没有规则审核明细。</p></section>"
+        return "<section id=\"rules\" class=\"panel\"><h2>AI判断过程</h2><p class=\"empty\">没有规则审核明细。</p></section>"
     cards = []
     for index, rule in enumerate(rules, 1):
         if not isinstance(rule, dict):
@@ -640,7 +953,7 @@ def render_rule_cards(final_outputs):
         if reasoning:
             reasoning_block = (
                 "<details class=\"reasoning-detail\">"
-                "<summary>完整模型推理过程</summary>"
+                "<summary>AI判断过程</summary>"
                 f"<pre>{escape(reasoning)}</pre>"
                 "</details>"
             )
@@ -652,20 +965,20 @@ def render_rule_cards(final_outputs):
             "</div>"
             f"<span class=\"pill {status_class(result)}\">{escape(result)}</span></summary>"
             "<div class=\"rule-grid\">"
-            "<section class=\"sub-panel\"><h4>提取规则与精解结果</h4>"
+            "<section class=\"sub-panel\"><h4>提取规则（以下内容由AI根据申请材料得出）</h4>"
             f"{render_keyword_guides(rule)}</section>"
-            "<section class=\"sub-panel\"><h4>逐条认定</h4>"
+            "<section class=\"sub-panel\"><h4>逐条认定（以下内容由AI给出）</h4>"
             "<div class=\"decision-box\">"
             "<div class=\"decision-line\"><span>认定结果</span>"
             f"<span class=\"pill {status_class(result)}\">{escape(result)}</span></div>"
             f"<p>{escape(rule_decision_summary(rule))}</p>"
             "</div>"
             f"{reasoning_block}</section>"
-            "<section class=\"sub-panel\"><h4>疑点说明</h4>"
+            "<section class=\"sub-panel\"><h4>疑点说明（以下内容由AI给出）</h4>"
             f"{render_suspicion_list(rule)}</section>"
             "</div></details>"
         )
-    return "<section id=\"rules\" class=\"panel\"><h2>规则链路</h2><p class=\"sub\">按规则查看：规则定义、提取证据、逐条认定和疑点来源。</p>" + "".join(cards) + "</section>"
+    return "<section id=\"rules\" class=\"panel\"><h2>AI判断过程</h2><p class=\"sub\">按规则查看：规则定义、提取证据、逐条认定和疑点来源。</p>" + "".join(cards) + "</section>"
 
 
 def format_duration(seconds):
@@ -876,6 +1189,9 @@ def render_html(case_dir, record, workflow_run_id):
     .status-card.warn strong {{ color: var(--warn); }}
     .layout {{ display: grid; grid-template-columns: 216px minmax(0,1fr); gap: 16px; margin-top: 16px; align-items: start; }}
     .side-nav {{ position: sticky; top: 16px; padding: 10px; display: grid; gap: 4px; box-shadow: none; }}
+    .nav-group {{ display:grid; gap:4px; }}
+    .nav-group + .nav-group {{ margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }}
+    .nav-group-title {{ padding:6px 10px 4px; color:var(--muted); font-size:12px; font-weight:820; }}
     .side-nav a {{
       display: block;
       padding: 10px 11px;
@@ -929,6 +1245,33 @@ def render_html(case_dir, record, workflow_run_id):
     .overview-rule-body {{ display:grid; grid-template-columns: 1.25fr 1fr; gap:10px; padding:0 14px 14px; border-top:1px solid var(--line); }}
     .overview-rule-body > div {{ padding:12px; border-radius:var(--radius-sm); background:var(--surface-2); }}
     .overview-rule-body p {{ max-width: 75ch; }}
+    .logic-topology {{ margin-top:12px; padding:14px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface-2); }}
+    .logic-tree, .logic-tree ul {{ list-style:none; margin:10px 0 0; padding-left:18px; }}
+    .logic-tree > li {{ margin-top:0; }}
+    .logic-group, .logic-rule-ref {{ position:relative; margin:8px 0; }}
+    .logic-group::before, .logic-rule-ref::before {{ content:""; position:absolute; left:-12px; top:13px; width:8px; border-top:1px solid var(--line-strong); }}
+    .logic-operator {{ display:inline-flex; padding:4px 9px; border-radius:999px; background:var(--accent-soft); color:var(--accent-ink); font-size:12px; font-weight:800; }}
+    .logic-rule-ref {{ display:grid; grid-template-columns:auto minmax(0,1fr); gap:8px; align-items:start; padding:8px 10px; border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface); }}
+    .logic-rule-item {{ display:block; padding:0; border:0; background:transparent; }}
+    .logic-rule-detail {{ box-shadow:none; }}
+    .logic-rule-detail summary {{ background:var(--surface); }}
+    .logic-rule-detail.maintenance-missing {{ border-color:oklch(0.74 0.13 28); background:var(--bad-soft); }}
+    .logic-rule-detail.maintenance-missing summary {{ background:oklch(0.965 0.032 28); }}
+    .logic-rule-title {{ display:block; margin-top:5px; color:var(--ink); font-size:14px; font-weight:760; }}
+    .logic-rule-code {{ font-weight:800; color:var(--accent-ink); white-space:nowrap; }}
+    .maintenance-inline {{ display:block; margin-top:6px; color:var(--bad); font-size:12px; font-weight:800; }}
+    .maintenance-alert {{ margin-top:12px; padding:12px; border:1px solid oklch(0.78 0.12 28); border-radius:var(--radius-sm); background:var(--bad-soft); color:var(--ink); }}
+    .maintenance-alert h4 {{ color:var(--bad); }}
+    .maintenance-alert p {{ color:var(--bad); font-weight:720; }}
+    .maintenance-alert ul {{ margin:8px 0 0; padding-left:18px; }}
+    .maintenance-alert li + li {{ margin-top:6px; }}
+    .maintenance-alert li span {{ display:block; margin-top:2px; }}
+    .maintenance-alert li em {{ display:block; margin-top:2px; color:var(--bad); font-style:normal; font-weight:800; }}
+    .maintenance-alert.compact {{ margin-top:0; }}
+    .repo-detail {{ grid-column:1 / -1; }}
+    .repo-grid {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:12px; }}
+    .repo-grid > div {{ padding:10px; border-radius:var(--radius-sm); border:1px solid var(--line); background:var(--surface); }}
+    .keyword-definition-table pre {{ max-height:220px; min-width:260px; }}
     .rule-card {{ margin-top: 14px; padding: 0; box-shadow: none; overflow:hidden; }}
     .rule-card summary {{ cursor:pointer; }}
     .rule-head {{ display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:12px; align-items:start; padding:16px; border-bottom:1px solid var(--line); }}
@@ -945,11 +1288,16 @@ def render_html(case_dir, record, workflow_run_id):
       color:var(--muted);
       font-size:12px;
       font-weight:800;
-      border:1px solid var(--line);
+      border:1px solid oklch(0.72 0.11 238);
+      background:var(--accent-soft);
+      color:var(--accent-ink);
     }}
     .rule-card[open] > .rule-head::before, .overview-rule[open] > summary::before {{ content:"收起"; }}
     .rule-head > div, .overview-rule summary > span:first-of-type {{ grid-column:2; }}
-    .rule-head > .pill, .overview-rule summary > .pill {{ grid-column:3; grid-row:1; }}
+    .rule-head > .pill {{ grid-column:3; grid-row:1; }}
+    .summary-actions {{ grid-column:3; grid-row:1; display:flex; flex-direction:column; gap:8px; align-items:flex-end; }}
+    .process-link {{ cursor:pointer; border:1px solid oklch(0.72 0.11 238); background:var(--accent-soft); color:var(--accent-ink); border-radius:999px; padding:5px 10px; font-size:12px; font-weight:800; }}
+    .process-link:hover, .process-link:focus-visible {{ background:oklch(0.91 0.045 238); }}
     .rule-grid {{ display:grid; grid-template-columns: 1fr; gap:12px; padding:14px; }}
     .sub-panel {{ padding:14px; box-shadow:none; background:var(--surface-2); }}
     .keyword-card {{ border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface); overflow:hidden; }}
@@ -963,7 +1311,7 @@ def render_html(case_dir, record, workflow_run_id):
     .decision-box {{ border:1px solid oklch(0.82 0.055 238); background:var(--accent-soft); border-radius:var(--radius-sm); padding:13px; }}
     .decision-line {{ display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:8px; font-weight:800; }}
     .reasoning-detail {{ margin-top:10px; border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface); padding:10px 12px; }}
-    .reasoning-detail summary {{ cursor:pointer; font-weight:800; color:var(--accent-ink); }}
+    .reasoning-detail summary {{ cursor:pointer; font-weight:800; color:var(--accent-ink); padding:7px 10px; border-radius:var(--radius-sm); background:var(--accent-soft); border:1px solid oklch(0.72 0.11 238); }}
     .reasoning-detail pre {{ margin-top:10px; max-height:360px; }}
     .suspicion-card {{ border:1px solid oklch(0.84 0.07 28); background:var(--bad-soft); border-radius:var(--radius-sm); padding:13px; white-space:pre-wrap; }}
     .suspicion-card h4 {{ color: var(--bad); }}
@@ -996,11 +1344,15 @@ def render_html(case_dir, record, workflow_run_id):
     }}
     details.raw-block {{ border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface); padding:10px 12px; }}
     details.raw-block + details.raw-block {{ margin-top:10px; }}
-    details.raw-block summary {{ cursor:pointer; font-weight:800; color: var(--ink); }}
+    details.raw-block summary {{ cursor:pointer; font-weight:800; color:var(--accent-ink); display:inline-flex; padding:7px 10px; border-radius:var(--radius-sm); background:var(--accent-soft); border:1px solid oklch(0.72 0.11 238); }}
+    details.raw-block.dev-data {{ border:0; background:transparent; padding:8px 0 0; }}
+    details.raw-block.dev-data summary {{ background:transparent; border:0; padding:0; text-decoration:underline; text-underline-offset:3px; }}
+    details.raw-block.dev-data pre {{ margin-top:10px; }}
     .empty {{ color:var(--muted); font-size:13px; }}
     :focus-visible {{ outline: 2px solid var(--accent); outline-offset: 2px; }}
     @media (max-width: 980px) {{
       .hero,.layout,.summary-grid,.overview-rule-body {{ grid-template-columns:1fr; }}
+      .repo-grid {{ grid-template-columns:1fr; }}
       .side-nav {{ position:static; grid-template-columns:repeat(2,minmax(0,1fr)); }}
       .metrics {{ grid-template-columns:1fr 1fr; }}
     }}
@@ -1010,7 +1362,7 @@ def render_html(case_dir, record, workflow_run_id):
       .hero {{ grid-template-columns:1fr; padding:18px; }}
       .status-card {{ min-width:0; }}
       .rule-head, .overview-rule summary {{ grid-template-columns:1fr; }}
-      .rule-head::before, .overview-rule summary::before, .rule-head > div, .overview-rule summary > span:first-of-type, .rule-head > .pill, .overview-rule summary > .pill {{ grid-column:1; grid-row:auto; }}
+      .rule-head::before, .overview-rule summary::before, .rule-head > div, .overview-rule summary > span:first-of-type, .rule-head > .pill, .summary-actions {{ grid-column:1; grid-row:auto; align-items:flex-start; }}
       table {{ display:block; overflow-x:auto; white-space:nowrap; }}
       .evidence-text {{ white-space:normal; min-width: 320px; }}
     }}
@@ -1028,11 +1380,17 @@ def render_html(case_dir, record, workflow_run_id):
     </header>
     <div class="layout">
       <nav class="side-nav" aria-label="结果导航">
-        <a href="#overview">审核结论</a>
-        <a href="#rules">规则链路</a>
-        <a href="#nodes">节点时间线</a>
-        <a href="#io">请求与入参</a>
-        <a href="#raw">完整原始数据</a>
+        <div class="nav-group">
+          <div class="nav-group-title">专家关注</div>
+          <a href="#overview">审核结论</a>
+          <a href="#rules">AI判断过程</a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-title">开发问题排查</div>
+          <a href="#nodes">节点时间线</a>
+          <a href="#io">请求与入参</a>
+          <a href="#raw">完整原始数据</a>
+        </div>
       </nav>
       <div class="content">
         <section id="overview" class="panel">
@@ -1073,12 +1431,315 @@ def render_html(case_dir, record, workflow_run_id):
       </div>
     </div>
   </main>
+  <script>
+    document.addEventListener('click', function(event) {{
+      const trigger = event.target.closest('.process-link');
+      if (!trigger) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const ruleCode = trigger.dataset.ruleCode;
+      const target = document.getElementById('rule-' + ruleCode);
+      if (!target) return;
+      document.querySelectorAll('.rule-card').forEach(function(card) {{
+        card.open = card === target;
+      }});
+      target.open = true;
+      target.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+    }}, true);
+  </script>
 </body>
 </html>"""
 
 
+def qc_date_range(start_time, end_time):
+    return f"{start_time.strftime('%Y%m%d')}-{end_time.strftime('%Y%m%d')}"
+
+
+def read_qc_index(index_path):
+    path = Path(index_path)
+    if not path.exists():
+        return {"reports": {}}
+    try:
+        data = read_json_file(path)
+    except Exception:
+        return {"reports": {}}
+    if not isinstance(data, dict):
+        return {"reports": {}}
+    data.setdefault("reports", {})
+    return data
+
+
+def extract_qc_outputs(run):
+    outputs = run.get("outputs") or run.get("finalOutputs") or {}
+    if isinstance(outputs, str):
+        parsed = parse_maybe_json(outputs)
+        return parsed if isinstance(parsed, dict) else {"text": outputs}
+    return outputs if isinstance(outputs, dict) else {}
+
+
+def extract_qc_inputs(run):
+    inputs = run.get("inputs") or {}
+    if isinstance(inputs, str):
+        parsed = parse_maybe_json(inputs)
+        return parsed if isinstance(parsed, dict) else {"text": inputs}
+    return inputs if isinstance(inputs, dict) else {}
+
+
+def parse_nested_json_field(mapping, key):
+    if not isinstance(mapping, dict):
+        return None
+    return parse_maybe_json(mapping.get(key))
+
+
+def extract_qc_patient_name(inputs):
+    for key in ("patientName", "patient_name", "姓名"):
+        value = inputs.get(key) if isinstance(inputs, dict) else ""
+        if value:
+            return str(value)
+    materials = parse_nested_json_field(inputs, "material_list")
+    if isinstance(materials, list):
+        return extract_patient_name(inputs, materials)
+    return "未知患者"
+
+
+def extract_qc_disease_name(inputs):
+    certification = parse_nested_json_field(inputs, "certification_list")
+    if isinstance(certification, dict):
+        disease = certification.get("meta", {}).get("chronicDiseaseName")
+        if disease:
+            return str(disease)
+    if isinstance(inputs, dict):
+        return str(inputs.get("chronicDiseaseName") or "未知病种")
+    return "未知病种"
+
+
+def qc_final_result(run, outputs):
+    return str(outputs.get("finalResult") or outputs.get("reviewResult") or run.get("status") or "未识别")
+
+
+def qc_report_metadata(log_item, run_id):
+    run = workflow_log_run(log_item)
+    inputs = extract_qc_inputs(run)
+    outputs = extract_qc_outputs(run)
+    created_at = parse_dify_time(run.get("created_at") or run.get("createdAt"))
+    audit_time = display_timestamp(created_at) if created_at else ""
+    audit_stamp = compact_timestamp(created_at) if created_at else "未知时间"
+    patient_name = extract_qc_patient_name(inputs)
+    disease_name = extract_qc_disease_name(inputs)
+    final_result = qc_final_result(run, outputs)
+    filename = "_".join(
+        sanitize_path_part(part, fallback)
+        for part, fallback in (
+            (audit_stamp, "未知时间"),
+            (patient_name, "未知患者"),
+            (disease_name, "未知病种"),
+            (final_result, "未识别"),
+            (run_id, "no-workflowrunid"),
+        )
+    ) + "_qc.html"
+    return {
+        "run_id": run_id,
+        "patient_name": patient_name,
+        "disease_name": disease_name,
+        "audit_time": audit_time,
+        "audit_stamp": audit_stamp,
+        "final_result": final_result,
+        "filename": filename,
+        "status": str(run.get("status", "")),
+    }
+
+
+def count_qc_suspicions(rule_results):
+    total = 0
+    for rule in rule_results:
+        if isinstance(rule, dict) and isinstance(rule.get("suspicionList"), list):
+            total += len(rule["suspicionList"])
+    return total
+
+
+def render_qc_rule_rows(rule_results):
+    if not rule_results:
+        return "<tr><td colspan=\"4\" class=\"empty\">没有规则明细。</td></tr>"
+    rows = []
+    for rule in rule_results:
+        if not isinstance(rule, dict):
+            continue
+        suspicions = rule.get("suspicionList") if isinstance(rule.get("suspicionList"), list) else []
+        suspicion_text = "；".join(
+            str(item.get("suspicionType") or item.get("detail") or "")
+            for item in suspicions
+            if isinstance(item, dict)
+        )
+        rows.append(
+            "<tr>"
+            f"<td>{escape(str(rule.get('ruleCode', '')))}</td>"
+            f"<td><span class=\"pill {status_class(rule.get('ruleResult'))}\">{escape(str(rule.get('ruleResult', '未识别')))}</span></td>"
+            f"<td>{escape(str(rule.get('reasoningContent') or rule.get('reason') or ''))}</td>"
+            f"<td>{escape(suspicion_text)}</td>"
+            "</tr>"
+        )
+    return "".join(rows) or "<tr><td colspan=\"4\" class=\"empty\">没有规则明细。</td></tr>"
+
+
+def render_qc_report(env, log_item, run_id):
+    run = workflow_log_run(log_item)
+    outputs = extract_qc_outputs(run)
+    inputs = extract_qc_inputs(run)
+    metadata = qc_report_metadata(log_item, run_id)
+    created_at = parse_dify_time(run.get("created_at") or run.get("createdAt"))
+    finished_at = parse_dify_time(run.get("finished_at") or run.get("finishedAt"))
+    case = {
+        "metadata": {
+            "patientName": metadata["patient_name"],
+            "diseaseName": metadata["disease_name"],
+            "recordedAt": metadata["audit_time"],
+            "timeZone": "Asia/Shanghai",
+            "sourceInput": f"dify logs · {env.get('key')}",
+            "environment": env.get("key"),
+        },
+        "raw_input": inputs,
+        "parsed_input": {
+            "certification_list": parse_nested_json_field(inputs, "certification_list"),
+            "material_list": parse_nested_json_field(inputs, "material_list"),
+        },
+        "dify_payload": {
+            "inputs": inputs,
+            "response_mode": DEFAULT_RESPONSE_MODE,
+            "user": DEFAULT_USER,
+        },
+        "terminal_command": (
+            f"python3 dify_airs_runner.py qc-report --env {env.get('key')} "
+            f"--start {metadata['audit_time'] or ''}"
+        ),
+    }
+    record = {
+        "startedAt": display_timestamp(created_at) if created_at else "",
+        "endedAt": display_timestamp(finished_at) if finished_at else "",
+        "timeZone": "Asia/Shanghai",
+        "caseMetadata": case["metadata"],
+        "terminalCommand": case["terminal_command"],
+        "request": {
+            "method": "GET",
+            "url": f"{str(env.get('api_base', '')).rstrip('/')}/workflows/run/{run_id}",
+            "headers": {"Authorization": "Bearer ***", "Content-Type": "application/json"},
+            "body": None,
+        },
+        "response": {
+            "status": run.get("status"),
+            "reason": "",
+            "headers": {},
+            "body": {
+                "total_tokens": run.get("total_tokens"),
+                "total_steps": run.get("total_steps"),
+                "environment": {"key": env.get("key"), "label": env.get("label")},
+            },
+        },
+        "events": [],
+        "nodeRuns": qc_node_runs(run, outputs),
+        "finalOutputs": outputs,
+        "error": {"type": "DifyWorkflowError", "message": str(run.get("error"))} if run.get("error") else None,
+    }
+    return render_html_from_case(case, record, run_id)
+
+
+def render_html_from_case(case, record, workflow_run_id):
+    original_get_case_metadata = get_case_metadata
+    try:
+        globals()["get_case_metadata"] = lambda _case_dir: case
+        return render_html(SCRIPT_DIR, record, workflow_run_id)
+    finally:
+        globals()["get_case_metadata"] = original_get_case_metadata
+
+
+def qc_node_runs(run, outputs):
+    if isinstance(run.get("nodeRuns"), list):
+        return run["nodeRuns"]
+    return [
+        {
+            "id": str(run.get("id") or ""),
+            "title": "Dify 工作流运行",
+            "type": "workflow",
+            "status": run.get("status") or "",
+            "elapsedSeconds": run.get("elapsed_time") or run.get("elapsedTime"),
+            "inputs": None,
+            "processData": None,
+            "outputs": outputs,
+        }
+    ]
+
+
+def write_qc_index_page(output_dir, env, range_label, generated_reports):
+    links = []
+    for item in generated_reports:
+        links.append(
+            "<tr>"
+            f"<td>{escape(item['patient_name'])}</td>"
+            f"<td>{escape(item['disease_name'])}</td>"
+            f"<td>{escape(item['audit_time'])}</td>"
+            f"<td>{escape(item['final_result'])}</td>"
+            f"<td>{escape(item['run_id'])}</td>"
+            f"<td><a href=\"{escape(item['filename'])}\">打开报告</a></td>"
+            "</tr>"
+        )
+    body = "".join(links) or "<tr><td colspan=\"6\">本次没有新增报告。</td></tr>"
+    html_text = f"""<!doctype html><html lang="zh-CN"><head><meta charset="utf-8" /><title>AIRS Dify 质控报告索引</title>
+<style>body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;background:#f5f7fa;color:#1f2937;margin:0}}main{{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:24px 0}}section{{background:#fff;border:1px solid #d8dee8;border-radius:10px;padding:18px 20px}}table{{width:100%;border-collapse:collapse}}th,td{{border-top:1px solid #e2e8f0;padding:9px;text-align:left}}a{{color:#1d4ed8}}</style></head>
+<body><main><section><h1>AIRS Dify 质控报告索引</h1><p>{escape(str(env.get('label')))} · {escape(range_label)}</p><table><thead><tr><th>患者姓名</th><th>申请病种</th><th>发起审核时间</th><th>智能审核结果</th><th>Workflow Run ID</th><th>报告</th></tr></thead><tbody>{body}</tbody></table></section></main></body></html>"""
+    (output_dir / "index.html").write_text(html_text, encoding="utf-8")
+
+
+def write_qc_reports(env, logs, output_root, start_time, end_time):
+    env_key = sanitize_path_part(env.get("key") or DEFAULT_ENV, DEFAULT_ENV)
+    range_label = qc_date_range(start_time, end_time)
+    env_dir = Path(output_root) / env_key
+    output_dir = env_dir / range_label
+    output_dir.mkdir(parents=True, exist_ok=True)
+    index_path = env_dir / "qc-report-index.json"
+    index = read_qc_index(index_path)
+    created = 0
+    skipped = 0
+    generated_reports = []
+    for item in logs:
+        run_id = workflow_run_id_from_log(item)
+        if not run_id:
+            continue
+        key = f"{env_key}:{run_id}"
+        metadata = qc_report_metadata(item, run_id)
+        report_path = output_dir / metadata["filename"]
+        previous_value = index["reports"].get(key, "")
+        previous_path = Path(previous_value) if previous_value else None
+        same_template = index.get("templateVersion") == QC_REPORT_TEMPLATE_VERSION
+        if key in index["reports"] and previous_path.name == report_path.name and report_path.exists() and same_template:
+            skipped += 1
+            generated_reports.append(metadata)
+            continue
+        if previous_path and previous_path.exists() and previous_path != report_path:
+            previous_path.unlink()
+        report_path.write_text(render_qc_report(env, item, run_id), encoding="utf-8")
+        index["reports"][key] = str(report_path)
+        created += 1
+        generated_reports.append(metadata)
+    index["updatedAt"] = display_timestamp(now_local())
+    index["templateVersion"] = QC_REPORT_TEMPLATE_VERSION
+    index["environment"] = {"key": env.get("key"), "label": env.get("label"), "api_base": env.get("api_base")}
+    write_json_file(index_path, index)
+    write_qc_index_page(output_dir, env, range_label, generated_reports)
+    return {"created": created, "skipped": skipped, "output_dir": output_dir, "index_path": index_path}
+
+
+def parse_qc_time_range(start_value, end_value, days, now=None):
+    now = now or now_local()
+    end_time = parse_local_time(end_value) if end_value else now
+    start_time = parse_local_time(start_value) if start_value else end_time - timedelta(days=max(1, int(days)))
+    if start_time > end_time:
+        raise RuntimeError("质控查询开始时间不能晚于结束时间。")
+    return start_time, end_time
+
+
 def command_prepare_input(args):
-    result = prepare_input_file(Path(args.input), SCRIPT_DIR / "userinput")
+    env_key = getattr(args, "env", "") or ""
+    output_root = SCRIPT_DIR / "userinput" / env_key if env_key else SCRIPT_DIR / "userinput"
+    result = prepare_input_file(Path(args.input), output_root, env_key=env_key)
     print(f"已生成结构化入参：{result.input_path}")
     print(f"患者名称：{result.patient_name}")
     print(f"申请病种：{result.disease_name}")
@@ -1088,8 +1749,9 @@ def command_prepare_input(args):
 
 def command_run(args):
     case_dir, case_record = load_case_input(Path(args.case_dir))
-    api_key = args.api_key or read_api_key_from_readme()
-    api_base = args.api_base or DEFAULT_API_BASE
+    env = load_environment(args.env)
+    api_key = args.api_key or env["api_key"]
+    api_base = args.api_base or env["api_base"]
     response_mode = args.response_mode or DEFAULT_RESPONSE_MODE
     call_time = now_local()
     record = call_dify_workflow(case_record, api_base, api_key, response_mode, args.transport)
@@ -1100,6 +1762,27 @@ def command_run(args):
     hint = get_run_error_hint(record)
     if hint:
         print(f"错误提示：{hint}")
+
+
+def command_qc_report(args):
+    env = load_environment(args.env)
+    start_time, end_time = parse_qc_time_range(args.start, args.end, args.days)
+    logs = fetch_workflow_logs(env, start_time, end_time, args.page_size)
+    enriched = []
+    for item in logs:
+        run_id = workflow_run_id_from_log(item)
+        detail = fetch_workflow_run_detail(env, run_id) if run_id else {}
+        if detail:
+            merged = dict(workflow_log_run(item))
+            merged.update(detail)
+            enriched.append(merged)
+        else:
+            enriched.append(item)
+    result = write_qc_reports(env, enriched, SCRIPT_DIR / "qc_reports", start_time, end_time)
+    print(f"质控报告目录：{result['output_dir']}")
+    print(f"新增报告：{result['created']}")
+    print(f"跳过已生成：{result['skipped']}")
+    print(f"质控索引：{result['index_path']}")
 
 
 def command_render_html(args):
@@ -1118,12 +1801,14 @@ def build_parser():
 
     prepare = subparsers.add_parser("prepare-input", help="结构化测试者入参并生成可执行命令")
     prepare.add_argument("--input", required=True, help="测试者提供的原始入参 JSON")
+    prepare.add_argument("--env", default=DEFAULT_ENV, help="环境标识，例如 test/prod；默认 test")
     prepare.set_defaults(func=command_prepare_input)
 
     run = subparsers.add_parser("run", help="调用 AIRS 智能审核 Dify 工作流")
     run.add_argument("--case-dir", required=True, help="prepare-input 生成的 userinput 子目录")
-    run.add_argument("--api-base", default=DEFAULT_API_BASE, help="Dify API base")
-    run.add_argument("--api-key", default="", help="Dify API Key；不传时从 README.md 读取")
+    run.add_argument("--env", default=DEFAULT_ENV, help="环境标识，例如 test/prod；默认 test")
+    run.add_argument("--api-base", default="", help="Dify API base；不传时从环境配置读取")
+    run.add_argument("--api-key", default="", help="Dify API Key；不传时从环境配置读取")
     run.add_argument("--response-mode", default=DEFAULT_RESPONSE_MODE, choices=("streaming", "blocking"))
     run.add_argument("--transport", default="curl", choices=("curl", "urllib"), help="调用传输方式，默认 curl")
     run.set_defaults(func=command_run)
@@ -1132,6 +1817,14 @@ def build_parser():
     render.add_argument("--record", required=True, help="raw-result.json 文件")
     render.add_argument("--case-dir", default="", help="可选：对应 case 目录")
     render.set_defaults(func=command_render_html)
+
+    qc = subparsers.add_parser("qc-report", help="查询最近几天 Dify 调用记录并生成逐次质控 HTML")
+    qc.add_argument("--env", default=DEFAULT_ENV, help="环境标识，例如 test/prod；默认 test")
+    qc.add_argument("--days", type=int, default=3, help="查询最近几天调用记录；默认 3")
+    qc.add_argument("--start", default="", help="精确开始时间，例如 2026-05-09T00:00:00+08:00")
+    qc.add_argument("--end", default="", help="精确结束时间；不传则为当前时间")
+    qc.add_argument("--page-size", type=int, default=100, help="每页拉取数量；默认 100")
+    qc.set_defaults(func=command_qc_report)
     return parser
 
 

@@ -8,7 +8,32 @@
 DIFY_API_KEY="app-nNTQp7OB3FmhWY0q6DTz6XR9"
 ```
 
-脚本生成普通终端执行命令时不把 Key 写入结果文件；真正调用 Dify 时会从本 README 读取上面的 Key。HTML 和原始结果中的请求头只显示 `Bearer ***`。
+脚本生成普通终端执行命令时不把 Key 写入结果文件。HTML 和原始结果中的请求头只显示 `Bearer ***`。
+
+现在支持多套 Dify 环境。推荐复制 `dify_envs.example.json` 为本地私有配置：
+
+```bash
+cp dify_envs.example.json dify_envs.local.json
+```
+
+然后在 `dify_envs.local.json` 中维护测试、正式等环境：
+
+```json
+{
+  "test": {
+    "label": "测试环境",
+    "api_base": "https://dify.hzmarvel.com/v1",
+    "api_key": "app-your-test-key"
+  },
+  "prod": {
+    "label": "正式环境",
+    "api_base": "https://your-prod-dify.example.com/v1",
+    "api_key": "app-your-prod-key"
+  }
+}
+```
+
+`dify_envs.local.json` 已加入 `.gitignore`，不要提交。若没有这个文件，`--env test` 会兼容读取本 README 中的旧测试 Key。
 
 ## Codex 快速处理约定
 
@@ -31,7 +56,7 @@ python3 dify_airs_runner.py prepare-input --input "/path/to/raw-input.json"
 
 生成结果：
 
-- `userinput/<患者名称>_<申请病种>_<记录时间>/入参.json`
+- `userinput/<环境>/<患者名称>_<申请病种>_<记录时间>/入参.json`
 - 一段普通终端执行命令
 
 `prepare-input` 会兼容两种入参形态：
@@ -56,7 +81,15 @@ python3 dify_airs_runner.py prepare-input --input "/path/to/raw-input.json"
 复制 `prepare-input` 输出的普通终端命令执行，例如：
 
 ```bash
-cd "/Users/Tristan/TristansDevelop/TristanProject/AIRS/智能审核流程ai_recognize_workflow/DIFY工程-智能审核流程/DIFY工作流运行测试" && python3 dify_airs_runner.py run --case-dir "userinput/刘会芝_糖尿病_20260516-153031"
+cd "/Users/Tristan/TristansDevelop/TristanProject/AIRS/智能审核流程ai_recognize_workflow/DIFY工程-智能审核流程/DIFY工作流运行测试" && python3 dify_airs_runner.py run --env test --case-dir "userinput/test/刘会芝_糖尿病_20260516-153031"
+```
+
+多环境执行时显式带 `--env`，例如：
+
+```bash
+python3 dify_airs_runner.py prepare-input --env test --input "/path/to/raw-input.json"
+python3 dify_airs_runner.py run --env test --case-dir "userinput/test/刘会芝_糖尿病_20260516-153031"
+python3 dify_airs_runner.py run --env prod --case-dir "userinput/prod/刘会芝_糖尿病_20260516-153031"
 ```
 
 默认调用：
@@ -75,7 +108,7 @@ cd "/Users/Tristan/TristansDevelop/TristanProject/AIRS/智能审核流程ai_reco
 每次调用会写入同一个 case 目录下的独立子目录：
 
 ```text
-userinput/<患者名称>_<申请病种>_<记录时间>/<调用时间>_<workflowrunid>/
+userinput/<环境>/<患者名称>_<申请病种>_<记录时间>/<调用时间>_<workflowrunid>/
 ```
 
 子目录内固定生成：
@@ -93,8 +126,34 @@ userinput/<患者名称>_<申请病种>_<记录时间>/<调用时间>_<workflowr
 ### 4. 重新渲染 HTML
 
 ```bash
-python3 dify_airs_runner.py render-html --record "userinput/刘会芝_糖尿病_20260516-153031/20260516-154056_abc-123/20260516-154056_abc-123_raw-result.json"
+python3 dify_airs_runner.py render-html --record "userinput/test/刘会芝_糖尿病_20260516-153031/20260516-154056_abc-123/20260516-154056_abc-123_raw-result.json"
 ```
+
+### 5. 生成最近调用的质控报告
+
+按环境查询最近几天 Dify 调用记录，并为每次调用生成一份独立 HTML：
+
+```bash
+python3 dify_airs_runner.py qc-report --env test --days 3
+python3 dify_airs_runner.py qc-report --env prod --days 3
+```
+
+输出目录：
+
+```text
+qc_reports/<环境>/<日期范围>/<workflowrunid>_qc.html
+qc_reports/<环境>/<日期范围>/index.html
+qc_reports/<环境>/qc-report-index.json
+```
+
+去重规则是 `<环境>:<workflow_run_id>`。同一个环境里已经生成过质控报告的调用会跳过；不同环境独立统计，避免测试环境和正式环境互相覆盖。
+
+每份质控报告包含：
+
+- 环境、API 地址、workflow run id、创建/完成时间、运行状态、耗时
+- 输入摘要、审核结论、审核意见、错误信息
+- 规则明细、不通过规则数、疑点数量
+- 原始输入、输出和完整日志折叠区
 
 ## 当前 AIRS 工作流资料
 

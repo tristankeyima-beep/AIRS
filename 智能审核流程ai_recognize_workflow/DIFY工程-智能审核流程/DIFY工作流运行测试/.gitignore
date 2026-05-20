@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
 userinput/
+dify_envs.local.json
+qc_reports/
