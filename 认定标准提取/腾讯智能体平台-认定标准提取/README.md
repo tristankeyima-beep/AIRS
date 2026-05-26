@@ -45,10 +45,12 @@ ruleContent = 启动节点.ruleContent
 节点2输入：
 
 ```text
-llm_output = 节点1.Output
+ruleKeywordGuide = 节点1.Output.ruleKeywordGuide
+类型 = [obj]
 ```
 
-如果腾讯平台的 LLM 节点输出字段不是 `Output`，就绑定该节点实际输出的文本字段。
+如果节点1使用普通文本输出，节点2可改用兼容入参 `llm_output`，类型设为 `str`。
+如果腾讯平台的 LLM 节点输出字段不是 `Output`，就绑定该节点实际输出字段。
 
 ## 六、结束节点出参
 
@@ -64,4 +66,3 @@ llm_output = 节点1.Output
 2. 节点2已兼容 Markdown 代码块、外层对象、`ruleKeywordGuide` 字段和 `result` 字段。
 3. 如果最终输出为空数组，优先检查节点1实际输出是否是合法 JSON。
 4. `dataType=enum` 时必须带 `enumOptions`；`dataType=string` 时不需要 `enumOptions`。
-

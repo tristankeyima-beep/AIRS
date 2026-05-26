@@ -84,18 +84,34 @@
 
 # 输出要求
 
-只输出 ruleKeywordGuide JSON 数组，不要 Markdown，不要解释，不要外层包装。
+如果使用腾讯平台结构化输出，`Output` 根节点是对象，业务数组放在 `ruleKeywordGuide` 字段下。
+`Thought` 可以保留为字符串，但 `dataType`、`required`、`keywordContent`、`enumOptions` 不要和 `Thought` 平级。
 
 输出结构：
 
-[
-  {
-    "dataType": "enum|string",
-    "required": true,
-    "keywordContent": "提取任务描述；必须包含肯定证据、排除边界和优先来源",
-    "enumOptions": ["选项1", "选项2"]
-  }
-]
+{
+  "Thought": "可选，简短说明拆解思路",
+  "ruleKeywordGuide": [
+    {
+      "dataType": "enum|string",
+      "required": true,
+      "keywordContent": "提取任务描述；必须包含肯定证据、排除边界和优先来源",
+      "enumOptions": ["选项1", "选项2"]
+    }
+  ]
+}
+```
+
+腾讯平台结构化输出变量建议配置：
+
+```text
+Output: obj
+  Thought: str
+  ruleKeywordGuide: [obj]
+    dataType: str
+    required: bool
+    keywordContent: str
+    enumOptions: [str]
 ```
 
 ## 四、输出后接哪个节点
@@ -109,31 +125,36 @@
 节点2输入绑定：
 
 ```text
-llm_output = 生成提取项 LLM 节点输出文本
+ruleKeywordGuide = 生成提取项 LLM 节点 Output.ruleKeywordGuide
+类型 = [obj]
 ```
+
+如果本节点使用普通文本输出，节点2可改用兼容入参 `llm_output`，类型设为 `str`。
 
 ## 五、LLM 输出示例
 
 ```json
-[
-  {
-    "dataType": "enum",
-    "required": true,
-    "keywordContent": "判断材料中是否明确记载2型糖尿病诊断。肯定证据包括出院诊断、入院诊断、诊断证明中出现“2型糖尿病”“Ⅱ型糖尿病”“T2DM”等；仅出现“糖尿病史”“血糖升高”“使用降糖药”不得判定为2型糖尿病确诊。优先查看病案首页、出院记录、诊断证明。",
-    "enumOptions": ["已确诊", "未确诊"]
-  },
-  {
-    "dataType": "enum",
-    "required": true,
-    "keywordContent": "判断确诊来源医院是否为二级及以上医疗机构。肯定证据包括 hospitalLevel、sourceHospital、病案首页或诊断证明中明确显示二级、三级或二级及以上；疾病诊断本身不能证明医院等级。优先查看医院等级字段、病案首页和诊断证明。",
-    "enumOptions": ["二级及以上", "二级以下", "无法判断"]
-  }
-]
+{
+  "Thought": "规则需要分别提取疾病确诊和确诊来源医院等级。",
+  "ruleKeywordGuide": [
+    {
+      "dataType": "enum",
+      "required": true,
+      "keywordContent": "判断材料中是否明确记载2型糖尿病诊断。肯定证据包括出院诊断、入院诊断、诊断证明中出现“2型糖尿病”“Ⅱ型糖尿病”“T2DM”等；仅出现“糖尿病史”“血糖升高”“使用降糖药”不得判定为2型糖尿病确诊。优先查看病案首页、出院记录、诊断证明。",
+      "enumOptions": ["已确诊", "未确诊"]
+    },
+    {
+      "dataType": "enum",
+      "required": true,
+      "keywordContent": "判断确诊来源医院是否为二级及以上医疗机构。肯定证据包括 hospitalLevel、sourceHospital、病案首页或诊断证明中明确显示二级、三级或二级及以上；疾病诊断本身不能证明医院等级。优先查看医院等级字段、病案首页和诊断证明。",
+      "enumOptions": ["二级及以上", "二级以下", "无法判断"]
+    }
+  ]
+}
 ```
 
 ## 六、联调注意
 
 1. 腾讯变量不要手打成 DIFY 的 `{{#...#}}` 写法。
-2. 如果 LLM 输出带了 ```json 代码块，节点2可以兜底解析，但建议从提示词约束模型直接输出数组。
+2. 开启结构化输出时，`dataType`、`required`、`keywordContent`、`enumOptions` 应放在 `ruleKeywordGuide` 数组元素下，不要直接挂在 `Output` 下。
 3. 不要让本节点生成 `keywordCode`。编码通常由上游规则库或后续入库逻辑补齐。
-
