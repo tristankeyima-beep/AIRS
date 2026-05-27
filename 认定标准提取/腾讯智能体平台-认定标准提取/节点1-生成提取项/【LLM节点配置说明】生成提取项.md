@@ -84,22 +84,30 @@
 
 # 输出要求
 
-如果使用腾讯平台结构化输出，`Output` 根节点是对象，业务数组放在 `ruleKeywordGuide` 字段下。
-`Thought` 可以保留为字符串，但 `dataType`、`required`、`keywordContent`、`enumOptions` 不要和 `Thought` 平级。
+你必须输出一个 JSON 对象，不要 Markdown，不要解释，不要代码块。
+腾讯平台已开启结构化输出，根节点是 Output 对象，业务数组必须放在 Output.ruleKeywordGuide 字段下。
 
-输出结构：
+必须严格符合以下结构：
 
 {
-  "Thought": "可选，简短说明拆解思路",
+  "Thought": "简短说明拆解思路",
   "ruleKeywordGuide": [
     {
-      "dataType": "enum|string",
+      "dataType": "enum",
       "required": true,
       "keywordContent": "提取任务描述；必须包含肯定证据、排除边界和优先来源",
       "enumOptions": ["选项1", "选项2"]
     }
   ]
 }
+
+规则：
+1. ruleKeywordGuide 必须是数组，不能为 null。
+2. 每个数组元素必须包含 dataType、required、keywordContent、enumOptions。
+3. dataType 只能输出 enum 或 string。
+4. 当 dataType 为 enum 时，enumOptions 必须输出非空数组。
+5. 当 dataType 为 string 时，enumOptions 输出空数组 []。
+6. 根据规则原文拆解提取项，不能固定输出某个病种或某个示例的提取项。
 ```
 
 腾讯平台结构化输出变量建议配置：
