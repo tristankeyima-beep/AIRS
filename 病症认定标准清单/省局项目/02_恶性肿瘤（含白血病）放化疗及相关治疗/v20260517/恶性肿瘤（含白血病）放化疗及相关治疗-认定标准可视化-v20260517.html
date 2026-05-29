@@ -1,0 +1,303 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>恶性肿瘤（含白血病）放化疗及相关治疗认定标准可视化（v20260517）</title><style>
+:root{color-scheme:light;--bg:oklch(0.965 0.008 235);--surface:oklch(0.992 0.004 235);--surface-2:oklch(0.976 0.007 235);--surface-3:oklch(0.947 0.01 235);--ink:oklch(0.245 0.026 244);--muted:oklch(0.515 0.027 244);--line:oklch(0.883 0.015 235);--line-strong:oklch(0.81 0.018 235);--accent-ink:oklch(0.31 0.086 238);--accent-soft:oklch(0.93 0.035 238);--good:oklch(0.46 0.095 154);--good-soft:oklch(0.94 0.04 154);--bad:oklch(0.51 0.15 28);--bad-soft:oklch(0.94 0.045 28);--shadow-tight:0 8px 22px oklch(0.34 0.03 240 / .06);--radius:10px;--radius-sm:7px}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:linear-gradient(180deg,oklch(0.982 0.008 235),var(--bg) 360px);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;line-height:1.56;text-rendering:optimizeLegibility}.page{width:min(1320px,calc(100% - 36px));margin:0 auto;padding:16px 0 56px}.hero,.panel,.metric{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow-tight)}.hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:center;padding:22px 24px}h1,h2,h3,h4,p{margin:0}h1{font-size:25px;line-height:1.2;font-weight:780;letter-spacing:0}h2{font-size:19px;line-height:1.25;margin-bottom:8px;font-weight:760}h3{font-size:16px;line-height:1.42;font-weight:730}h4{font-size:13px;line-height:1.3;margin-bottom:8px;font-weight:760}.section-subtitle{margin-top:18px}.sub,.eyebrow{color:var(--muted);font-size:13px}.eyebrow{font-weight:800;letter-spacing:.01em}.status-card{min-width:178px;display:grid;align-content:center;gap:4px;padding:16px 18px;border-radius:var(--radius);background:var(--surface-2);border:1px solid var(--line-strong)}.status-card span{color:var(--muted);font-size:13px;font-weight:760}.status-card strong{font-size:30px;line-height:1.05;color:var(--accent-ink)}.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.metric{padding:13px 14px;box-shadow:none;background:var(--surface-2)}.metric strong{display:block;font-size:22px;line-height:1.1;font-weight:780}.metric span{color:var(--muted);font-size:13px}.panel{padding:20px;margin-top:16px}.panel.first-panel{margin-top:0}.panel.first-panel{margin-top:0}.panel-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:start}.panel-stats{display:flex;gap:10px;align-items:center;color:var(--muted);font-size:13px;font-weight:800;flex-wrap:wrap;justify-content:flex-end}.pill{display:inline-flex;align-items:center;min-height:24px;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:800;white-space:nowrap;border:1px solid transparent}.pill.good{background:var(--good-soft);color:var(--good);border-color:oklch(0.82 0.055 154)}.logic-topology{margin-top:12px;padding:14px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2);overflow:hidden}.logic-tree,.logic-tree ul{list-style:none;margin:10px 0 0;padding-left:18px}.logic-group,.logic-rule-ref{position:relative;margin:8px 0}.logic-group::before,.logic-rule-ref::before{content:"";position:absolute;left:-12px;top:13px;width:8px;border-top:1px solid var(--line-strong)}.logic-operator{display:inline-flex;padding:4px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink);font-size:12px;font-weight:800}.logic-rule-ref{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:start;padding:8px 10px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);min-width:0}.logic-rule-item{display:block;padding:0;border:0;background:transparent;min-width:0}.overview-rule{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);overflow:hidden;min-width:0}.overview-rule summary{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:13px 14px;cursor:pointer;background:var(--surface)}.overview-rule summary strong{display:block;font-size:14px}.overview-rule summary::-webkit-details-marker{display:none}.overview-rule summary::before{content:"展开";justify-self:start;align-self:start;grid-column:1;grid-row:1;padding:3px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink);font-size:12px;font-weight:800;border:1px solid oklch(0.72 0.11 238)}.overview-rule[open]>summary::before{content:"收起"}.overview-rule summary>span:first-of-type{grid-column:2;min-width:0}.summary-actions{grid-column:3;grid-row:1;display:flex;flex-direction:column;gap:8px;align-items:flex-end;min-width:max-content}.process-link{cursor:pointer;border:1px solid oklch(0.72 0.11 238);background:var(--accent-soft);color:var(--accent-ink);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:800}.logic-rule-title{display:block;margin-top:5px;color:var(--ink);font-size:14px;font-weight:760}.logic-rule-meta{display:block;margin-top:5px;color:var(--muted);font-size:12px;font-weight:760}.overview-rule-body{display:grid;grid-template-columns:1fr;gap:10px;padding:0 14px 14px;border-top:1px solid var(--line)}.overview-rule-body>div{padding:12px;border-radius:var(--radius-sm);background:var(--surface-2)}.repo-detail{grid-column:1/-1;min-width:0}.repo-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}.repo-grid>div,.source-box{padding:10px;border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--surface)}.source-box{margin-bottom:12px;white-space:pre-wrap}.logic-rule-title,.logic-rule-meta,.repo-grid p,.source-box p,.keyword-definition-table td{overflow-wrap:anywhere;word-break:break-word}.keyword-definition-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}.keyword-definition-table th,.keyword-definition-table td{padding:10px 9px;border-top:1px solid var(--line);text-align:left;vertical-align:top;min-width:0}.keyword-definition-table th{color:var(--muted);font-weight:800;background:var(--surface-3)}.keyword-definition-table th:nth-child(1){width:11%}.keyword-definition-table th:nth-child(3),.keyword-definition-table th:nth-child(4){width:8%}.keyword-definition-table th:nth-child(5){width:13%}.keyword-definition-table th:nth-child(6){width:31%}pre{margin:0;padding:12px;border-radius:var(--radius-sm);background:oklch(0.19 0.025 245);color:oklch(0.94 0.01 235);overflow:auto;font-size:12px;line-height:1.52;tab-size:2;max-width:100%;min-width:0;white-space:pre-wrap;word-break:break-word}.raw-block{margin-top:12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);padding:10px 12px}.raw-block summary{cursor:pointer;font-weight:800;color:var(--accent-ink);padding:7px 10px;border-radius:var(--radius-sm);background:var(--accent-soft);border:1px solid oklch(0.72 0.11 238);margin-bottom:10px}.maintenance-alert{margin-top:12px;padding:12px;border:1px solid oklch(0.78 0.12 28);border-radius:var(--radius-sm);background:var(--bad-soft);color:var(--ink)}.maintenance-alert h4{color:var(--bad)}.maintenance-alert p{color:var(--bad);font-weight:720}.skip-link{position:absolute;left:12px;top:8px;transform:translateY(-140%);background:var(--accent-ink);color:white;padding:8px 10px;border-radius:999px;text-decoration:none;font-weight:800}.skip-link:focus{transform:translateY(0)}@media(max-width:900px){.page{width:min(100% - 20px,1320px);padding-top:12px}.hero,.metrics,.panel-head,.repo-grid{grid-template-columns:1fr}.summary-actions,.overview-rule summary>span:first-of-type{grid-column:1;grid-row:auto;align-items:flex-start}.overview-rule summary{grid-template-columns:1fr}.overview-rule summary::before{grid-column:1}.panel{padding:14px}.logic-tree,.logic-tree ul{padding-left:12px}.logic-rule-ref{padding:6px}.keyword-definition-table{display:block;overflow:auto}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.inline-json summary{cursor:pointer;display:inline;color:var(--accent-ink);background:none;border:0;padding:0;border-radius:0;font-weight:700;text-decoration:none}.inline-json summary:hover,.inline-json summary:focus-visible{text-decoration:underline}.inline-json summary::-webkit-details-marker{display:none}.inline-json pre{margin-top:8px;max-height:320px}</style></head><body><a class="skip-link" href="#content">跳到内容</a><main class="page"><section class="panel first-panel" id="content"><div class="panel-head"><div><p class="eyebrow">V20260517 · SJ02</p><h2>恶性肿瘤（含白血病）放化疗及相关治疗</h2><p class="sub">来源：八类疾病准入条件及细则-20260517.xlsx；MD：恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md；JSON：恶性肿瘤（含白血病）放化疗及相关治疗-certification_list-v20260517.json</p></div><div class="panel-stats"><span class="pill good">可解析</span><span>6 条规则</span><span>11 条提取项</span></div></div><h3 class="section-subtitle">规则判定总览</h3><section class="logic-topology"><h4>逻辑拓扑</h4><p class="sub">按入参 logicTopology 展示规则之间的且或关系。</p><ul class="logic-tree"><li class="logic-group"><div class="logic-operator">OR · 任一条件满足</div><ul><li class="logic-group"><div class="logic-operator">OR · 任一条件满足</div><ul><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail" open><summary><span><strong>规则 02001</strong><span class="logic-rule-title">规则原文：经病理学或细胞学诊断明确。</span><span class="logic-rule-meta">来源分项：恶性肿瘤的门诊治疗 · 提取项 1 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>经病理学或细胞学诊断明确。</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>恶性肿瘤的门诊治疗</p></div></div><h4>认定标准原文</h4><div class="source-box"><p>恶性肿瘤的门诊治疗符合以下条件之一：
+1.经病理学或细胞学诊断明确。
+2.未经病理学或细胞学诊断，但根据病史、症状、体征，结合 X 线、B 超、CT、磁共振、内窥镜、实验室等辅助检查，经二级及以上医疗机构临床诊断为恶性肿瘤（需提供诊断证明）。
+3.对于部分需要按恶性肿瘤处理的占位性病变，需提交术后复发转移或放化疗等的相关病历资料。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>02001001</td><td>判断材料中是否有病理学或细胞学明确诊断恶性肿瘤的证据。肯定证据包括病理报告、细胞学报告、病案首页或出院记录引用病理/细胞学结果并明确恶性肿瘤；仅出现肿瘤、占位、疑似恶性、肿瘤标志物升高或影像提示，不能判定为病理学或细胞学确诊。优先查看病理报告、细胞学检查、病案首页、出院记录。</td><td>enum</td><td>是</td><td>已确诊、未确诊</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断材料中是否有病理学或细胞学明确诊断恶性肿瘤的证据。肯定证据包括病理报告、细胞学报告、病案首页或出院记录引用病理/细胞学结果并明确恶性肿瘤；仅出现肿瘤、占位、疑似恶性、肿瘤标志物升高或影像提示，不能判定为病理学或细胞学确诊。优先查看病理报告、细胞学检查、病案首页、出院记录。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;已确诊&quot;,
+    &quot;未确诊&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;02001001&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block dev-data" id="raw-02001"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleCode&quot;: &quot;02001&quot;,
+  &quot;ruleContent&quot;: &quot;经病理学或细胞学诊断明确。&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断材料中是否有病理学或细胞学明确诊断恶性肿瘤的证据。肯定证据包括病理报告、细胞学报告、病案首页或出院记录引用病理/细胞学结果并明确恶性肿瘤；仅出现肿瘤、占位、疑似恶性、肿瘤标志物升高或影像提示，不能判定为病理学或细胞学确诊。优先查看病理报告、细胞学检查、病案首页、出院记录。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;已确诊&quot;,
+        &quot;未确诊&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;02001001&quot;
+    }
+  ],
+  &quot;sourceRuleContent&quot;: &quot;恶性肿瘤的门诊治疗符合以下条件之一：\n1.经病理学或细胞学诊断明确。\n2.未经病理学或细胞学诊断，但根据病史、症状、体征，结合 X 线、B 超、CT、磁共振、内窥镜、实验室等辅助检查，经二级及以上医疗机构临床诊断为恶性肿瘤（需提供诊断证明）。\n3.对于部分需要按恶性肿瘤处理的占位性病变，需提交术后复发转移或放化疗等的相关病历资料。&quot;,
+  &quot;sourceMdFile&quot;: &quot;恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md&quot;,
+  &quot;sourceSection&quot;: &quot;恶性肿瘤的门诊治疗&quot;
+}</pre></details></div></div></details></li><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail" ><summary><span><strong>规则 02002</strong><span class="logic-rule-title">规则原文：未经病理学或细胞学诊断，但根据病史、症状、体征，结合 X 线、B 超、CT、磁共振、内窥镜、实验室等辅助检查，经二级及以上医疗机构临床诊断为恶性肿瘤（需提供诊断证明）</span><span class="logic-rule-meta">来源分项：恶性肿瘤的门诊治疗 · 提取项 4 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>未经病理学或细胞学诊断，但根据病史、症状、体征，结合 X 线、B 超、CT、磁共振、内窥镜、实验室等辅助检查，经二级及以上医疗机构临床诊断为恶性肿瘤（需提供诊断证明）</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>恶性肿瘤的门诊治疗</p></div></div><h4>认定标准原文</h4><div class="source-box"><p>恶性肿瘤的门诊治疗符合以下条件之一：
+1.经病理学或细胞学诊断明确。
+2.未经病理学或细胞学诊断，但根据病史、症状、体征，结合 X 线、B 超、CT、磁共振、内窥镜、实验室等辅助检查，经二级及以上医疗机构临床诊断为恶性肿瘤（需提供诊断证明）。
+3.对于部分需要按恶性肿瘤处理的占位性病变，需提交术后复发转移或放化疗等的相关病历资料。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>02002001</td><td>判断材料中是否明确为恶性肿瘤临床诊断。肯定证据包括诊断证明或出院诊断明确写明恶性肿瘤、癌、肉瘤、白血病以外的恶性肿瘤诊断；仅出现疑似、待排、占位、结节或良性肿瘤，不得判定为临床诊断明确。优先查看诊断证明、病案首页、出院记录。</td><td>enum</td><td>是</td><td>已确诊、未确诊</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断材料中是否明确为恶性肿瘤临床诊断。肯定证据包括诊断证明或出院诊断明确写明恶性肿瘤、癌、肉瘤、白血病以外的恶性肿瘤诊断；仅出现疑似、待排、占位、结节或良性肿瘤，不得判定为临床诊断明确。优先查看诊断证明、病案首页、出院记录。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;已确诊&quot;,
+    &quot;未确诊&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;02002001&quot;
+}</pre></details></td></tr><tr><td>02002002</td><td>判断临床诊断是否结合病史、症状、体征及辅助检查形成。肯定证据包括X线、B超、CT、MRI、内窥镜、实验室等检查结果支持恶性肿瘤诊断；仅有单一症状或主诉、无辅助检查证据，不得判定为满足该事实。优先查看影像报告、内窥镜报告、实验室检查、出院记录。</td><td>enum</td><td>是</td><td>是、否、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断临床诊断是否结合病史、症状、体征及辅助检查形成。肯定证据包括X线、B超、CT、MRI、内窥镜、实验室等检查结果支持恶性肿瘤诊断；仅有单一症状或主诉、无辅助检查证据，不得判定为满足该事实。优先查看影像报告、内窥镜报告、实验室检查、出院记录。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;02002002&quot;
+}</pre></details></td></tr><tr><td>02002003</td><td>判断作出临床诊断的医疗机构是否为二级及以上。肯定证据包括诊断证明、病案首页或医院等级字段显示二级、三级、二甲、三甲等；仅有疾病诊断不能证明机构等级；无法确认等级时判无法判断。优先查看诊断证明、病案首页、医院等级字段。</td><td>enum</td><td>是</td><td>二级及以上、二级以下、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断作出临床诊断的医疗机构是否为二级及以上。肯定证据包括诊断证明、病案首页或医院等级字段显示二级、三级、二甲、三甲等；仅有疾病诊断不能证明机构等级；无法确认等级时判无法判断。优先查看诊断证明、病案首页、医院等级字段。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;二级及以上&quot;,
+    &quot;二级以下&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;02002003&quot;
+}</pre></details></td></tr><tr><td>02002004</td><td>判断材料中是否提供诊断证明。肯定证据包括明确的诊断证明书、疾病诊断证明或等同诊断证明材料；仅有检查报告或治疗记录但无诊断证明，不得判定为已提供。优先查看诊断证明文件、材料标题和诊断证明字段。</td><td>enum</td><td>是</td><td>是、否、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断材料中是否提供诊断证明。肯定证据包括明确的诊断证明书、疾病诊断证明或等同诊断证明材料；仅有检查报告或治疗记录但无诊断证明，不得判定为已提供。优先查看诊断证明文件、材料标题和诊断证明字段。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;02002004&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block dev-data" id="raw-02002"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleCode&quot;: &quot;02002&quot;,
+  &quot;ruleContent&quot;: &quot;未经病理学或细胞学诊断，但根据病史、症状、体征，结合 X 线、B 超、CT、磁共振、内窥镜、实验室等辅助检查，经二级及以上医疗机构临床诊断为恶性肿瘤（需提供诊断证明）&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断材料中是否明确为恶性肿瘤临床诊断。肯定证据包括诊断证明或出院诊断明确写明恶性肿瘤、癌、肉瘤、白血病以外的恶性肿瘤诊断；仅出现疑似、待排、占位、结节或良性肿瘤，不得判定为临床诊断明确。优先查看诊断证明、病案首页、出院记录。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;已确诊&quot;,
+        &quot;未确诊&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;02002001&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断临床诊断是否结合病史、症状、体征及辅助检查形成。肯定证据包括X线、B超、CT、MRI、内窥镜、实验室等检查结果支持恶性肿瘤诊断；仅有单一症状或主诉、无辅助检查证据，不得判定为满足该事实。优先查看影像报告、内窥镜报告、实验室检查、出院记录。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;是&quot;,
+        &quot;否&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;02002002&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断作出临床诊断的医疗机构是否为二级及以上。肯定证据包括诊断证明、病案首页或医院等级字段显示二级、三级、二甲、三甲等；仅有疾病诊断不能证明机构等级；无法确认等级时判无法判断。优先查看诊断证明、病案首页、医院等级字段。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;二级及以上&quot;,
+        &quot;二级以下&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;02002003&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断材料中是否提供诊断证明。肯定证据包括明确的诊断证明书、疾病诊断证明或等同诊断证明材料；仅有检查报告或治疗记录但无诊断证明，不得判定为已提供。优先查看诊断证明文件、材料标题和诊断证明字段。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;是&quot;,
+        &quot;否&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;02002004&quot;
+    }
+  ],
+  &quot;sourceRuleContent&quot;: &quot;恶性肿瘤的门诊治疗符合以下条件之一：\n1.经病理学或细胞学诊断明确。\n2.未经病理学或细胞学诊断，但根据病史、症状、体征，结合 X 线、B 超、CT、磁共振、内窥镜、实验室等辅助检查，经二级及以上医疗机构临床诊断为恶性肿瘤（需提供诊断证明）。\n3.对于部分需要按恶性肿瘤处理的占位性病变，需提交术后复发转移或放化疗等的相关病历资料。&quot;,
+  &quot;sourceMdFile&quot;: &quot;恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md&quot;,
+  &quot;sourceSection&quot;: &quot;恶性肿瘤的门诊治疗&quot;
+}</pre></details></div></div></details></li><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail" ><summary><span><strong>规则 02003</strong><span class="logic-rule-title">规则原文：对于部分需要按恶性肿瘤处理的占位性病变，需提交术后复发转移或放化疗等的相关病历资料</span><span class="logic-rule-meta">来源分项：恶性肿瘤的门诊治疗 · 提取项 2 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>对于部分需要按恶性肿瘤处理的占位性病变，需提交术后复发转移或放化疗等的相关病历资料</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>恶性肿瘤的门诊治疗</p></div></div><h4>认定标准原文</h4><div class="source-box"><p>恶性肿瘤的门诊治疗符合以下条件之一：
+1.经病理学或细胞学诊断明确。
+2.未经病理学或细胞学诊断，但根据病史、症状、体征，结合 X 线、B 超、CT、磁共振、内窥镜、实验室等辅助检查，经二级及以上医疗机构临床诊断为恶性肿瘤（需提供诊断证明）。
+3.对于部分需要按恶性肿瘤处理的占位性病变，需提交术后复发转移或放化疗等的相关病历资料。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>02003001</td><td>判断材料中是否属于需要按恶性肿瘤处理的占位性病变。肯定证据包括病历明确说明占位性病变需按恶性肿瘤处理；仅出现占位、肿块、结节但未说明按恶性肿瘤处理，不得判定为肯定。优先查看出院记录、诊断证明、病程记录。</td><td>enum</td><td>是</td><td>是、否、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断材料中是否属于需要按恶性肿瘤处理的占位性病变。肯定证据包括病历明确说明占位性病变需按恶性肿瘤处理；仅出现占位、肿块、结节但未说明按恶性肿瘤处理，不得判定为肯定。优先查看出院记录、诊断证明、病程记录。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;02003001&quot;
+}</pre></details></td></tr><tr><td>02003002</td><td>判断材料中是否提交术后复发、转移或放疗、化疗等相关病历资料。肯定证据包括术后复发记录、转移诊断、放疗记录、化疗记录或相关治疗方案；仅出现手术史或随访记录且无复发转移或放化疗信息，不得判定为肯定。优先查看出院记录、门诊记录、治疗记录、放化疗方案。</td><td>enum</td><td>是</td><td>是、否、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断材料中是否提交术后复发、转移或放疗、化疗等相关病历资料。肯定证据包括术后复发记录、转移诊断、放疗记录、化疗记录或相关治疗方案；仅出现手术史或随访记录且无复发转移或放化疗信息，不得判定为肯定。优先查看出院记录、门诊记录、治疗记录、放化疗方案。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;02003002&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block dev-data" id="raw-02003"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleCode&quot;: &quot;02003&quot;,
+  &quot;ruleContent&quot;: &quot;对于部分需要按恶性肿瘤处理的占位性病变，需提交术后复发转移或放化疗等的相关病历资料&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断材料中是否属于需要按恶性肿瘤处理的占位性病变。肯定证据包括病历明确说明占位性病变需按恶性肿瘤处理；仅出现占位、肿块、结节但未说明按恶性肿瘤处理，不得判定为肯定。优先查看出院记录、诊断证明、病程记录。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;是&quot;,
+        &quot;否&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;02003001&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断材料中是否提交术后复发、转移或放疗、化疗等相关病历资料。肯定证据包括术后复发记录、转移诊断、放疗记录、化疗记录或相关治疗方案；仅出现手术史或随访记录且无复发转移或放化疗信息，不得判定为肯定。优先查看出院记录、门诊记录、治疗记录、放化疗方案。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;是&quot;,
+        &quot;否&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;02003002&quot;
+    }
+  ],
+  &quot;sourceRuleContent&quot;: &quot;恶性肿瘤的门诊治疗符合以下条件之一：\n1.经病理学或细胞学诊断明确。\n2.未经病理学或细胞学诊断，但根据病史、症状、体征，结合 X 线、B 超、CT、磁共振、内窥镜、实验室等辅助检查，经二级及以上医疗机构临床诊断为恶性肿瘤（需提供诊断证明）。\n3.对于部分需要按恶性肿瘤处理的占位性病变，需提交术后复发转移或放化疗等的相关病历资料。&quot;,
+  &quot;sourceMdFile&quot;: &quot;恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md&quot;,
+  &quot;sourceSection&quot;: &quot;恶性肿瘤的门诊治疗&quot;
+}</pre></details></div></div></details></li></ul></li><li class="logic-group"><div class="logic-operator">AND · 全部条件满足</div><ul><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail" ><summary><span><strong>规则 02004</strong><span class="logic-rule-title">规则原文：符合白血病临床表现</span><span class="logic-rule-meta">来源分项：白血病 · 提取项 1 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>符合白血病临床表现</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>白血病</p></div></div><h4>认定标准原文</h4><div class="source-box"><p>1.符合白血病临床表现。
+2.血液及骨髓等相关检查相应异常改变。
+符合上述条件，经二级及以上医疗机构确诊。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>02004001</td><td>判断材料中是否记载符合白血病的临床表现。肯定证据包括贫血、发热感染、出血瘀斑、肝脾或淋巴结肿大、骨痛等被病历描述为白血病相关表现；仅有单个非特异症状且未与白血病诊疗相关联，不得判定为肯定。优先查看入院记录、现病史、体格检查、出院记录。</td><td>enum</td><td>是</td><td>是、否、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断材料中是否记载符合白血病的临床表现。肯定证据包括贫血、发热感染、出血瘀斑、肝脾或淋巴结肿大、骨痛等被病历描述为白血病相关表现；仅有单个非特异症状且未与白血病诊疗相关联，不得判定为肯定。优先查看入院记录、现病史、体格检查、出院记录。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;02004001&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block dev-data" id="raw-02004"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleCode&quot;: &quot;02004&quot;,
+  &quot;ruleContent&quot;: &quot;符合白血病临床表现&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断材料中是否记载符合白血病的临床表现。肯定证据包括贫血、发热感染、出血瘀斑、肝脾或淋巴结肿大、骨痛等被病历描述为白血病相关表现；仅有单个非特异症状且未与白血病诊疗相关联，不得判定为肯定。优先查看入院记录、现病史、体格检查、出院记录。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;是&quot;,
+        &quot;否&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;02004001&quot;
+    }
+  ],
+  &quot;sourceRuleContent&quot;: &quot;1.符合白血病临床表现。\n2.血液及骨髓等相关检查相应异常改变。\n符合上述条件，经二级及以上医疗机构确诊。&quot;,
+  &quot;sourceMdFile&quot;: &quot;恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md&quot;,
+  &quot;sourceSection&quot;: &quot;白血病&quot;
+}</pre></details></div></div></details></li><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail" ><summary><span><strong>规则 02005</strong><span class="logic-rule-title">规则原文：血液及骨髓等相关检查相应异常改变</span><span class="logic-rule-meta">来源分项：白血病 · 提取项 1 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>血液及骨髓等相关检查相应异常改变</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>白血病</p></div></div><h4>认定标准原文</h4><div class="source-box"><p>1.符合白血病临床表现。
+2.血液及骨髓等相关检查相应异常改变。
+符合上述条件，经二级及以上医疗机构确诊。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>02005001</td><td>判断材料中是否有血液、骨髓或相关检查的异常改变支持白血病。肯定证据包括血常规异常、外周血原始细胞、骨髓检查、流式细胞学、染色体或分子检测等异常；仅有普通炎症指标异常或未提供检查结果，不得判定为肯定。优先查看检验报告、骨髓报告、出院记录检查结果。</td><td>enum</td><td>是</td><td>是、否、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断材料中是否有血液、骨髓或相关检查的异常改变支持白血病。肯定证据包括血常规异常、外周血原始细胞、骨髓检查、流式细胞学、染色体或分子检测等异常；仅有普通炎症指标异常或未提供检查结果，不得判定为肯定。优先查看检验报告、骨髓报告、出院记录检查结果。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;02005001&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block dev-data" id="raw-02005"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleCode&quot;: &quot;02005&quot;,
+  &quot;ruleContent&quot;: &quot;血液及骨髓等相关检查相应异常改变&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断材料中是否有血液、骨髓或相关检查的异常改变支持白血病。肯定证据包括血常规异常、外周血原始细胞、骨髓检查、流式细胞学、染色体或分子检测等异常；仅有普通炎症指标异常或未提供检查结果，不得判定为肯定。优先查看检验报告、骨髓报告、出院记录检查结果。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;是&quot;,
+        &quot;否&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;02005001&quot;
+    }
+  ],
+  &quot;sourceRuleContent&quot;: &quot;1.符合白血病临床表现。\n2.血液及骨髓等相关检查相应异常改变。\n符合上述条件，经二级及以上医疗机构确诊。&quot;,
+  &quot;sourceMdFile&quot;: &quot;恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md&quot;,
+  &quot;sourceSection&quot;: &quot;白血病&quot;
+}</pre></details></div></div></details></li><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail" ><summary><span><strong>规则 02006</strong><span class="logic-rule-title">规则原文：符合上述条件，经二级及以上医疗机构确诊。</span><span class="logic-rule-meta">来源分项：白血病 · 提取项 2 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>符合上述条件，经二级及以上医疗机构确诊。</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>白血病</p></div></div><h4>认定标准原文</h4><div class="source-box"><p>1.符合白血病临床表现。
+2.血液及骨髓等相关检查相应异常改变。
+符合上述条件，经二级及以上医疗机构确诊。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>02006001</td><td>判断材料中是否明确诊断为白血病。肯定证据包括出院诊断、入院诊断、诊断证明、骨髓报告结论中明确白血病诊断；仅出现血液病、白细胞异常、疑似白血病，不得判定为已确诊。优先查看病案首页、出院记录、诊断证明、骨髓报告。</td><td>enum</td><td>是</td><td>已确诊、未确诊</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断材料中是否明确诊断为白血病。肯定证据包括出院诊断、入院诊断、诊断证明、骨髓报告结论中明确白血病诊断；仅出现血液病、白细胞异常、疑似白血病，不得判定为已确诊。优先查看病案首页、出院记录、诊断证明、骨髓报告。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;已确诊&quot;,
+    &quot;未确诊&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;02006001&quot;
+}</pre></details></td></tr><tr><td>02006002</td><td>判断白血病确诊机构是否为二级及以上医疗机构。肯定证据包括病案首页、诊断证明或医院等级字段显示二级、三级、二甲、三甲等；仅有诊断名称不能证明机构等级；无法确认时判无法判断。优先查看医院等级字段、病案首页、诊断证明。</td><td>enum</td><td>是</td><td>二级及以上、二级以下、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断白血病确诊机构是否为二级及以上医疗机构。肯定证据包括病案首页、诊断证明或医院等级字段显示二级、三级、二甲、三甲等；仅有诊断名称不能证明机构等级；无法确认时判无法判断。优先查看医院等级字段、病案首页、诊断证明。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;二级及以上&quot;,
+    &quot;二级以下&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;02006002&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block dev-data" id="raw-02006"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleCode&quot;: &quot;02006&quot;,
+  &quot;ruleContent&quot;: &quot;符合上述条件，经二级及以上医疗机构确诊。&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断材料中是否明确诊断为白血病。肯定证据包括出院诊断、入院诊断、诊断证明、骨髓报告结论中明确白血病诊断；仅出现血液病、白细胞异常、疑似白血病，不得判定为已确诊。优先查看病案首页、出院记录、诊断证明、骨髓报告。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;已确诊&quot;,
+        &quot;未确诊&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;02006001&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断白血病确诊机构是否为二级及以上医疗机构。肯定证据包括病案首页、诊断证明或医院等级字段显示二级、三级、二甲、三甲等；仅有诊断名称不能证明机构等级；无法确认时判无法判断。优先查看医院等级字段、病案首页、诊断证明。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;二级及以上&quot;,
+        &quot;二级以下&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;02006002&quot;
+    }
+  ],
+  &quot;sourceRuleContent&quot;: &quot;1.符合白血病临床表现。\n2.血液及骨髓等相关检查相应异常改变。\n符合上述条件，经二级及以上医疗机构确诊。&quot;,
+  &quot;sourceMdFile&quot;: &quot;恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md&quot;,
+  &quot;sourceSection&quot;: &quot;白血病&quot;
+}</pre></details></div></div></details></li></ul></li></ul></li></ul></section></section></main></body></html>

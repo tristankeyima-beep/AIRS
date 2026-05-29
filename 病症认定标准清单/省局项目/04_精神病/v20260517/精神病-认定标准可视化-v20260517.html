@@ -1,0 +1,278 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>精神病认定标准可视化（v20260517）</title><style>
+:root{color-scheme:light;--bg:oklch(0.965 0.008 235);--surface:oklch(0.992 0.004 235);--surface-2:oklch(0.976 0.007 235);--surface-3:oklch(0.947 0.01 235);--ink:oklch(0.245 0.026 244);--muted:oklch(0.515 0.027 244);--line:oklch(0.883 0.015 235);--line-strong:oklch(0.81 0.018 235);--accent-ink:oklch(0.31 0.086 238);--accent-soft:oklch(0.93 0.035 238);--good:oklch(0.46 0.095 154);--good-soft:oklch(0.94 0.04 154);--bad:oklch(0.51 0.15 28);--bad-soft:oklch(0.94 0.045 28);--shadow-tight:0 8px 22px oklch(0.34 0.03 240 / .06);--radius:10px;--radius-sm:7px}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:linear-gradient(180deg,oklch(0.982 0.008 235),var(--bg) 360px);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;line-height:1.56;text-rendering:optimizeLegibility}.page{width:min(1320px,calc(100% - 36px));margin:0 auto;padding:16px 0 56px}.hero,.panel,.metric{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow-tight)}.hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:center;padding:22px 24px}h1,h2,h3,h4,p{margin:0}h1{font-size:25px;line-height:1.2;font-weight:780;letter-spacing:0}h2{font-size:19px;line-height:1.25;margin-bottom:8px;font-weight:760}h3{font-size:16px;line-height:1.42;font-weight:730}h4{font-size:13px;line-height:1.3;margin-bottom:8px;font-weight:760}.section-subtitle{margin-top:18px}.sub,.eyebrow{color:var(--muted);font-size:13px}.eyebrow{font-weight:800;letter-spacing:.01em}.status-card{min-width:178px;display:grid;align-content:center;gap:4px;padding:16px 18px;border-radius:var(--radius);background:var(--surface-2);border:1px solid var(--line-strong)}.status-card span{color:var(--muted);font-size:13px;font-weight:760}.status-card strong{font-size:30px;line-height:1.05;color:var(--accent-ink)}.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.metric{padding:13px 14px;box-shadow:none;background:var(--surface-2)}.metric strong{display:block;font-size:22px;line-height:1.1;font-weight:780}.metric span{color:var(--muted);font-size:13px}.panel{padding:20px;margin-top:16px}.panel.first-panel{margin-top:0}.panel.first-panel{margin-top:0}.panel-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:start}.panel-stats{display:flex;gap:10px;align-items:center;color:var(--muted);font-size:13px;font-weight:800;flex-wrap:wrap;justify-content:flex-end}.pill{display:inline-flex;align-items:center;min-height:24px;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:800;white-space:nowrap;border:1px solid transparent}.pill.good{background:var(--good-soft);color:var(--good);border-color:oklch(0.82 0.055 154)}.logic-topology{margin-top:12px;padding:14px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2);overflow:hidden}.logic-tree,.logic-tree ul{list-style:none;margin:10px 0 0;padding-left:18px}.logic-group,.logic-rule-ref{position:relative;margin:8px 0}.logic-group::before,.logic-rule-ref::before{content:"";position:absolute;left:-12px;top:13px;width:8px;border-top:1px solid var(--line-strong)}.logic-operator{display:inline-flex;padding:4px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink);font-size:12px;font-weight:800}.logic-rule-ref{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:start;padding:8px 10px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);min-width:0}.logic-rule-item{display:block;padding:0;border:0;background:transparent;min-width:0}.overview-rule{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);overflow:hidden;min-width:0}.overview-rule summary{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:13px 14px;cursor:pointer;background:var(--surface)}.overview-rule summary strong{display:block;font-size:14px}.overview-rule summary::-webkit-details-marker{display:none}.overview-rule summary::before{content:"展开";justify-self:start;align-self:start;grid-column:1;grid-row:1;padding:3px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink);font-size:12px;font-weight:800;border:1px solid oklch(0.72 0.11 238)}.overview-rule[open]>summary::before{content:"收起"}.overview-rule summary>span:first-of-type{grid-column:2;min-width:0}.summary-actions{grid-column:3;grid-row:1;display:flex;flex-direction:column;gap:8px;align-items:flex-end;min-width:max-content}.process-link{cursor:pointer;border:1px solid oklch(0.72 0.11 238);background:var(--accent-soft);color:var(--accent-ink);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:800}.logic-rule-title{display:block;margin-top:5px;color:var(--ink);font-size:14px;font-weight:760}.logic-rule-meta{display:block;margin-top:5px;color:var(--muted);font-size:12px;font-weight:760}.overview-rule-body{display:grid;grid-template-columns:1fr;gap:10px;padding:0 14px 14px;border-top:1px solid var(--line)}.overview-rule-body>div{padding:12px;border-radius:var(--radius-sm);background:var(--surface-2)}.repo-detail{grid-column:1/-1;min-width:0}.repo-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}.repo-grid>div,.source-box{padding:10px;border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--surface)}.source-box{margin-bottom:12px;white-space:pre-wrap}.logic-rule-title,.logic-rule-meta,.repo-grid p,.source-box p,.keyword-definition-table td{overflow-wrap:anywhere;word-break:break-word}.keyword-definition-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}.keyword-definition-table th,.keyword-definition-table td{padding:10px 9px;border-top:1px solid var(--line);text-align:left;vertical-align:top;min-width:0}.keyword-definition-table th{color:var(--muted);font-weight:800;background:var(--surface-3)}.keyword-definition-table th:nth-child(1){width:11%}.keyword-definition-table th:nth-child(3),.keyword-definition-table th:nth-child(4){width:8%}.keyword-definition-table th:nth-child(5){width:13%}.keyword-definition-table th:nth-child(6){width:31%}pre{margin:0;padding:12px;border-radius:var(--radius-sm);background:oklch(0.19 0.025 245);color:oklch(0.94 0.01 235);overflow:auto;font-size:12px;line-height:1.52;tab-size:2;max-width:100%;min-width:0;white-space:pre-wrap;word-break:break-word}.raw-block{margin-top:12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);padding:10px 12px}.raw-block summary{cursor:pointer;font-weight:800;color:var(--accent-ink);padding:7px 10px;border-radius:var(--radius-sm);background:var(--accent-soft);border:1px solid oklch(0.72 0.11 238);margin-bottom:10px}.maintenance-alert{margin-top:12px;padding:12px;border:1px solid oklch(0.78 0.12 28);border-radius:var(--radius-sm);background:var(--bad-soft);color:var(--ink)}.maintenance-alert h4{color:var(--bad)}.maintenance-alert p{color:var(--bad);font-weight:720}.skip-link{position:absolute;left:12px;top:8px;transform:translateY(-140%);background:var(--accent-ink);color:white;padding:8px 10px;border-radius:999px;text-decoration:none;font-weight:800}.skip-link:focus{transform:translateY(0)}@media(max-width:900px){.page{width:min(100% - 20px,1320px);padding-top:12px}.hero,.metrics,.panel-head,.repo-grid{grid-template-columns:1fr}.summary-actions,.overview-rule summary>span:first-of-type{grid-column:1;grid-row:auto;align-items:flex-start}.overview-rule summary{grid-template-columns:1fr}.overview-rule summary::before{grid-column:1}.panel{padding:14px}.logic-tree,.logic-tree ul{padding-left:12px}.logic-rule-ref{padding:6px}.keyword-definition-table{display:block;overflow:auto}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.inline-json summary{cursor:pointer;display:inline;color:var(--accent-ink);background:none;border:0;padding:0;border-radius:0;font-weight:700;text-decoration:none}.inline-json summary:hover,.inline-json summary:focus-visible{text-decoration:underline}.inline-json summary::-webkit-details-marker{display:none}.inline-json pre{margin-top:8px;max-height:320px}</style></head><body><a class="skip-link" href="#content">跳到内容</a><main class="page"><section class="panel first-panel" id="content"><div class="panel-head"><div><p class="eyebrow">V20260517 · SJ04</p><h2>精神病</h2><p class="sub">来源：八类疾病准入条件及细则-20260517.xlsx；MD：精神病-认定标准-v20260517.md；JSON：精神病-certification_list-v20260517.json</p></div><div class="panel-stats"><span class="pill good">可解析</span><span>6 条规则</span><span>10 条提取项</span></div></div><h3 class="section-subtitle">规则判定总览</h3><section class="logic-topology"><h4>逻辑拓扑</h4><p class="sub">按入参 logicTopology 展示规则之间的且或关系。</p><ul class="logic-tree"><li class="logic-group"><div class="logic-operator">OR · 任一条件满足</div><ul><li class="logic-group"><div class="logic-operator">AND · 全部条件满足</div><ul><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail" open><summary><span><strong>规则 04001</strong><span class="logic-rule-title">规则原文：严重精神障碍(包含精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍、伴有严重冲动伤人行为的其他精神障碍)。</span><span class="logic-rule-meta">来源分项：严重精神障碍 · 提取项 1 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>严重精神障碍(包含精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍、伴有严重冲动伤人行为的其他精神障碍)。</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>严重精神障碍</p></div></div><h4>认定标准原文</h4><div class="source-box"><p>严重精神障碍(包含精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍、伴有严重冲动伤人行为的其他精神障碍)。
+1.符合国际疾病分类中精神与行为障碍相关疾病诊断标准。
+2.提供精神专科医疗机构或二级及以上综合医疗机构诊断证明。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>04001001</td><td>判断材料中是否明确诊断为严重精神障碍范围内疾病。肯定证据包括精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍，或伴有严重冲动伤人行为的其他精神障碍；仅出现焦虑、失眠、抑郁症状或一般心理问题，不得判定为该项肯定。优先查看精神专科诊断证明、出院诊断、门诊诊断。</td><td>enum</td><td>是</td><td>已确诊、未确诊</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断材料中是否明确诊断为严重精神障碍范围内疾病。肯定证据包括精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍，或伴有严重冲动伤人行为的其他精神障碍；仅出现焦虑、失眠、抑郁症状或一般心理问题，不得判定为该项肯定。优先查看精神专科诊断证明、出院诊断、门诊诊断。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;已确诊&quot;,
+    &quot;未确诊&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;04001001&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block dev-data" id="raw-04001"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleCode&quot;: &quot;04001&quot;,
+  &quot;ruleContent&quot;: &quot;严重精神障碍(包含精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍、伴有严重冲动伤人行为的其他精神障碍)。&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断材料中是否明确诊断为严重精神障碍范围内疾病。肯定证据包括精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍，或伴有严重冲动伤人行为的其他精神障碍；仅出现焦虑、失眠、抑郁症状或一般心理问题，不得判定为该项肯定。优先查看精神专科诊断证明、出院诊断、门诊诊断。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;已确诊&quot;,
+        &quot;未确诊&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;04001001&quot;
+    }
+  ],
+  &quot;sourceRuleContent&quot;: &quot;严重精神障碍(包含精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍、伴有严重冲动伤人行为的其他精神障碍)。\n1.符合国际疾病分类中精神与行为障碍相关疾病诊断标准。\n2.提供精神专科医疗机构或二级及以上综合医疗机构诊断证明。&quot;,
+  &quot;sourceMdFile&quot;: &quot;精神病-认定标准-v20260517.md&quot;,
+  &quot;sourceSection&quot;: &quot;严重精神障碍&quot;
+}</pre></details></div></div></details></li><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail" ><summary><span><strong>规则 04002</strong><span class="logic-rule-title">规则原文：符合国际疾病分类中精神与行为障碍相关疾病诊断标准</span><span class="logic-rule-meta">来源分项：严重精神障碍 · 提取项 1 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>符合国际疾病分类中精神与行为障碍相关疾病诊断标准</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>严重精神障碍</p></div></div><h4>认定标准原文</h4><div class="source-box"><p>严重精神障碍(包含精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍、伴有严重冲动伤人行为的其他精神障碍)。
+1.符合国际疾病分类中精神与行为障碍相关疾病诊断标准。
+2.提供精神专科医疗机构或二级及以上综合医疗机构诊断证明。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>04002001</td><td>判断材料中是否明确符合国际疾病分类中精神与行为障碍相关疾病诊断标准。肯定证据包括诊断证明、出院记录或门诊记录明确写明ICD精神与行为障碍分类诊断、F类编码或符合相关诊断标准；仅有症状描述而无诊断标准或诊断名称，不得判定为肯定。优先查看诊断证明、出院记录、门诊记录。</td><td>enum</td><td>是</td><td>是、否、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断材料中是否明确符合国际疾病分类中精神与行为障碍相关疾病诊断标准。肯定证据包括诊断证明、出院记录或门诊记录明确写明ICD精神与行为障碍分类诊断、F类编码或符合相关诊断标准；仅有症状描述而无诊断标准或诊断名称，不得判定为肯定。优先查看诊断证明、出院记录、门诊记录。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;04002001&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block dev-data" id="raw-04002"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleCode&quot;: &quot;04002&quot;,
+  &quot;ruleContent&quot;: &quot;符合国际疾病分类中精神与行为障碍相关疾病诊断标准&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断材料中是否明确符合国际疾病分类中精神与行为障碍相关疾病诊断标准。肯定证据包括诊断证明、出院记录或门诊记录明确写明ICD精神与行为障碍分类诊断、F类编码或符合相关诊断标准；仅有症状描述而无诊断标准或诊断名称，不得判定为肯定。优先查看诊断证明、出院记录、门诊记录。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;是&quot;,
+        &quot;否&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;04002001&quot;
+    }
+  ],
+  &quot;sourceRuleContent&quot;: &quot;严重精神障碍(包含精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍、伴有严重冲动伤人行为的其他精神障碍)。\n1.符合国际疾病分类中精神与行为障碍相关疾病诊断标准。\n2.提供精神专科医疗机构或二级及以上综合医疗机构诊断证明。&quot;,
+  &quot;sourceMdFile&quot;: &quot;精神病-认定标准-v20260517.md&quot;,
+  &quot;sourceSection&quot;: &quot;严重精神障碍&quot;
+}</pre></details></div></div></details></li><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail" ><summary><span><strong>规则 04003</strong><span class="logic-rule-title">规则原文：提供精神专科医疗机构或二级及以上综合医疗机构诊断证明</span><span class="logic-rule-meta">来源分项：严重精神障碍 · 提取项 1 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>提供精神专科医疗机构或二级及以上综合医疗机构诊断证明</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>严重精神障碍</p></div></div><h4>认定标准原文</h4><div class="source-box"><p>严重精神障碍(包含精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍、伴有严重冲动伤人行为的其他精神障碍)。
+1.符合国际疾病分类中精神与行为障碍相关疾病诊断标准。
+2.提供精神专科医疗机构或二级及以上综合医疗机构诊断证明。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>04003001</td><td>判断材料中是否提供精神专科医疗机构或二级及以上综合医疗机构出具的诊断证明。肯定证据包括精神专科医院、精神卫生中心或二级及以上综合医院出具的诊断证明；仅有处方、检查单或无机构来源的诊断文字，不得判定为已提供。优先查看诊断证明文件、机构名称、医院等级字段。</td><td>enum</td><td>是</td><td>是、否、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断材料中是否提供精神专科医疗机构或二级及以上综合医疗机构出具的诊断证明。肯定证据包括精神专科医院、精神卫生中心或二级及以上综合医院出具的诊断证明；仅有处方、检查单或无机构来源的诊断文字，不得判定为已提供。优先查看诊断证明文件、机构名称、医院等级字段。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;04003001&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block dev-data" id="raw-04003"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleCode&quot;: &quot;04003&quot;,
+  &quot;ruleContent&quot;: &quot;提供精神专科医疗机构或二级及以上综合医疗机构诊断证明&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断材料中是否提供精神专科医疗机构或二级及以上综合医疗机构出具的诊断证明。肯定证据包括精神专科医院、精神卫生中心或二级及以上综合医院出具的诊断证明；仅有处方、检查单或无机构来源的诊断文字，不得判定为已提供。优先查看诊断证明文件、机构名称、医院等级字段。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;是&quot;,
+        &quot;否&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;04003001&quot;
+    }
+  ],
+  &quot;sourceRuleContent&quot;: &quot;严重精神障碍(包含精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍、伴有严重冲动伤人行为的其他精神障碍)。\n1.符合国际疾病分类中精神与行为障碍相关疾病诊断标准。\n2.提供精神专科医疗机构或二级及以上综合医疗机构诊断证明。&quot;,
+  &quot;sourceMdFile&quot;: &quot;精神病-认定标准-v20260517.md&quot;,
+  &quot;sourceSection&quot;: &quot;严重精神障碍&quot;
+}</pre></details></div></div></details></li></ul></li><li class="logic-group"><div class="logic-operator">AND · 全部条件满足</div><ul><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail" ><summary><span><strong>规则 04004</strong><span class="logic-rule-title">规则原文：符合国际疾病分类中精神与行为障碍相关疾病诊断标准。</span><span class="logic-rule-meta">来源分项：其他精神障碍 · 提取项 1 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>符合国际疾病分类中精神与行为障碍相关疾病诊断标准。</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>其他精神障碍</p></div></div><h4>认定标准原文</h4><div class="source-box"><p>1.符合国际疾病分类中精神与行为障碍相关疾病诊断标准。
+2.需提供明确诊断的精神专科医疗机构或二级及以上综合医疗机构近两年内的住院病历复印件(住院时间需超过一周) ；未经住院治疗的，需有近期连续就诊超过三个月的精神专科医疗机构或二级及以上综合医疗机构的门诊诊疗记录并同时提供该医院的诊断证明。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>04004001</td><td>判断材料中是否明确诊断为其他精神障碍且符合国际疾病分类精神与行为障碍相关诊断标准。肯定证据包括诊断证明、住院病历或门诊记录中的其他精神障碍诊断、F类编码或符合相关诊断标准描述；仅有情绪、睡眠、行为异常等症状而无明确诊断，不得判定为肯定。优先查看诊断证明、住院病历、门诊记录。</td><td>enum</td><td>是</td><td>已确诊、未确诊</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断材料中是否明确诊断为其他精神障碍且符合国际疾病分类精神与行为障碍相关诊断标准。肯定证据包括诊断证明、住院病历或门诊记录中的其他精神障碍诊断、F类编码或符合相关诊断标准描述；仅有情绪、睡眠、行为异常等症状而无明确诊断，不得判定为肯定。优先查看诊断证明、住院病历、门诊记录。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;已确诊&quot;,
+    &quot;未确诊&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;04004001&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block dev-data" id="raw-04004"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleCode&quot;: &quot;04004&quot;,
+  &quot;ruleContent&quot;: &quot;符合国际疾病分类中精神与行为障碍相关疾病诊断标准。&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断材料中是否明确诊断为其他精神障碍且符合国际疾病分类精神与行为障碍相关诊断标准。肯定证据包括诊断证明、住院病历或门诊记录中的其他精神障碍诊断、F类编码或符合相关诊断标准描述；仅有情绪、睡眠、行为异常等症状而无明确诊断，不得判定为肯定。优先查看诊断证明、住院病历、门诊记录。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;已确诊&quot;,
+        &quot;未确诊&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;04004001&quot;
+    }
+  ],
+  &quot;sourceRuleContent&quot;: &quot;1.符合国际疾病分类中精神与行为障碍相关疾病诊断标准。\n2.需提供明确诊断的精神专科医疗机构或二级及以上综合医疗机构近两年内的住院病历复印件(住院时间需超过一周) ；未经住院治疗的，需有近期连续就诊超过三个月的精神专科医疗机构或二级及以上综合医疗机构的门诊诊疗记录并同时提供该医院的诊断证明。&quot;,
+  &quot;sourceMdFile&quot;: &quot;精神病-认定标准-v20260517.md&quot;,
+  &quot;sourceSection&quot;: &quot;其他精神障碍&quot;
+}</pre></details></div></div></details></li><li class="logic-group"><div class="logic-operator">OR · 任一条件满足</div><ul><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail" ><summary><span><strong>规则 04005</strong><span class="logic-rule-title">规则原文：需提供明确诊断的精神专科医疗机构或二级及以上综合医疗机构近两年内的住院病历复印件(住院时间需超过一周)</span><span class="logic-rule-meta">来源分项：其他精神障碍 · 提取项 3 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>需提供明确诊断的精神专科医疗机构或二级及以上综合医疗机构近两年内的住院病历复印件(住院时间需超过一周)</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>其他精神障碍</p></div></div><h4>认定标准原文</h4><div class="source-box"><p>1.符合国际疾病分类中精神与行为障碍相关疾病诊断标准。
+2.需提供明确诊断的精神专科医疗机构或二级及以上综合医疗机构近两年内的住院病历复印件(住院时间需超过一周) ；未经住院治疗的，需有近期连续就诊超过三个月的精神专科医疗机构或二级及以上综合医疗机构的门诊诊疗记录并同时提供该医院的诊断证明。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>04005001</td><td>判断材料中是否提供近两年内住院病历复印件。肯定证据包括住院病案、出院记录或住院病历复印件且日期在申请前两年内；无日期、超出两年或仅门诊材料，不得判定为该项肯定。优先查看住院病历、出院记录、病案首页日期。</td><td>enum</td><td>是</td><td>是、否、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断材料中是否提供近两年内住院病历复印件。肯定证据包括住院病案、出院记录或住院病历复印件且日期在申请前两年内；无日期、超出两年或仅门诊材料，不得判定为该项肯定。优先查看住院病历、出院记录、病案首页日期。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;04005001&quot;
+}</pre></details></td></tr><tr><td>04005002</td><td>判断住院病历是否来自精神专科医疗机构或二级及以上综合医疗机构。肯定证据包括精神专科医院、精神卫生中心或二级及以上综合医院名称/等级；仅有机构名称但无法确认性质或等级时判无法判断。优先查看病案首页、医院等级字段、诊断证明。</td><td>enum</td><td>是</td><td>符合机构要求、不符合机构要求、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断住院病历是否来自精神专科医疗机构或二级及以上综合医疗机构。肯定证据包括精神专科医院、精神卫生中心或二级及以上综合医院名称/等级；仅有机构名称但无法确认性质或等级时判无法判断。优先查看病案首页、医院等级字段、诊断证明。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;符合机构要求&quot;,
+    &quot;不符合机构要求&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;04005002&quot;
+}</pre></details></td></tr><tr><td>04005003</td><td>判断住院时间是否超过一周。肯定证据包括入院日期和出院日期相差超过7天，或病历明确记载住院时间超过一周；住院7天及以下、无住院时长证据不得判定为肯定。优先查看病案首页、出院记录、住院日期字段。</td><td>enum</td><td>是</td><td>是、否、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断住院时间是否超过一周。肯定证据包括入院日期和出院日期相差超过7天，或病历明确记载住院时间超过一周；住院7天及以下、无住院时长证据不得判定为肯定。优先查看病案首页、出院记录、住院日期字段。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;04005003&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block dev-data" id="raw-04005"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleCode&quot;: &quot;04005&quot;,
+  &quot;ruleContent&quot;: &quot;需提供明确诊断的精神专科医疗机构或二级及以上综合医疗机构近两年内的住院病历复印件(住院时间需超过一周)&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断材料中是否提供近两年内住院病历复印件。肯定证据包括住院病案、出院记录或住院病历复印件且日期在申请前两年内；无日期、超出两年或仅门诊材料，不得判定为该项肯定。优先查看住院病历、出院记录、病案首页日期。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;是&quot;,
+        &quot;否&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;04005001&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断住院病历是否来自精神专科医疗机构或二级及以上综合医疗机构。肯定证据包括精神专科医院、精神卫生中心或二级及以上综合医院名称/等级；仅有机构名称但无法确认性质或等级时判无法判断。优先查看病案首页、医院等级字段、诊断证明。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;符合机构要求&quot;,
+        &quot;不符合机构要求&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;04005002&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断住院时间是否超过一周。肯定证据包括入院日期和出院日期相差超过7天，或病历明确记载住院时间超过一周；住院7天及以下、无住院时长证据不得判定为肯定。优先查看病案首页、出院记录、住院日期字段。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;是&quot;,
+        &quot;否&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;04005003&quot;
+    }
+  ],
+  &quot;sourceRuleContent&quot;: &quot;1.符合国际疾病分类中精神与行为障碍相关疾病诊断标准。\n2.需提供明确诊断的精神专科医疗机构或二级及以上综合医疗机构近两年内的住院病历复印件(住院时间需超过一周) ；未经住院治疗的，需有近期连续就诊超过三个月的精神专科医疗机构或二级及以上综合医疗机构的门诊诊疗记录并同时提供该医院的诊断证明。&quot;,
+  &quot;sourceMdFile&quot;: &quot;精神病-认定标准-v20260517.md&quot;,
+  &quot;sourceSection&quot;: &quot;其他精神障碍&quot;
+}</pre></details></div></div></details></li><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail" ><summary><span><strong>规则 04006</strong><span class="logic-rule-title">规则原文：未经住院治疗的，需有近期连续就诊超过三个月的精神专科医疗机构或二级及以上综合医疗机构的门诊诊疗记录并同时提供该医院的诊断证明。</span><span class="logic-rule-meta">来源分项：其他精神障碍 · 提取项 3 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>未经住院治疗的，需有近期连续就诊超过三个月的精神专科医疗机构或二级及以上综合医疗机构的门诊诊疗记录并同时提供该医院的诊断证明。</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>其他精神障碍</p></div></div><h4>认定标准原文</h4><div class="source-box"><p>1.符合国际疾病分类中精神与行为障碍相关疾病诊断标准。
+2.需提供明确诊断的精神专科医疗机构或二级及以上综合医疗机构近两年内的住院病历复印件(住院时间需超过一周) ；未经住院治疗的，需有近期连续就诊超过三个月的精神专科医疗机构或二级及以上综合医疗机构的门诊诊疗记录并同时提供该医院的诊断证明。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>04006001</td><td>判断材料中是否有近期连续就诊超过三个月的门诊诊疗记录。肯定证据包括同一精神专科医疗机构或二级及以上综合医疗机构的多次门诊记录，时间跨度超过三个月；零散就诊、时间不足三个月或无法确认连续性，不得判定为肯定。优先查看门诊病历、就诊记录、日期字段。</td><td>enum</td><td>是</td><td>是、否、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断材料中是否有近期连续就诊超过三个月的门诊诊疗记录。肯定证据包括同一精神专科医疗机构或二级及以上综合医疗机构的多次门诊记录，时间跨度超过三个月；零散就诊、时间不足三个月或无法确认连续性，不得判定为肯定。优先查看门诊病历、就诊记录、日期字段。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;04006001&quot;
+}</pre></details></td></tr><tr><td>04006002</td><td>判断门诊机构是否为精神专科医疗机构或二级及以上综合医疗机构。肯定证据包括精神专科医院、精神卫生中心或二级及以上综合医院名称/等级；仅有机构名称但无法确认性质或等级时判无法判断。优先查看门诊记录抬头、医院等级字段、诊断证明。</td><td>enum</td><td>是</td><td>符合机构要求、不符合机构要求、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断门诊机构是否为精神专科医疗机构或二级及以上综合医疗机构。肯定证据包括精神专科医院、精神卫生中心或二级及以上综合医院名称/等级；仅有机构名称但无法确认性质或等级时判无法判断。优先查看门诊记录抬头、医院等级字段、诊断证明。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;符合机构要求&quot;,
+    &quot;不符合机构要求&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;04006002&quot;
+}</pre></details></td></tr><tr><td>04006003</td><td>判断是否同时提供该医院诊断证明。肯定证据包括与连续门诊机构一致的诊断证明；仅有门诊记录无诊断证明，或诊断证明来自其他无法对应机构，不得判定为肯定。优先查看诊断证明、机构名称、门诊记录。</td><td>enum</td><td>是</td><td>是、否、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断是否同时提供该医院诊断证明。肯定证据包括与连续门诊机构一致的诊断证明；仅有门诊记录无诊断证明，或诊断证明来自其他无法对应机构，不得判定为肯定。优先查看诊断证明、机构名称、门诊记录。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;04006003&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block dev-data" id="raw-04006"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleCode&quot;: &quot;04006&quot;,
+  &quot;ruleContent&quot;: &quot;未经住院治疗的，需有近期连续就诊超过三个月的精神专科医疗机构或二级及以上综合医疗机构的门诊诊疗记录并同时提供该医院的诊断证明。&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断材料中是否有近期连续就诊超过三个月的门诊诊疗记录。肯定证据包括同一精神专科医疗机构或二级及以上综合医疗机构的多次门诊记录，时间跨度超过三个月；零散就诊、时间不足三个月或无法确认连续性，不得判定为肯定。优先查看门诊病历、就诊记录、日期字段。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;是&quot;,
+        &quot;否&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;04006001&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断门诊机构是否为精神专科医疗机构或二级及以上综合医疗机构。肯定证据包括精神专科医院、精神卫生中心或二级及以上综合医院名称/等级；仅有机构名称但无法确认性质或等级时判无法判断。优先查看门诊记录抬头、医院等级字段、诊断证明。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;符合机构要求&quot;,
+        &quot;不符合机构要求&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;04006002&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断是否同时提供该医院诊断证明。肯定证据包括与连续门诊机构一致的诊断证明；仅有门诊记录无诊断证明，或诊断证明来自其他无法对应机构，不得判定为肯定。优先查看诊断证明、机构名称、门诊记录。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;是&quot;,
+        &quot;否&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;04006003&quot;
+    }
+  ],
+  &quot;sourceRuleContent&quot;: &quot;1.符合国际疾病分类中精神与行为障碍相关疾病诊断标准。\n2.需提供明确诊断的精神专科医疗机构或二级及以上综合医疗机构近两年内的住院病历复印件(住院时间需超过一周) ；未经住院治疗的，需有近期连续就诊超过三个月的精神专科医疗机构或二级及以上综合医疗机构的门诊诊疗记录并同时提供该医院的诊断证明。&quot;,
+  &quot;sourceMdFile&quot;: &quot;精神病-认定标准-v20260517.md&quot;,
+  &quot;sourceSection&quot;: &quot;其他精神障碍&quot;
+}</pre></details></div></div></details></li></ul></li></ul></li></ul></li></ul></section></section></main></body></html>

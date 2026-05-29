@@ -1,0 +1,93 @@
+{
+  "certification_list": {
+    "meta": {
+      "version": "V20260517",
+      "chronicDiseaseName": "帕金森",
+      "chronicDiseaseCode": "SJ08",
+      "createdAt": "2026-05-17",
+      "description": "省局项目8个病种认定标准结构化版本",
+      "sourceFile": "八类疾病准入条件及细则-20260517.xlsx"
+    },
+    "ruleRepository": [
+      {
+        "ruleCode": "08001",
+        "ruleContent": "出现运动迟缓、静止性震颤、肌强直、姿势平衡障碍等临床表现",
+        "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+        "experience": "",
+        "ruleKeywordGuide": [
+          {
+            "dataType": "enum",
+            "required": true,
+            "keywordContent": "判断材料中是否记载帕金森相关临床表现。肯定证据包括运动迟缓、静止性震颤、肌强直、姿势平衡障碍中的一种或多种，且为临床记录或体格检查所记载；仅有手抖、乏力、行走不稳等孤立描述且未形成相关临床表现，不得判定为肯定。优先查看入院记录、神经系统查体、出院记录。",
+            "enumOptions": [
+              "是",
+              "否",
+              "无法判断"
+            ],
+            "keywordCode": "08001001"
+          }
+        ],
+        "sourceRuleContent": "出现运动迟缓、静止性震颤、肌强直、姿势平衡障碍等临床表现，经二级及以上医疗机构神经专科确诊为帕金森病及帕金森综合症。",
+        "sourceMdFile": "帕金森-认定标准-v20260517.md",
+        "sourceSection": ""
+      },
+      {
+        "ruleCode": "08002",
+        "ruleContent": "经二级及以上医疗机构神经专科确诊为帕金森病及帕金森综合症",
+        "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+        "experience": "",
+        "ruleKeywordGuide": [
+          {
+            "dataType": "enum",
+            "required": true,
+            "keywordContent": "判断材料中是否明确诊断为帕金森病或帕金森综合症。肯定证据包括病案首页、出院诊断、诊断证明或神经专科记录明确“帕金森病”“帕金森综合症”；仅出现震颤、肌张力增高、疑似帕金森，不能判定为已确诊。优先查看病案首页、出院记录、诊断证明。",
+            "enumOptions": [
+              "已确诊",
+              "未确诊"
+            ],
+            "keywordCode": "08002001"
+          },
+          {
+            "dataType": "enum",
+            "required": true,
+            "keywordContent": "判断确诊机构是否为二级及以上医疗机构。肯定证据包括医院等级字段、病案首页或诊断证明显示二级、三级、二甲、三甲等；仅有医院名称无法确认等级时判无法判断；一级及以下机构不得判二级及以上。优先查看医院等级字段、病案首页、诊断证明。",
+            "enumOptions": [
+              "二级及以上",
+              "二级以下",
+              "无法判断"
+            ],
+            "keywordCode": "08002002"
+          },
+          {
+            "dataType": "enum",
+            "required": true,
+            "keywordContent": "判断确诊是否来自神经专科。肯定证据包括神经内科、神经外科、神经专科门诊或神经专科医师诊断；仅有普通内科、全科或无科室来源的诊断，不能判定为神经专科确诊。优先查看科室名称、诊断证明、门诊记录、出院记录。",
+            "enumOptions": [
+              "是",
+              "否",
+              "无法判断"
+            ],
+            "keywordCode": "08002003"
+          }
+        ],
+        "sourceRuleContent": "出现运动迟缓、静止性震颤、肌强直、姿势平衡障碍等临床表现，经二级及以上医疗机构神经专科确诊为帕金森病及帕金森综合症。",
+        "sourceMdFile": "帕金森-认定标准-v20260517.md",
+        "sourceSection": ""
+      }
+    ],
+    "logicTopology": {
+      "type": "GROUP",
+      "operator": "AND",
+      "children": [
+        {
+          "type": "RULE_REF",
+          "ruleCode": "08001"
+        },
+        {
+          "type": "RULE_REF",
+          "ruleCode": "08002"
+        }
+      ]
+    }
+  }
+}

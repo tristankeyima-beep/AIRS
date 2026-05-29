@@ -1,0 +1,105 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>帕金森认定标准可视化（v20260517）</title><style>
+:root{color-scheme:light;--bg:oklch(0.965 0.008 235);--surface:oklch(0.992 0.004 235);--surface-2:oklch(0.976 0.007 235);--surface-3:oklch(0.947 0.01 235);--ink:oklch(0.245 0.026 244);--muted:oklch(0.515 0.027 244);--line:oklch(0.883 0.015 235);--line-strong:oklch(0.81 0.018 235);--accent-ink:oklch(0.31 0.086 238);--accent-soft:oklch(0.93 0.035 238);--good:oklch(0.46 0.095 154);--good-soft:oklch(0.94 0.04 154);--bad:oklch(0.51 0.15 28);--bad-soft:oklch(0.94 0.045 28);--shadow-tight:0 8px 22px oklch(0.34 0.03 240 / .06);--radius:10px;--radius-sm:7px}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:linear-gradient(180deg,oklch(0.982 0.008 235),var(--bg) 360px);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;line-height:1.56;text-rendering:optimizeLegibility}.page{width:min(1320px,calc(100% - 36px));margin:0 auto;padding:16px 0 56px}.hero,.panel,.metric{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow-tight)}.hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:center;padding:22px 24px}h1,h2,h3,h4,p{margin:0}h1{font-size:25px;line-height:1.2;font-weight:780;letter-spacing:0}h2{font-size:19px;line-height:1.25;margin-bottom:8px;font-weight:760}h3{font-size:16px;line-height:1.42;font-weight:730}h4{font-size:13px;line-height:1.3;margin-bottom:8px;font-weight:760}.section-subtitle{margin-top:18px}.sub,.eyebrow{color:var(--muted);font-size:13px}.eyebrow{font-weight:800;letter-spacing:.01em}.status-card{min-width:178px;display:grid;align-content:center;gap:4px;padding:16px 18px;border-radius:var(--radius);background:var(--surface-2);border:1px solid var(--line-strong)}.status-card span{color:var(--muted);font-size:13px;font-weight:760}.status-card strong{font-size:30px;line-height:1.05;color:var(--accent-ink)}.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.metric{padding:13px 14px;box-shadow:none;background:var(--surface-2)}.metric strong{display:block;font-size:22px;line-height:1.1;font-weight:780}.metric span{color:var(--muted);font-size:13px}.panel{padding:20px;margin-top:16px}.panel.first-panel{margin-top:0}.panel.first-panel{margin-top:0}.panel-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:start}.panel-stats{display:flex;gap:10px;align-items:center;color:var(--muted);font-size:13px;font-weight:800;flex-wrap:wrap;justify-content:flex-end}.pill{display:inline-flex;align-items:center;min-height:24px;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:800;white-space:nowrap;border:1px solid transparent}.pill.good{background:var(--good-soft);color:var(--good);border-color:oklch(0.82 0.055 154)}.logic-topology{margin-top:12px;padding:14px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2);overflow:hidden}.logic-tree,.logic-tree ul{list-style:none;margin:10px 0 0;padding-left:18px}.logic-group,.logic-rule-ref{position:relative;margin:8px 0}.logic-group::before,.logic-rule-ref::before{content:"";position:absolute;left:-12px;top:13px;width:8px;border-top:1px solid var(--line-strong)}.logic-operator{display:inline-flex;padding:4px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink);font-size:12px;font-weight:800}.logic-rule-ref{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:start;padding:8px 10px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);min-width:0}.logic-rule-item{display:block;padding:0;border:0;background:transparent;min-width:0}.overview-rule{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);overflow:hidden;min-width:0}.overview-rule summary{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:13px 14px;cursor:pointer;background:var(--surface)}.overview-rule summary strong{display:block;font-size:14px}.overview-rule summary::-webkit-details-marker{display:none}.overview-rule summary::before{content:"展开";justify-self:start;align-self:start;grid-column:1;grid-row:1;padding:3px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink);font-size:12px;font-weight:800;border:1px solid oklch(0.72 0.11 238)}.overview-rule[open]>summary::before{content:"收起"}.overview-rule summary>span:first-of-type{grid-column:2;min-width:0}.summary-actions{grid-column:3;grid-row:1;display:flex;flex-direction:column;gap:8px;align-items:flex-end;min-width:max-content}.process-link{cursor:pointer;border:1px solid oklch(0.72 0.11 238);background:var(--accent-soft);color:var(--accent-ink);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:800}.logic-rule-title{display:block;margin-top:5px;color:var(--ink);font-size:14px;font-weight:760}.logic-rule-meta{display:block;margin-top:5px;color:var(--muted);font-size:12px;font-weight:760}.overview-rule-body{display:grid;grid-template-columns:1fr;gap:10px;padding:0 14px 14px;border-top:1px solid var(--line)}.overview-rule-body>div{padding:12px;border-radius:var(--radius-sm);background:var(--surface-2)}.repo-detail{grid-column:1/-1;min-width:0}.repo-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}.repo-grid>div,.source-box{padding:10px;border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--surface)}.source-box{margin-bottom:12px;white-space:pre-wrap}.logic-rule-title,.logic-rule-meta,.repo-grid p,.source-box p,.keyword-definition-table td{overflow-wrap:anywhere;word-break:break-word}.keyword-definition-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}.keyword-definition-table th,.keyword-definition-table td{padding:10px 9px;border-top:1px solid var(--line);text-align:left;vertical-align:top;min-width:0}.keyword-definition-table th{color:var(--muted);font-weight:800;background:var(--surface-3)}.keyword-definition-table th:nth-child(1){width:11%}.keyword-definition-table th:nth-child(3),.keyword-definition-table th:nth-child(4){width:8%}.keyword-definition-table th:nth-child(5){width:13%}.keyword-definition-table th:nth-child(6){width:31%}pre{margin:0;padding:12px;border-radius:var(--radius-sm);background:oklch(0.19 0.025 245);color:oklch(0.94 0.01 235);overflow:auto;font-size:12px;line-height:1.52;tab-size:2;max-width:100%;min-width:0;white-space:pre-wrap;word-break:break-word}.raw-block{margin-top:12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);padding:10px 12px}.raw-block summary{cursor:pointer;font-weight:800;color:var(--accent-ink);padding:7px 10px;border-radius:var(--radius-sm);background:var(--accent-soft);border:1px solid oklch(0.72 0.11 238);margin-bottom:10px}.maintenance-alert{margin-top:12px;padding:12px;border:1px solid oklch(0.78 0.12 28);border-radius:var(--radius-sm);background:var(--bad-soft);color:var(--ink)}.maintenance-alert h4{color:var(--bad)}.maintenance-alert p{color:var(--bad);font-weight:720}.skip-link{position:absolute;left:12px;top:8px;transform:translateY(-140%);background:var(--accent-ink);color:white;padding:8px 10px;border-radius:999px;text-decoration:none;font-weight:800}.skip-link:focus{transform:translateY(0)}@media(max-width:900px){.page{width:min(100% - 20px,1320px);padding-top:12px}.hero,.metrics,.panel-head,.repo-grid{grid-template-columns:1fr}.summary-actions,.overview-rule summary>span:first-of-type{grid-column:1;grid-row:auto;align-items:flex-start}.overview-rule summary{grid-template-columns:1fr}.overview-rule summary::before{grid-column:1}.panel{padding:14px}.logic-tree,.logic-tree ul{padding-left:12px}.logic-rule-ref{padding:6px}.keyword-definition-table{display:block;overflow:auto}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.inline-json summary{cursor:pointer;display:inline;color:var(--accent-ink);background:none;border:0;padding:0;border-radius:0;font-weight:700;text-decoration:none}.inline-json summary:hover,.inline-json summary:focus-visible{text-decoration:underline}.inline-json summary::-webkit-details-marker{display:none}.inline-json pre{margin-top:8px;max-height:320px}</style></head><body><a class="skip-link" href="#content">跳到内容</a><main class="page"><section class="panel first-panel" id="content"><div class="panel-head"><div><p class="eyebrow">V20260517 · SJ08</p><h2>帕金森</h2><p class="sub">来源：八类疾病准入条件及细则-20260517.xlsx；MD：帕金森-认定标准-v20260517.md；JSON：帕金森-certification_list-v20260517.json</p></div><div class="panel-stats"><span class="pill good">可解析</span><span>2 条规则</span><span>4 条提取项</span></div></div><h3 class="section-subtitle">规则判定总览</h3><section class="logic-topology"><h4>逻辑拓扑</h4><p class="sub">按入参 logicTopology 展示规则之间的且或关系。</p><ul class="logic-tree"><li class="logic-group"><div class="logic-operator">AND · 全部条件满足</div><ul><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail" open><summary><span><strong>规则 08001</strong><span class="logic-rule-title">规则原文：出现运动迟缓、静止性震颤、肌强直、姿势平衡障碍等临床表现</span><span class="logic-rule-meta">来源分项： · 提取项 1 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>出现运动迟缓、静止性震颤、肌强直、姿势平衡障碍等临床表现</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p></p></div></div><h4>认定标准原文</h4><div class="source-box"><p>出现运动迟缓、静止性震颤、肌强直、姿势平衡障碍等临床表现，经二级及以上医疗机构神经专科确诊为帕金森病及帕金森综合症。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>08001001</td><td>判断材料中是否记载帕金森相关临床表现。肯定证据包括运动迟缓、静止性震颤、肌强直、姿势平衡障碍中的一种或多种，且为临床记录或体格检查所记载；仅有手抖、乏力、行走不稳等孤立描述且未形成相关临床表现，不得判定为肯定。优先查看入院记录、神经系统查体、出院记录。</td><td>enum</td><td>是</td><td>是、否、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断材料中是否记载帕金森相关临床表现。肯定证据包括运动迟缓、静止性震颤、肌强直、姿势平衡障碍中的一种或多种，且为临床记录或体格检查所记载；仅有手抖、乏力、行走不稳等孤立描述且未形成相关临床表现，不得判定为肯定。优先查看入院记录、神经系统查体、出院记录。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;08001001&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block dev-data" id="raw-08001"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleCode&quot;: &quot;08001&quot;,
+  &quot;ruleContent&quot;: &quot;出现运动迟缓、静止性震颤、肌强直、姿势平衡障碍等临床表现&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断材料中是否记载帕金森相关临床表现。肯定证据包括运动迟缓、静止性震颤、肌强直、姿势平衡障碍中的一种或多种，且为临床记录或体格检查所记载；仅有手抖、乏力、行走不稳等孤立描述且未形成相关临床表现，不得判定为肯定。优先查看入院记录、神经系统查体、出院记录。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;是&quot;,
+        &quot;否&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;08001001&quot;
+    }
+  ],
+  &quot;sourceRuleContent&quot;: &quot;出现运动迟缓、静止性震颤、肌强直、姿势平衡障碍等临床表现，经二级及以上医疗机构神经专科确诊为帕金森病及帕金森综合症。&quot;,
+  &quot;sourceMdFile&quot;: &quot;帕金森-认定标准-v20260517.md&quot;,
+  &quot;sourceSection&quot;: &quot;&quot;
+}</pre></details></div></div></details></li><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail" ><summary><span><strong>规则 08002</strong><span class="logic-rule-title">规则原文：经二级及以上医疗机构神经专科确诊为帕金森病及帕金森综合症</span><span class="logic-rule-meta">来源分项： · 提取项 3 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>经二级及以上医疗机构神经专科确诊为帕金森病及帕金森综合症</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p></p></div></div><h4>认定标准原文</h4><div class="source-box"><p>出现运动迟缓、静止性震颤、肌强直、姿势平衡障碍等临床表现，经二级及以上医疗机构神经专科确诊为帕金森病及帕金森综合症。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>08002001</td><td>判断材料中是否明确诊断为帕金森病或帕金森综合症。肯定证据包括病案首页、出院诊断、诊断证明或神经专科记录明确“帕金森病”“帕金森综合症”；仅出现震颤、肌张力增高、疑似帕金森，不能判定为已确诊。优先查看病案首页、出院记录、诊断证明。</td><td>enum</td><td>是</td><td>已确诊、未确诊</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断材料中是否明确诊断为帕金森病或帕金森综合症。肯定证据包括病案首页、出院诊断、诊断证明或神经专科记录明确“帕金森病”“帕金森综合症”；仅出现震颤、肌张力增高、疑似帕金森，不能判定为已确诊。优先查看病案首页、出院记录、诊断证明。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;已确诊&quot;,
+    &quot;未确诊&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;08002001&quot;
+}</pre></details></td></tr><tr><td>08002002</td><td>判断确诊机构是否为二级及以上医疗机构。肯定证据包括医院等级字段、病案首页或诊断证明显示二级、三级、二甲、三甲等；仅有医院名称无法确认等级时判无法判断；一级及以下机构不得判二级及以上。优先查看医院等级字段、病案首页、诊断证明。</td><td>enum</td><td>是</td><td>二级及以上、二级以下、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断确诊机构是否为二级及以上医疗机构。肯定证据包括医院等级字段、病案首页或诊断证明显示二级、三级、二甲、三甲等；仅有医院名称无法确认等级时判无法判断；一级及以下机构不得判二级及以上。优先查看医院等级字段、病案首页、诊断证明。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;二级及以上&quot;,
+    &quot;二级以下&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;08002002&quot;
+}</pre></details></td></tr><tr><td>08002003</td><td>判断确诊是否来自神经专科。肯定证据包括神经内科、神经外科、神经专科门诊或神经专科医师诊断；仅有普通内科、全科或无科室来源的诊断，不能判定为神经专科确诊。优先查看科室名称、诊断证明、门诊记录、出院记录。</td><td>enum</td><td>是</td><td>是、否、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;判断确诊是否来自神经专科。肯定证据包括神经内科、神经外科、神经专科门诊或神经专科医师诊断；仅有普通内科、全科或无科室来源的诊断，不能判定为神经专科确诊。优先查看科室名称、诊断证明、门诊记录、出院记录。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;08002003&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block dev-data" id="raw-08002"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleCode&quot;: &quot;08002&quot;,
+  &quot;ruleContent&quot;: &quot;经二级及以上医疗机构神经专科确诊为帕金森病及帕金森综合症&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断材料中是否明确诊断为帕金森病或帕金森综合症。肯定证据包括病案首页、出院诊断、诊断证明或神经专科记录明确“帕金森病”“帕金森综合症”；仅出现震颤、肌张力增高、疑似帕金森，不能判定为已确诊。优先查看病案首页、出院记录、诊断证明。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;已确诊&quot;,
+        &quot;未确诊&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;08002001&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断确诊机构是否为二级及以上医疗机构。肯定证据包括医院等级字段、病案首页或诊断证明显示二级、三级、二甲、三甲等；仅有医院名称无法确认等级时判无法判断；一级及以下机构不得判二级及以上。优先查看医院等级字段、病案首页、诊断证明。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;二级及以上&quot;,
+        &quot;二级以下&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;08002002&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;判断确诊是否来自神经专科。肯定证据包括神经内科、神经外科、神经专科门诊或神经专科医师诊断；仅有普通内科、全科或无科室来源的诊断，不能判定为神经专科确诊。优先查看科室名称、诊断证明、门诊记录、出院记录。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;是&quot;,
+        &quot;否&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;08002003&quot;
+    }
+  ],
+  &quot;sourceRuleContent&quot;: &quot;出现运动迟缓、静止性震颤、肌强直、姿势平衡障碍等临床表现，经二级及以上医疗机构神经专科确诊为帕金森病及帕金森综合症。&quot;,
+  &quot;sourceMdFile&quot;: &quot;帕金森-认定标准-v20260517.md&quot;,
+  &quot;sourceSection&quot;: &quot;&quot;
+}</pre></details></div></div></details></li></ul></li></ul></section></section></main></body></html>
