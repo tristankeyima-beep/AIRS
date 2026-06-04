@@ -1,71 +1,69 @@
 {
-  "certification_list": {
-    "meta": {
-      "version": "V20260517",
-      "chronicDiseaseName": "使用特立氟胺治疗多发性硬化症",
-      "chronicDiseaseCode": "SJ06",
-      "createdAt": "2026-05-17",
-      "description": "省局项目8个病种认定标准结构化版本",
-      "sourceFile": "八类疾病准入条件及细则-20260517.xlsx"
+  "meta": {
+    "version": "V20260517",
+    "chronicDiseaseName": "使用特立氟胺治疗多发性硬化症",
+    "chronicDiseaseCode": "SJ06",
+    "createdAt": "2026-05-17",
+    "description": "省局项目8个病种认定标准结构化版本",
+    "sourceFile": "八类疾病准入条件及细则-20260517.xlsx"
+  },
+  "ruleRepository": [
+    {
+      "ruleCode": "06001",
+      "ruleContent": "多发性硬化患者",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "ruleKeywordGuide": [
+        {
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否明确诊断为多发性硬化。肯定证据包括病案首页、出院诊断、诊断证明或神经内科记录中明确“多发性硬化”“MS”等诊断；仅出现脱髓鞘病变、视神经炎或疑似多发性硬化，不能判定为已确诊。优先查看病案首页、出院记录、诊断证明。",
+          "enumOptions": [
+            "已确诊",
+            "未确诊"
+          ],
+          "keywordCode": "06001001"
+        }
+      ],
+      "sourceRuleContent": "限常规治疗无效的多发性硬化患者。",
+      "sourceMdFile": "使用特立氟胺治疗多发性硬化症-认定标准-v20260517.md",
+      "sourceSection": ""
     },
-    "ruleRepository": [
+    {
+      "ruleCode": "06002",
+      "ruleContent": "常规治疗无效",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "ruleKeywordGuide": [
+        {
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否明确记载常规治疗无效。肯定证据包括病程记录、出院记录或诊断证明中写明常规治疗无效、既往常规治疗失败、疗效不佳或复发控制不佳；仅有用药史、换药、病情进展但未说明常规治疗无效，不得判定为肯定。优先查看治疗经过、出院记录、诊断证明。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ],
+          "keywordCode": "06002001"
+        }
+      ],
+      "sourceRuleContent": "限常规治疗无效的多发性硬化患者。",
+      "sourceMdFile": "使用特立氟胺治疗多发性硬化症-认定标准-v20260517.md",
+      "sourceSection": ""
+    }
+  ],
+  "logicTopology": {
+    "type": "GROUP",
+    "operator": "AND",
+    "children": [
       {
-        "ruleCode": "06001",
-        "ruleContent": "多发性硬化患者",
-        "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
-        "experience": "",
-        "ruleKeywordGuide": [
-          {
-            "dataType": "enum",
-            "required": true,
-            "keywordContent": "判断材料中是否明确诊断为多发性硬化。肯定证据包括病案首页、出院诊断、诊断证明或神经内科记录中明确“多发性硬化”“MS”等诊断；仅出现脱髓鞘病变、视神经炎或疑似多发性硬化，不能判定为已确诊。优先查看病案首页、出院记录、诊断证明。",
-            "enumOptions": [
-              "已确诊",
-              "未确诊"
-            ],
-            "keywordCode": "06001001"
-          }
-        ],
-        "sourceRuleContent": "限常规治疗无效的多发性硬化患者。",
-        "sourceMdFile": "使用特立氟胺治疗多发性硬化症-认定标准-v20260517.md",
-        "sourceSection": ""
+        "type": "RULE_REF",
+        "ruleCode": "06001"
       },
       {
-        "ruleCode": "06002",
-        "ruleContent": "常规治疗无效",
-        "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
-        "experience": "",
-        "ruleKeywordGuide": [
-          {
-            "dataType": "enum",
-            "required": true,
-            "keywordContent": "判断材料中是否明确记载常规治疗无效。肯定证据包括病程记录、出院记录或诊断证明中写明常规治疗无效、既往常规治疗失败、疗效不佳或复发控制不佳；仅有用药史、换药、病情进展但未说明常规治疗无效，不得判定为肯定。优先查看治疗经过、出院记录、诊断证明。",
-            "enumOptions": [
-              "是",
-              "否",
-              "无法判断"
-            ],
-            "keywordCode": "06002001"
-          }
-        ],
-        "sourceRuleContent": "限常规治疗无效的多发性硬化患者。",
-        "sourceMdFile": "使用特立氟胺治疗多发性硬化症-认定标准-v20260517.md",
-        "sourceSection": ""
+        "type": "RULE_REF",
+        "ruleCode": "06002"
       }
-    ],
-    "logicTopology": {
-      "type": "GROUP",
-      "operator": "AND",
-      "children": [
-        {
-          "type": "RULE_REF",
-          "ruleCode": "06001"
-        },
-        {
-          "type": "RULE_REF",
-          "ruleCode": "06002"
-        }
-      ]
-    }
+    ]
   }
 }

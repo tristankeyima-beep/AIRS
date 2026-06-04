@@ -1,244 +1,242 @@
 {
-  "certification_list": {
-    "meta": {
-      "version": "V20260517",
-      "chronicDiseaseName": "恶性肿瘤（含白血病）放化疗及相关治疗",
-      "chronicDiseaseCode": "SJ02",
-      "createdAt": "2026-05-17",
-      "description": "省局项目8个病种认定标准结构化版本",
-      "sourceFile": "八类疾病准入条件及细则-20260517.xlsx"
-    },
-    "ruleRepository": [
-      {
-        "ruleCode": "02001",
-        "ruleContent": "经病理学或细胞学诊断明确。",
-        "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
-        "experience": "",
-        "ruleKeywordGuide": [
-          {
-            "dataType": "enum",
-            "required": true,
-            "keywordContent": "判断材料中是否有病理学或细胞学明确诊断恶性肿瘤的证据。肯定证据包括病理报告、细胞学报告、病案首页或出院记录引用病理/细胞学结果并明确恶性肿瘤；仅出现肿瘤、占位、疑似恶性、肿瘤标志物升高或影像提示，不能判定为病理学或细胞学确诊。优先查看病理报告、细胞学检查、病案首页、出院记录。",
-            "enumOptions": [
-              "已确诊",
-              "未确诊"
-            ],
-            "keywordCode": "02001001"
-          }
-        ],
-        "sourceRuleContent": "恶性肿瘤的门诊治疗符合以下条件之一：\n1.经病理学或细胞学诊断明确。\n2.未经病理学或细胞学诊断，但根据病史、症状、体征，结合 X 线、B 超、CT、磁共振、内窥镜、实验室等辅助检查，经二级及以上医疗机构临床诊断为恶性肿瘤（需提供诊断证明）。\n3.对于部分需要按恶性肿瘤处理的占位性病变，需提交术后复发转移或放化疗等的相关病历资料。",
-        "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md",
-        "sourceSection": "恶性肿瘤的门诊治疗"
-      },
-      {
-        "ruleCode": "02002",
-        "ruleContent": "未经病理学或细胞学诊断，但根据病史、症状、体征，结合 X 线、B 超、CT、磁共振、内窥镜、实验室等辅助检查，经二级及以上医疗机构临床诊断为恶性肿瘤（需提供诊断证明）",
-        "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
-        "experience": "",
-        "ruleKeywordGuide": [
-          {
-            "dataType": "enum",
-            "required": true,
-            "keywordContent": "判断材料中是否明确为恶性肿瘤临床诊断。肯定证据包括诊断证明或出院诊断明确写明恶性肿瘤、癌、肉瘤、白血病以外的恶性肿瘤诊断；仅出现疑似、待排、占位、结节或良性肿瘤，不得判定为临床诊断明确。优先查看诊断证明、病案首页、出院记录。",
-            "enumOptions": [
-              "已确诊",
-              "未确诊"
-            ],
-            "keywordCode": "02002001"
-          },
-          {
-            "dataType": "enum",
-            "required": true,
-            "keywordContent": "判断临床诊断是否结合病史、症状、体征及辅助检查形成。肯定证据包括X线、B超、CT、MRI、内窥镜、实验室等检查结果支持恶性肿瘤诊断；仅有单一症状或主诉、无辅助检查证据，不得判定为满足该事实。优先查看影像报告、内窥镜报告、实验室检查、出院记录。",
-            "enumOptions": [
-              "是",
-              "否",
-              "无法判断"
-            ],
-            "keywordCode": "02002002"
-          },
-          {
-            "dataType": "enum",
-            "required": true,
-            "keywordContent": "判断作出临床诊断的医疗机构是否为二级及以上。肯定证据包括诊断证明、病案首页或医院等级字段显示二级、三级、二甲、三甲等；仅有疾病诊断不能证明机构等级；无法确认等级时判无法判断。优先查看诊断证明、病案首页、医院等级字段。",
-            "enumOptions": [
-              "二级及以上",
-              "二级以下",
-              "无法判断"
-            ],
-            "keywordCode": "02002003"
-          },
-          {
-            "dataType": "enum",
-            "required": true,
-            "keywordContent": "判断材料中是否提供诊断证明。肯定证据包括明确的诊断证明书、疾病诊断证明或等同诊断证明材料；仅有检查报告或治疗记录但无诊断证明，不得判定为已提供。优先查看诊断证明文件、材料标题和诊断证明字段。",
-            "enumOptions": [
-              "是",
-              "否",
-              "无法判断"
-            ],
-            "keywordCode": "02002004"
-          }
-        ],
-        "sourceRuleContent": "恶性肿瘤的门诊治疗符合以下条件之一：\n1.经病理学或细胞学诊断明确。\n2.未经病理学或细胞学诊断，但根据病史、症状、体征，结合 X 线、B 超、CT、磁共振、内窥镜、实验室等辅助检查，经二级及以上医疗机构临床诊断为恶性肿瘤（需提供诊断证明）。\n3.对于部分需要按恶性肿瘤处理的占位性病变，需提交术后复发转移或放化疗等的相关病历资料。",
-        "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md",
-        "sourceSection": "恶性肿瘤的门诊治疗"
-      },
-      {
-        "ruleCode": "02003",
-        "ruleContent": "对于部分需要按恶性肿瘤处理的占位性病变，需提交术后复发转移或放化疗等的相关病历资料",
-        "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
-        "experience": "",
-        "ruleKeywordGuide": [
-          {
-            "dataType": "enum",
-            "required": true,
-            "keywordContent": "判断材料中是否属于需要按恶性肿瘤处理的占位性病变。肯定证据包括病历明确说明占位性病变需按恶性肿瘤处理；仅出现占位、肿块、结节但未说明按恶性肿瘤处理，不得判定为肯定。优先查看出院记录、诊断证明、病程记录。",
-            "enumOptions": [
-              "是",
-              "否",
-              "无法判断"
-            ],
-            "keywordCode": "02003001"
-          },
-          {
-            "dataType": "enum",
-            "required": true,
-            "keywordContent": "判断材料中是否提交术后复发、转移或放疗、化疗等相关病历资料。肯定证据包括术后复发记录、转移诊断、放疗记录、化疗记录或相关治疗方案；仅出现手术史或随访记录且无复发转移或放化疗信息，不得判定为肯定。优先查看出院记录、门诊记录、治疗记录、放化疗方案。",
-            "enumOptions": [
-              "是",
-              "否",
-              "无法判断"
-            ],
-            "keywordCode": "02003002"
-          }
-        ],
-        "sourceRuleContent": "恶性肿瘤的门诊治疗符合以下条件之一：\n1.经病理学或细胞学诊断明确。\n2.未经病理学或细胞学诊断，但根据病史、症状、体征，结合 X 线、B 超、CT、磁共振、内窥镜、实验室等辅助检查，经二级及以上医疗机构临床诊断为恶性肿瘤（需提供诊断证明）。\n3.对于部分需要按恶性肿瘤处理的占位性病变，需提交术后复发转移或放化疗等的相关病历资料。",
-        "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md",
-        "sourceSection": "恶性肿瘤的门诊治疗"
-      },
-      {
-        "ruleCode": "02004",
-        "ruleContent": "符合白血病临床表现",
-        "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
-        "experience": "",
-        "ruleKeywordGuide": [
-          {
-            "dataType": "enum",
-            "required": true,
-            "keywordContent": "判断材料中是否记载符合白血病的临床表现。肯定证据包括贫血、发热感染、出血瘀斑、肝脾或淋巴结肿大、骨痛等被病历描述为白血病相关表现；仅有单个非特异症状且未与白血病诊疗相关联，不得判定为肯定。优先查看入院记录、现病史、体格检查、出院记录。",
-            "enumOptions": [
-              "是",
-              "否",
-              "无法判断"
-            ],
-            "keywordCode": "02004001"
-          }
-        ],
-        "sourceRuleContent": "1.符合白血病临床表现。\n2.血液及骨髓等相关检查相应异常改变。\n符合上述条件，经二级及以上医疗机构确诊。",
-        "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md",
-        "sourceSection": "白血病"
-      },
-      {
-        "ruleCode": "02005",
-        "ruleContent": "血液及骨髓等相关检查相应异常改变",
-        "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
-        "experience": "",
-        "ruleKeywordGuide": [
-          {
-            "dataType": "enum",
-            "required": true,
-            "keywordContent": "判断材料中是否有血液、骨髓或相关检查的异常改变支持白血病。肯定证据包括血常规异常、外周血原始细胞、骨髓检查、流式细胞学、染色体或分子检测等异常；仅有普通炎症指标异常或未提供检查结果，不得判定为肯定。优先查看检验报告、骨髓报告、出院记录检查结果。",
-            "enumOptions": [
-              "是",
-              "否",
-              "无法判断"
-            ],
-            "keywordCode": "02005001"
-          }
-        ],
-        "sourceRuleContent": "1.符合白血病临床表现。\n2.血液及骨髓等相关检查相应异常改变。\n符合上述条件，经二级及以上医疗机构确诊。",
-        "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md",
-        "sourceSection": "白血病"
-      },
-      {
-        "ruleCode": "02006",
-        "ruleContent": "符合上述条件，经二级及以上医疗机构确诊。",
-        "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
-        "experience": "",
-        "ruleKeywordGuide": [
-          {
-            "dataType": "enum",
-            "required": true,
-            "keywordContent": "判断材料中是否明确诊断为白血病。肯定证据包括出院诊断、入院诊断、诊断证明、骨髓报告结论中明确白血病诊断；仅出现血液病、白细胞异常、疑似白血病，不得判定为已确诊。优先查看病案首页、出院记录、诊断证明、骨髓报告。",
-            "enumOptions": [
-              "已确诊",
-              "未确诊"
-            ],
-            "keywordCode": "02006001"
-          },
-          {
-            "dataType": "enum",
-            "required": true,
-            "keywordContent": "判断白血病确诊机构是否为二级及以上医疗机构。肯定证据包括病案首页、诊断证明或医院等级字段显示二级、三级、二甲、三甲等；仅有诊断名称不能证明机构等级；无法确认时判无法判断。优先查看医院等级字段、病案首页、诊断证明。",
-            "enumOptions": [
-              "二级及以上",
-              "二级以下",
-              "无法判断"
-            ],
-            "keywordCode": "02006002"
-          }
-        ],
-        "sourceRuleContent": "1.符合白血病临床表现。\n2.血液及骨髓等相关检查相应异常改变。\n符合上述条件，经二级及以上医疗机构确诊。",
-        "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md",
-        "sourceSection": "白血病"
-      }
-    ],
-    "logicTopology": {
-      "type": "GROUP",
-      "operator": "OR",
-      "children": [
+  "meta": {
+    "version": "V20260517",
+    "chronicDiseaseName": "恶性肿瘤（含白血病）放化疗及相关治疗",
+    "chronicDiseaseCode": "SJ02",
+    "createdAt": "2026-05-17",
+    "description": "省局项目8个病种认定标准结构化版本",
+    "sourceFile": "八类疾病准入条件及细则-20260517.xlsx"
+  },
+  "ruleRepository": [
+    {
+      "ruleCode": "02001",
+      "ruleContent": "经病理学或细胞学诊断明确。",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "ruleKeywordGuide": [
         {
-          "type": "GROUP",
-          "operator": "OR",
-          "children": [
-            {
-              "type": "RULE_REF",
-              "ruleCode": "02001"
-            },
-            {
-              "type": "RULE_REF",
-              "ruleCode": "02002"
-            },
-            {
-              "type": "RULE_REF",
-              "ruleCode": "02003"
-            }
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否有病理学或细胞学明确诊断恶性肿瘤的证据。肯定证据包括病理报告、细胞学报告、病案首页或出院记录引用病理/细胞学结果并明确恶性肿瘤；仅出现肿瘤、占位、疑似恶性、肿瘤标志物升高或影像提示，不能判定为病理学或细胞学确诊。优先查看病理报告、细胞学检查、病案首页、出院记录。",
+          "enumOptions": [
+            "已确诊",
+            "未确诊"
           ],
-          "groupCode": "020A",
-          "level": 1
+          "keywordCode": "02001001"
+        }
+      ],
+      "sourceRuleContent": "恶性肿瘤的门诊治疗符合以下条件之一：\n1.经病理学或细胞学诊断明确。\n2.未经病理学或细胞学诊断，但根据病史、症状、体征，结合 X 线、B 超、CT、磁共振、内窥镜、实验室等辅助检查，经二级及以上医疗机构临床诊断为恶性肿瘤（需提供诊断证明）。\n3.对于部分需要按恶性肿瘤处理的占位性病变，需提交术后复发转移或放化疗等的相关病历资料。",
+      "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md",
+      "sourceSection": "恶性肿瘤的门诊治疗"
+    },
+    {
+      "ruleCode": "02002",
+      "ruleContent": "未经病理学或细胞学诊断，但根据病史、症状、体征，结合 X 线、B 超、CT、磁共振、内窥镜、实验室等辅助检查，经二级及以上医疗机构临床诊断为恶性肿瘤（需提供诊断证明）",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "ruleKeywordGuide": [
+        {
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否明确为恶性肿瘤临床诊断。肯定证据包括诊断证明或出院诊断明确写明恶性肿瘤、癌、肉瘤、白血病以外的恶性肿瘤诊断；仅出现疑似、待排、占位、结节或良性肿瘤，不得判定为临床诊断明确。优先查看诊断证明、病案首页、出院记录。",
+          "enumOptions": [
+            "已确诊",
+            "未确诊"
+          ],
+          "keywordCode": "02002001"
         },
         {
-          "type": "GROUP",
-          "operator": "AND",
-          "children": [
-            {
-              "type": "RULE_REF",
-              "ruleCode": "02004"
-            },
-            {
-              "type": "RULE_REF",
-              "ruleCode": "02005"
-            },
-            {
-              "type": "RULE_REF",
-              "ruleCode": "02006"
-            }
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断临床诊断是否结合病史、症状、体征及辅助检查形成。肯定证据包括X线、B超、CT、MRI、内窥镜、实验室等检查结果支持恶性肿瘤诊断；仅有单一症状或主诉、无辅助检查证据，不得判定为满足该事实。优先查看影像报告、内窥镜报告、实验室检查、出院记录。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
           ],
-          "groupCode": "020B",
-          "level": 1
+          "keywordCode": "02002002"
+        },
+        {
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断作出临床诊断的医疗机构是否为二级及以上。肯定证据包括诊断证明、病案首页或医院等级字段显示二级、三级、二甲、三甲等；仅有疾病诊断不能证明机构等级；无法确认等级时判无法判断。优先查看诊断证明、病案首页、医院等级字段。",
+          "enumOptions": [
+            "二级及以上",
+            "二级以下",
+            "无法判断"
+          ],
+          "keywordCode": "02002003"
+        },
+        {
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否提供诊断证明。肯定证据包括明确的诊断证明书、疾病诊断证明或等同诊断证明材料；仅有检查报告或治疗记录但无诊断证明，不得判定为已提供。优先查看诊断证明文件、材料标题和诊断证明字段。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ],
+          "keywordCode": "02002004"
         }
-      ]
+      ],
+      "sourceRuleContent": "恶性肿瘤的门诊治疗符合以下条件之一：\n1.经病理学或细胞学诊断明确。\n2.未经病理学或细胞学诊断，但根据病史、症状、体征，结合 X 线、B 超、CT、磁共振、内窥镜、实验室等辅助检查，经二级及以上医疗机构临床诊断为恶性肿瘤（需提供诊断证明）。\n3.对于部分需要按恶性肿瘤处理的占位性病变，需提交术后复发转移或放化疗等的相关病历资料。",
+      "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md",
+      "sourceSection": "恶性肿瘤的门诊治疗"
+    },
+    {
+      "ruleCode": "02003",
+      "ruleContent": "对于部分需要按恶性肿瘤处理的占位性病变，需提交术后复发转移或放化疗等的相关病历资料",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "ruleKeywordGuide": [
+        {
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否属于需要按恶性肿瘤处理的占位性病变。肯定证据包括病历明确说明占位性病变需按恶性肿瘤处理；仅出现占位、肿块、结节但未说明按恶性肿瘤处理，不得判定为肯定。优先查看出院记录、诊断证明、病程记录。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ],
+          "keywordCode": "02003001"
+        },
+        {
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否提交术后复发、转移或放疗、化疗等相关病历资料。肯定证据包括术后复发记录、转移诊断、放疗记录、化疗记录或相关治疗方案；仅出现手术史或随访记录且无复发转移或放化疗信息，不得判定为肯定。优先查看出院记录、门诊记录、治疗记录、放化疗方案。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ],
+          "keywordCode": "02003002"
+        }
+      ],
+      "sourceRuleContent": "恶性肿瘤的门诊治疗符合以下条件之一：\n1.经病理学或细胞学诊断明确。\n2.未经病理学或细胞学诊断，但根据病史、症状、体征，结合 X 线、B 超、CT、磁共振、内窥镜、实验室等辅助检查，经二级及以上医疗机构临床诊断为恶性肿瘤（需提供诊断证明）。\n3.对于部分需要按恶性肿瘤处理的占位性病变，需提交术后复发转移或放化疗等的相关病历资料。",
+      "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md",
+      "sourceSection": "恶性肿瘤的门诊治疗"
+    },
+    {
+      "ruleCode": "02004",
+      "ruleContent": "符合白血病临床表现",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "ruleKeywordGuide": [
+        {
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否记载符合白血病的临床表现。肯定证据包括贫血、发热感染、出血瘀斑、肝脾或淋巴结肿大、骨痛等被病历描述为白血病相关表现；仅有单个非特异症状且未与白血病诊疗相关联，不得判定为肯定。优先查看入院记录、现病史、体格检查、出院记录。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ],
+          "keywordCode": "02004001"
+        }
+      ],
+      "sourceRuleContent": "1.符合白血病临床表现。\n2.血液及骨髓等相关检查相应异常改变。\n符合上述条件，经二级及以上医疗机构确诊。",
+      "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md",
+      "sourceSection": "白血病"
+    },
+    {
+      "ruleCode": "02005",
+      "ruleContent": "血液及骨髓等相关检查相应异常改变",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "ruleKeywordGuide": [
+        {
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否有血液、骨髓或相关检查的异常改变支持白血病。肯定证据包括血常规异常、外周血原始细胞、骨髓检查、流式细胞学、染色体或分子检测等异常；仅有普通炎症指标异常或未提供检查结果，不得判定为肯定。优先查看检验报告、骨髓报告、出院记录检查结果。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ],
+          "keywordCode": "02005001"
+        }
+      ],
+      "sourceRuleContent": "1.符合白血病临床表现。\n2.血液及骨髓等相关检查相应异常改变。\n符合上述条件，经二级及以上医疗机构确诊。",
+      "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md",
+      "sourceSection": "白血病"
+    },
+    {
+      "ruleCode": "02006",
+      "ruleContent": "符合上述条件，经二级及以上医疗机构确诊。",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "ruleKeywordGuide": [
+        {
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否明确诊断为白血病。肯定证据包括出院诊断、入院诊断、诊断证明、骨髓报告结论中明确白血病诊断；仅出现血液病、白细胞异常、疑似白血病，不得判定为已确诊。优先查看病案首页、出院记录、诊断证明、骨髓报告。",
+          "enumOptions": [
+            "已确诊",
+            "未确诊"
+          ],
+          "keywordCode": "02006001"
+        },
+        {
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断白血病确诊机构是否为二级及以上医疗机构。肯定证据包括病案首页、诊断证明或医院等级字段显示二级、三级、二甲、三甲等；仅有诊断名称不能证明机构等级；无法确认时判无法判断。优先查看医院等级字段、病案首页、诊断证明。",
+          "enumOptions": [
+            "二级及以上",
+            "二级以下",
+            "无法判断"
+          ],
+          "keywordCode": "02006002"
+        }
+      ],
+      "sourceRuleContent": "1.符合白血病临床表现。\n2.血液及骨髓等相关检查相应异常改变。\n符合上述条件，经二级及以上医疗机构确诊。",
+      "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260517.md",
+      "sourceSection": "白血病"
     }
+  ],
+  "logicTopology": {
+    "type": "GROUP",
+    "operator": "OR",
+    "children": [
+      {
+        "type": "GROUP",
+        "operator": "OR",
+        "children": [
+          {
+            "type": "RULE_REF",
+            "ruleCode": "02001"
+          },
+          {
+            "type": "RULE_REF",
+            "ruleCode": "02002"
+          },
+          {
+            "type": "RULE_REF",
+            "ruleCode": "02003"
+          }
+        ],
+        "groupCode": "020A",
+        "level": 1
+      },
+      {
+        "type": "GROUP",
+        "operator": "AND",
+        "children": [
+          {
+            "type": "RULE_REF",
+            "ruleCode": "02004"
+          },
+          {
+            "type": "RULE_REF",
+            "ruleCode": "02005"
+          },
+          {
+            "type": "RULE_REF",
+            "ruleCode": "02006"
+          }
+        ],
+        "groupCode": "020B",
+        "level": 1
+      }
+    ]
   }
 }

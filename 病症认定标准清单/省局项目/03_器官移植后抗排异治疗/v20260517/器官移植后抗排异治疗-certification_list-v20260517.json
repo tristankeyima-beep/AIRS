@@ -1,40 +1,38 @@
 {
-  "certification_list": {
-    "meta": {
-      "version": "V20260517",
-      "chronicDiseaseName": "器官移植后抗排异治疗",
-      "chronicDiseaseCode": "SJ03",
-      "createdAt": "2026-05-17",
-      "description": "省局项目8个病种认定标准结构化版本",
-      "sourceFile": "八类疾病准入条件及细则-20260517.xlsx"
-    },
-    "ruleRepository": [
-      {
-        "ruleCode": "03001",
-        "ruleContent": "有组织或器官移植的手术记录和病例",
-        "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
-        "experience": "",
-        "ruleKeywordGuide": [
-          {
-            "dataType": "enum",
-            "required": true,
-            "keywordContent": "判断材料中是否有组织或器官移植手术记录。肯定证据包括肾移植、肝移植、心脏移植、肺移植、造血干细胞移植等移植手术名称、手术记录、出院记录或病案首页手术信息；仅有拟行移植、移植评估、等待移植或供体信息，不得判定为已完成移植。优先查看手术记录、病案首页、出院记录、诊断证明。",
-            "enumOptions": [
-              "是",
-              "否",
-              "无法判断"
-            ],
-            "keywordCode": "03001001"
-          }
-        ],
-        "sourceRuleContent": "有组织或器官移植的手术记录和病例",
-        "sourceMdFile": "器官移植后抗排异治疗-认定标准-v20260517.md",
-        "sourceSection": ""
-      }
-    ],
-    "logicTopology": {
-      "type": "RULE_REF",
-      "ruleCode": "03001"
+  "meta": {
+    "version": "V20260517",
+    "chronicDiseaseName": "器官移植后抗排异治疗",
+    "chronicDiseaseCode": "SJ03",
+    "createdAt": "2026-05-17",
+    "description": "省局项目8个病种认定标准结构化版本",
+    "sourceFile": "八类疾病准入条件及细则-20260517.xlsx"
+  },
+  "ruleRepository": [
+    {
+      "ruleCode": "03001",
+      "ruleContent": "有组织或器官移植的手术记录和病例",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "ruleKeywordGuide": [
+        {
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否有组织或器官移植手术记录。肯定证据包括肾移植、肝移植、心脏移植、肺移植、造血干细胞移植等移植手术名称、手术记录、出院记录或病案首页手术信息；仅有拟行移植、移植评估、等待移植或供体信息，不得判定为已完成移植。优先查看手术记录、病案首页、出院记录、诊断证明。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ],
+          "keywordCode": "03001001"
+        }
+      ],
+      "sourceRuleContent": "有组织或器官移植的手术记录和病例",
+      "sourceMdFile": "器官移植后抗排异治疗-认定标准-v20260517.md",
+      "sourceSection": ""
     }
+  ],
+  "logicTopology": {
+    "type": "RULE_REF",
+    "ruleCode": "03001"
   }
 }
