@@ -81,12 +81,18 @@ def _normalize_keyword_guide(guides, rule_code):
 
         enum_options = guide.get("enumOptions", [])
         if data_type == "enum":
-            if not isinstance(enum_options, list) or not enum_options:
-                raise ValueError(f"规则 {rule_code} 的 enum 提取项必须包含非空 enumOptions")
-            enum_options = [
-                _require_non_empty_string(option, f"规则 {rule_code} 的 enumOptions")
-                for option in enum_options
-            ]
+            if not isinstance(enum_options, list):
+                enum_options = []
+            else:
+                enum_options = [
+                    option.strip()
+                    for option in enum_options
+                    if isinstance(option, str) and option.strip()
+                ]
+
+            # 流程不可逆：LLM 漏枚举选项时，将该提取项降级为自由文本，继续产出规则库。
+            if not enum_options:
+                data_type = "string"
         else:
             enum_options = []
 

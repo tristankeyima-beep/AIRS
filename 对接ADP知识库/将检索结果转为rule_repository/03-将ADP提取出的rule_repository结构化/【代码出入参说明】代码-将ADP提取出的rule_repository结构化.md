@@ -87,6 +87,17 @@ M07801
 
 这是可跨病种复用的稳定五位编码规则。知识库 DOC 不含既有业务系统编码时，本节点不会臆测或复刻某个病种的历史分支编码。
 
+## 枚举提取项降级规则
+
+流程不可逆。若 LLM 输出 `dataType="enum"`，但 `enumOptions` 缺失、不是数组、为空数组或数组内没有有效选项，本节点不会报错中断；会自动将该提取项改为：
+
+```text
+dataType = string
+enumOptions = []
+```
+
+其余字段（`keywordCode`、`required`、`keywordContent`）保持不变。这样后续材料精解可继续依据 `keywordContent` 抽取原文或文本结论。
+
 ## 可直接粘贴测试的入参
 
 ```json
@@ -178,6 +189,6 @@ M07801
 | `llm_output 中缺少 logicTopology` | LLM 未输出完整对象，检查结构化 Schema 和绑定是否引用完整 Output。 |
 | `chronicDiseaseCode 必须以两位数字结尾` | 上游备案病种编码不符合编码规则，不能生成五位规则码。 |
 | `ruleRepository 至少包含一条规则` | LLM 没有从 DOC 生成规则，检查是否把 `knowledgeContent` 插入提示词。 |
-| `enum 提取项必须包含非空 enumOptions` | LLM 为 enum 漏了选项；修正 LLM 输出，不要改代码节点兜底。 |
+| enum 输出缺少有效 `enumOptions` | 节点会自动降级为 `dataType=string`、`enumOptions=[]`，流程继续执行；同时建议回看 LLM 提示词，提升后续提取项的一致性。 |
 | `logicTopology 引用了不存在的规则` | `RULE_REF.ruleCode` 不是某个 `tempRuleId`，或临时标识重复/拼写不一致。 |
 | `logicTopology 未引用规则` | 规则库与逻辑树不一致；每条规则必须在树中恰好被使用。 |
