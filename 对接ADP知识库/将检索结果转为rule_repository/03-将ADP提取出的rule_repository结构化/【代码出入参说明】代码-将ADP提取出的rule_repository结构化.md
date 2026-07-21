@@ -71,6 +71,20 @@ ruleRepository: [obj]
 logicTopology: obj
 ```
 
+### 下游主工作流字段保留提醒（重要）
+
+本节点已在 `ruleRepository[].ruleKeywordGuide[].enumOptions` 中输出枚举选项。主工作流进入“**ruleRepository 转换为可迭代的数组**”节点后，必须继续将该字段传递给迭代节点。
+
+腾讯 ADP 会依据代码节点的 Output Schema 裁剪未声明的嵌套字段。因此主工作流该节点的输出 Schema 必须显式配置：
+
+```text
+rulesArray: [obj]
+  ruleKeywordGuide: [obj]
+    enumOptions: [str]
+```
+
+`enumOptions` 必须是 `[str]`，不可配置为 `str`，也不可遗漏。遗漏后，Python 代码即使原样返回该字段，ADP 对外输出的 `rulesArray` 仍会丢失它，导致迭代节点无法获得枚举约束。
+
 ## 编码规则
 
 规则编码由 `chronicDiseaseCode` 的末两位数字和三位顺序号组成：

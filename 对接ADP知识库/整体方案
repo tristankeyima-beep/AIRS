@@ -1,0 +1,105 @@
+# ADP 知识库接入整体方案
+
+## 目标
+
+在现有智能审核主工作流前增加“从 ADP 知识库获取认定标准”的分支：根据当前 `certification_list` 对应的备案病种检索知识库；命中可用标准时生成新的 `certification_list`；未命中时无损回退至原始标准。随后仍复用既有的“认定标准提取 / 逐条审核 / 逻辑合并”流程。
+
+## 已落地流程
+
+```text
+原始 certification_list
+  -> 根据 certification_list 获取备案病种
+  -> 以病种名称、编码检索 ADP 知识库
+  -> 提取相关性最高的 DOC 结果
+  -> 是否有检索结果
+       ├─ 无（ConditionIndex = 1）-> 返回原始 certification_list
+       └─ 有（ConditionIndex = 2）-> LLM 将知识库正文转为临时 ruleRepository
+                                  -> 将 ADP ruleRepository 结构化
+                                  -> 组装新的 certification_list
+                                  -> 返回 ADP 组装的 certification_list
+  -> ruleRepository 转换为可迭代的数组
+  -> 既有的认定标准提取、逐条处理迭代与逻辑合并流程
+```
+
+## 节点职责与关键约定
+
+1. **根据 `certification_list` 获取备案病种**
+   - 获取 `chronicDiseaseName`、`chronicDiseaseCode`，并保留完整的 `originalCertificationList`，用于未命中时回退。
+
+2. **检索 ADP 知识库 / 提取相关性最高的知识库结果**
+   - 仅选择 `KnowledgeType=DOC` 的结果。
+   - `Content` 必须包含当前 `chronicDiseaseName`，再按 `Confidence` 取最高项，避免检索到其他病种的文档。
+   - 输出 `knowledgeContent` 和 `documentName`；未命中时二者均为空字符串。
+
+3. **LLM：将检索结果转为 ruleRepository**
+   - 将知识库的“准入条件”和“提取项细则”拆为规则、提取项和逻辑拓扑。
+   - 提取项必须是可独立判断的原子事实；枚举型提取项要同时输出完整的 `enumOptions`。
+   - 不把某个特定病种的判断逻辑写死在提示词中，提示词适用于全部病种。
+
+4. **代码：将 ADP 提取出的 ruleRepository 结构化**
+   - 将 LLM 临时标识转换为正式 `ruleCode`、`keywordCode`，并同步替换 `logicTopology` 中的规则引用。
+   - 若枚举项缺少有效 `enumOptions`，为确保流程可继续，自动降级为 `dataType=string`、`enumOptions=[]`。
+
+5. **组装与选择 `certification_list`**
+   - ADP 生成的版本名称包含检索到的 `documentName`，以保留标准来源。
+   - `ConditionIndex=1`：没有合适检索结果，输出 `originalCertificationList`。
+   - `ConditionIndex=2`：有合适检索结果，输出 ADP 组装的 `certification_list`；若组装结果异常则安全回退至原始标准。
+
+6. **复用既有审核流程**
+   - 将最终选定的 `certification_list` 传入“ruleRepository 转换为可迭代的数组”。
+   - 后续沿用既有的材料精解、逐条认定及规则逻辑合并，无需为 ADP 分支新增审核逻辑。
+
+## 即时生成认定标准的校正与保障
+
+知识库分支中的 `ruleRepository` 不是预先为每个病种人工固化的配置，而是由检索到的病种标准即时生成。因此，不能直接相信 LLM 的原始 JSON，必须通过“检索约束 + 提示词约束 + 代码结构化”保证它能稳定进入既有审核流程。
+
+已采取以下措施：
+
+1. **先保证检索对象正确**
+   - 只在 `DOC` 类型结果中选择候选文档。
+   - 文档正文必须含当前备案病种名称，再按相关性取最高项，避免把其他病种的标准生成到当前病种中。
+
+2. **让 LLM 生成可审核的规则，而非只转写原文**
+   - 将准入条件拆为独立规则；将提取项细则拆为可单独在材料中判断的原子提取项。
+   - `keywordContent` 明确正向证据、反向证据、无法判断边界和优先材料来源，避免模型只会找“满足证据”，却不能识别明确不满足的证据。
+   - 枚举型提取项要求输出完整、互斥的 `enumOptions`；医院等级等非“是/否”场景，选项和判定文字必须保持一致。
+   - 提示词保持病种通用，不将尿毒症透析等单病种的医学判断硬编码进去。
+
+3. **通过代码对 LLM 原始结果做结构化校正**
+   - 校验规则、提取项和 `logicTopology` 的基本结构；把 `R001` 等临时标识转换为稳定的正式 `ruleCode` 与 `keywordCode`。
+   - 同步替换逻辑树中的临时规则引用，防止规则库与 AND / OR 逻辑树脱节。
+   - 保留规则来源、原始规则文本、知识库文档名和版本等溯源信息，便于后续复核即时生成结果。
+
+4. **以不中断流程为前提处理不完整结果**
+   - 若 LLM 把提取项标记为 `enum`，但没有生成有效枚举选项，则代码自动降级为 `string` 并输出空数组 `[]`，保留提取说明，让后续流程继续。
+   - 若没有合适的知识库结果，直接返回原始 `certification_list`；不会用空标准或错误病种标准覆盖既有配置。
+
+5. **在下游继续保留规则约束**
+   - 主工作流节点输出 Schema 显式保留 `enumOptions: [str]`，防止腾讯 ADP 裁剪嵌套字段。
+   - 逐条认定阶段利用“`found`、`value`、原始证据”判断：明确反证应输出 `found=true` 与反向枚举值，并判定不通过；仅缺少材料时才按信息缺失处理。
+
+## 腾讯 ADP 配置注意事项
+
+- ADP 会按代码节点 Output Schema 裁剪未声明的嵌套字段。主工作流“**ruleRepository 转换为可迭代的数组**”节点的输出必须显式配置：
+
+  ```text
+  rulesArray: [obj]
+    ruleKeywordGuide: [obj]
+      dataType: str
+      enumOptions: [str]
+      instruction: str
+      keywordCode: str
+      keywordContent: str
+      required: bool
+  ```
+
+  其中 `enumOptions` 必须为 `[str]`，不可遗漏或配置为 `str`；否则迭代节点会丢失枚举约束。
+
+- `logicTopology` 是递归对象，跨节点传递时可能被 ADP 裁剪。后续逻辑合并节点应优先绑定 `logicTopologyStr`（`str` 类型）。
+
+- 已用尿毒症透析标准完成联调：枚举值、反向证据（`found=true`、`value=否`）与“不通过”结论可正确贯通至逐条认定。
+
+## 相关成果物
+
+- `将检索结果转为rule_repository/`：知识库结果筛选、LLM 配置、ruleRepository 结构化、certification_list 组装与回退节点。
+- `智能审核流程ai_recognize_workflow/腾讯智能体平台-智能审核流程-0604-入参改为obj/节点1-将rule_repository 转换为可迭代的数组/`：主工作流规则数组转换节点及 Output Schema 配置说明。
