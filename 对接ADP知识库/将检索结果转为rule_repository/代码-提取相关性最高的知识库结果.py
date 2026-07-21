@@ -27,8 +27,11 @@ def _parse_knowledge_result(value):
         except json.JSONDecodeError as error:
             raise ValueError("knowledge_result 必须是合法 JSON 对象") from error
 
+    if isinstance(value, list):
+        return value
+
     if not isinstance(value, dict):
-        raise ValueError("knowledge_result 必须是对象或 JSON 字符串")
+        raise ValueError("knowledge_result 必须是对象、数组或 JSON 字符串")
 
     if isinstance(value.get("KnowledgeList"), list):
         return value["KnowledgeList"]
@@ -58,13 +61,18 @@ def _read_document_name(item, content):
 
 def main(knowledge_result=None, chronicDiseaseName=None, **kwargs) -> dict:
     """选择 ADP 知识库结果中相关性最高的有效 DOC 正文。"""
-    if isinstance(knowledge_result, dict) and "knowledge_result" in knowledge_result:
+    if isinstance(knowledge_result, dict):
         params = knowledge_result
-        knowledge_result = params.get("knowledge_result")
-        chronicDiseaseName = chronicDiseaseName or params.get("chronicDiseaseName")
+        if chronicDiseaseName is None:
+            chronicDiseaseName = params.get("chronicDiseaseName")
+        if "knowledge_result" in params:
+            knowledge_result = params.get("knowledge_result")
+        elif "knowledgeContent" in params:
+            # 腾讯代码节点的 lke_system_params 会把 KnowledgeList 数组放在此字段。
+            knowledge_result = params.get("knowledgeContent")
 
     if knowledge_result is None:
-        for key in ("knowledge_result", "Output", "output", "result"):
+        for key in ("knowledge_result", "knowledgeContent", "Output", "output", "result"):
             if kwargs.get(key) is not None:
                 knowledge_result = kwargs[key]
                 break
