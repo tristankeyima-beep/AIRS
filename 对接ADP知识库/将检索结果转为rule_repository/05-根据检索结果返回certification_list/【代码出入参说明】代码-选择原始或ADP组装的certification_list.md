@@ -76,20 +76,171 @@ assembledCertificationList = 组装 certification_list.certification_list
 ```json
 {
   "ConditionIndex": 2,
-  "originalCertificationList": {
-    "meta": {"version": "v20260517"}
-  },
   "assembledCertificationList": {
-    "meta": {"version": "ADP-尿毒症透析-认定标准-v20260517"},
-    "ruleRepository": [{"ruleCode": "01001"}, {"ruleCode": "01002"}],
     "logicTopology": {
-      "type": "GROUP",
-      "operator": "AND",
       "children": [
-        {"type": "RULE_REF", "ruleCode": "01001"},
-        {"type": "RULE_REF", "ruleCode": "01002"}
-      ]
-    }
+        {
+          "ruleCode": "01001",
+          "type": "RULE_REF"
+        },
+        {
+          "ruleCode": "01002",
+          "type": "RULE_REF"
+        },
+        {
+          "ruleCode": "01003",
+          "type": "RULE_REF"
+        }
+      ],
+      "operator": "AND",
+      "type": "GROUP"
+    },
+    "meta": {
+      "chronicDiseaseCode": "SJ01",
+      "chronicDiseaseName": "尿毒症透析",
+      "createdAt": "2026-07-21",
+      "description": "由 ADP 知识库检索结果生成",
+      "sourceFile": "八类疾病准入条件及细则-20260517.xlsx",
+      "version": "ADP-尿毒症透析-认定标准-v20260517"
+    },
+    "ruleRepository": [
+      {
+        "experience": "",
+        "ruleCode": "01001",
+        "ruleContent": "各种原因造成慢性肾脏损伤，并出现肾功能异常达到尿毒症期",
+        "ruleKeywordGuide": [
+          {
+            "dataType": "enum",
+            "enumOptions": ["是", "否", "无法判断"],
+            "keywordCode": "01001001",
+            "keywordContent": "肯定证据：有明确的慢性肾脏损伤诊断，且肾功能异常达到尿毒症期；排除边界：无慢性肾脏损伤诊断或肾功能未达尿毒症期则无法判定；优先材料位置：病案首页、出院记录或诊断证明",
+            "required": true
+          }
+        ],
+        "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+        "sourceMdFile": "尿毒症透析-认定标准-v20260517",
+        "sourceRuleContent": "各种原因造成慢性肾脏损伤，并出现肾功能异常达到尿毒症期",
+        "sourceSection": "认定标准"
+      },
+      {
+        "experience": "",
+        "ruleCode": "01002",
+        "ruleContent": "需长期透析治疗",
+        "ruleKeywordGuide": [
+          {
+            "dataType": "enum",
+            "enumOptions": ["是", "否", "无法判断"],
+            "keywordCode": "01002001",
+            "keywordContent": "肯定证据：病历资料显示需要长期进行透析治疗；排除边界：仅需短期透析或无透析治疗需求则无法判定；优先材料位置：病案首页、出院记录或诊断证明",
+            "required": true
+          }
+        ],
+        "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+        "sourceMdFile": "尿毒症透析-认定标准-v20260517",
+        "sourceRuleContent": "需长期透析治疗",
+        "sourceSection": "认定标准"
+      },
+      {
+        "experience": "",
+        "ruleCode": "01003",
+        "ruleContent": "有二级及以上医疗机构出具的病历资料",
+        "ruleKeywordGuide": [
+          {
+            "dataType": "enum",
+            "enumOptions": ["是", "否", "无法判断"],
+            "keywordCode": "01003001",
+            "keywordContent": "肯定证据：提供的病历资料出具机构为二级及以上医疗机构；排除边界：出具机构为二级以下医疗机构或无相关病历资料则无法判定；优先材料位置：所有提供的病历资料",
+            "required": true
+          }
+        ],
+        "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+        "sourceMdFile": "尿毒症透析-认定标准-v20260517",
+        "sourceRuleContent": "有二级及以上医疗机构出具的病历资料",
+        "sourceSection": "认定标准"
+      }
+    ]
+  },
+  "originalCertificationList": {
+    "logicTopology": {
+      "children": [
+        {"ruleCode": "01001", "type": "RULE_REF"},
+        {"ruleCode": "01002", "type": "RULE_REF"},
+        {"ruleCode": "01003", "type": "RULE_REF"}
+      ],
+      "operator": "AND",
+      "type": "GROUP"
+    },
+    "meta": {
+      "chronicDiseaseCode": "SJ01",
+      "chronicDiseaseName": "尿毒症透析",
+      "createdAt": "2026-05-17",
+      "description": "省局项目8个病种认定标准结构化版本",
+      "sourceFile": "八类疾病准入条件及细则-20260517.xlsx",
+      "version": "V20260517"
+    },
+    "ruleRepository": [
+      {
+        "experience": "",
+        "ruleCode": "01001",
+        "ruleContent": "各种原因造成慢性肾脏损伤，并出现肾功能异常达到尿毒症期",
+        "ruleKeywordGuide": [
+          {
+            "dataType": "enum",
+            "enumOptions": ["是", "否", "无法判断"],
+            "keywordCode": "01001001",
+            "keywordContent": "判断材料中是否明确记载慢性肾脏损伤、慢性肾脏病、慢性肾衰竭等慢性肾脏损害相关诊断或病史。肯定证据包括出院诊断、入院诊断、诊断证明或病程记录中明确描述慢性肾脏损伤；仅出现一次性肾功能指标异常、急性肾损伤或单项肌酐升高，不得判定为慢性肾脏损伤。优先查看病案首页、出院记录、入院记录、诊断证明。",
+            "required": true
+          },
+          {
+            "dataType": "enum",
+            "enumOptions": ["是", "否", "无法判断"],
+            "keywordCode": "01001002",
+            "keywordContent": "判断材料中是否明确达到尿毒症期或终末期肾病阶段。肯定证据包括诊断为尿毒症、终末期肾病、CKD5期、慢性肾衰竭尿毒症期，或病历明确写明肾功能异常已达尿毒症期；仅出现肾功能不全、肌酐升高、CKD但无5期/尿毒症期描述，不得判定为达标。优先查看出院诊断、诊断证明、出院记录。",
+            "required": true
+          }
+        ],
+        "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+        "sourceMdFile": "尿毒症透析-认定标准-v20260517.md",
+        "sourceRuleContent": "1.各种原因造成慢性肾脏损伤，并出现肾功能异常达到尿毒症期。\n2.需长期透析治疗。\n3.有二级及以上医疗机构出具的病历资料。",
+        "sourceSection": ""
+      },
+      {
+        "experience": "",
+        "ruleCode": "01002",
+        "ruleContent": "需长期透析治疗",
+        "ruleKeywordGuide": [
+          {
+            "dataType": "enum",
+            "enumOptions": ["是", "否", "无法判断"],
+            "keywordCode": "01002001",
+            "keywordContent": "判断材料中是否明确需要或已经接受长期透析治疗。肯定证据包括维持性血液透析、规律血透、腹膜透析、长期透析治疗、透析医嘱或透析记录；仅出现一次临时透析、建议评估透析或未明确长期/维持性治疗，不得判定为肯定。优先查看出院记录、治疗经过、医嘱、透析记录。",
+            "required": true
+          }
+        ],
+        "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+        "sourceMdFile": "尿毒症透析-认定标准-v20260517.md",
+        "sourceRuleContent": "1.各种原因造成慢性肾脏损伤，并出现肾功能异常达到尿毒症期。\n2.需长期透析治疗。\n3.有二级及以上医疗机构出具的病历资料。",
+        "sourceSection": ""
+      },
+      {
+        "experience": "",
+        "ruleCode": "01003",
+        "ruleContent": "有二级及以上医疗机构出具的病历资料",
+        "ruleKeywordGuide": [
+          {
+            "dataType": "enum",
+            "enumOptions": ["二级及以上", "二级以下", "无法判断"],
+            "keywordCode": "01003001",
+            "keywordContent": "判断病历资料出具机构是否为二级及以上医疗机构。肯定证据包括医院等级字段、病案首页、诊断证明或病历抬头明确显示二级、三级、二甲、三甲等；仅有医院名称但无法确认等级时应判无法判断；社区卫生服务中心、乡镇卫生院、一级医院不得判二级及以上。优先查看医院等级字段、病案首页、诊断证明、病历首页。",
+            "required": true
+          }
+        ],
+        "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+        "sourceMdFile": "尿毒症透析-认定标准-v20260517.md",
+        "sourceRuleContent": "1.各种原因造成慢性肾脏损伤，并出现肾功能异常达到尿毒症期。\n2.需长期透析治疗。\n3.有二级及以上医疗机构出具的病历资料。",
+        "sourceSection": ""
+      }
+    ]
   }
 }
 ```
