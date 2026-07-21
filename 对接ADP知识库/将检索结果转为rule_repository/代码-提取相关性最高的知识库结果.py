@@ -1,5 +1,6 @@
 import json
 import math
+import re
 
 
 WRAPPER_KEYS = (
@@ -43,6 +44,18 @@ def _parse_knowledge_result(value):
     )
 
 
+def _read_document_name(item, content):
+    doc_name = item.get("DocName")
+    if isinstance(doc_name, str) and doc_name.strip():
+        return doc_name.strip()
+
+    match = re.search(r"(?m)^\s*文档名[：:]\s*(.+?)\s*$", content)
+    if match and match.group(1).strip():
+        return match.group(1).strip()
+
+    raise ValueError("最高相关 DOC 缺少 DocName，且 Content 中未找到文档名")
+
+
 def main(knowledge_result=None, **kwargs) -> dict:
     """选择 ADP 知识库结果中相关性最高的有效 DOC 正文。"""
     if knowledge_result is None:
@@ -53,6 +66,7 @@ def main(knowledge_result=None, **kwargs) -> dict:
 
     knowledge_list = _parse_knowledge_result(knowledge_result)
     selected_content = None
+    selected_document_name = None
     selected_confidence = None
 
     for item in knowledge_list:
@@ -73,9 +87,13 @@ def main(knowledge_result=None, **kwargs) -> dict:
         # 仅在分数更高时替换；同分保留 KnowledgeList 中更早的条目。
         if selected_confidence is None or confidence > selected_confidence:
             selected_content = content.strip()
+            selected_document_name = _read_document_name(item, selected_content)
             selected_confidence = confidence
 
     if selected_content is None:
         raise ValueError("未找到 Content 非空且 Confidence 有效的 DOC 知识库结果")
 
-    return {"knowledgeContent": selected_content}
+    return {
+        "knowledgeContent": selected_content,
+        "documentName": selected_document_name,
+    }

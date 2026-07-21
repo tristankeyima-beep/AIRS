@@ -148,3 +148,5 @@ Output: obj
 llm_output = 本 LLM 节点 Output，类型 obj
 chronicDiseaseCode = 备案病种提取节点 chronicDiseaseCode，类型 str
 ```
+
+“提取相关性最高的知识库结果”节点还会输出 `documentName`。该字段不需要传入本 LLM，应直接引用到最终“组装 certification_list”节点，用于生成 `meta.version`。
