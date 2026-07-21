@@ -18,12 +18,22 @@ class CertificationListSelectorTests(unittest.TestCase):
         self.original = {"meta": {"version": "v20260517"}, "ruleRepository": [{"ruleCode": "01001"}]}
         self.assembled = {"meta": {"version": "ADP-尿毒症透析-认定标准-v20260517"}, "ruleRepository": [{"ruleCode": "01001"}, {"ruleCode": "01002"}]}
 
-    def test_returns_original_certification_list_for_no_match_branch(self):
+    def test_returns_original_certification_list_when_no_search_result(self):
         node = load_node_module()
 
         result = node.main(originalCertificationList=self.original)
 
         self.assertEqual(result, {"certification_list": self.original})
+
+    def test_returns_assembled_certification_list_for_adp_branch(self):
+        node = load_node_module()
+
+        result = node.main(
+            originalCertificationList=self.original,
+            assembledCertificationList=self.assembled,
+        )
+
+        self.assertEqual(result, {"certification_list": self.assembled})
 
 
 if __name__ == "__main__":

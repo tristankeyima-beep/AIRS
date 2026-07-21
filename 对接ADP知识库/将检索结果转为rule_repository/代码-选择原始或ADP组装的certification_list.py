@@ -6,14 +6,29 @@ def _require_object(value, field_name):
 
 def main(
     originalCertificationList=None,
+    assembledCertificationList=None,
     **kwargs,
 ) -> dict:
-    """在知识库未命中分支中，原样返回最初的 certification_list。"""
+    """在条件分支汇合处，输出原始或 ADP 组装的 certification_list。"""
     if isinstance(originalCertificationList, dict) and "originalCertificationList" in originalCertificationList:
-        originalCertificationList = originalCertificationList.get("originalCertificationList")
+        params = originalCertificationList
+        originalCertificationList = params.get("originalCertificationList")
+        assembledCertificationList = (
+            assembledCertificationList
+            if assembledCertificationList is not None
+            else params.get("assembledCertificationList")
+        )
 
     if originalCertificationList is None:
         originalCertificationList = kwargs.get("originalCertificationList")
+    if assembledCertificationList is None:
+        assembledCertificationList = kwargs.get("assembledCertificationList")
 
     original = _require_object(originalCertificationList, "originalCertificationList")
-    return {"certification_list": original}
+    if assembledCertificationList is None or (
+        isinstance(assembledCertificationList, str) and not assembledCertificationList.strip()
+    ):
+        return {"certification_list": original}
+
+    assembled = _require_object(assembledCertificationList, "assembledCertificationList")
+    return {"certification_list": assembled}
