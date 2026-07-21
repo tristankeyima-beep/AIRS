@@ -18,10 +18,14 @@ class CertificationListSelectorTests(unittest.TestCase):
         self.original = {"meta": {"version": "v20260517"}, "ruleRepository": [{"ruleCode": "01001"}]}
         self.assembled = {"meta": {"version": "ADP-尿毒症透析-认定标准-v20260517"}, "ruleRepository": [{"ruleCode": "01001"}, {"ruleCode": "01002"}]}
 
-    def test_returns_original_certification_list_when_no_search_result(self):
+    def test_returns_original_certification_list_when_condition_index_is_2(self):
         node = load_node_module()
 
-        result = node.main(originalCertificationList=self.original)
+        result = node.main(
+            ConditionIndex=2,
+            originalCertificationList=self.original,
+            assembledCertificationList=self.assembled,
+        )
 
         self.assertEqual(result, {"certification_list": self.original})
 
@@ -29,11 +33,25 @@ class CertificationListSelectorTests(unittest.TestCase):
         node = load_node_module()
 
         result = node.main(
+            ConditionIndex=1,
             originalCertificationList=self.original,
             assembledCertificationList=self.assembled,
         )
 
         self.assertEqual(result, {"certification_list": self.assembled})
+
+    def test_accepts_condition_index_from_platform_system_parameters(self):
+        node = load_node_module()
+
+        result = node.main(
+            {
+                "ConditionIndex": "2",
+                "originalCertificationList": self.original,
+                "assembledCertificationList": self.assembled,
+            }
+        )
+
+        self.assertEqual(result, {"certification_list": self.original})
 
 
 if __name__ == "__main__":
