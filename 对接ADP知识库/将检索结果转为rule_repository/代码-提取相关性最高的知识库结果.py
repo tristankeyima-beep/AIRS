@@ -2,6 +2,20 @@ import json
 import math
 
 
+WRAPPER_KEYS = (
+    "knowledge_result",
+    "Output",
+    "output",
+    "result",
+    "data",
+    "input",
+    "inputs",
+    "params",
+    "arguments",
+    "variables",
+)
+
+
 def _parse_knowledge_result(value):
     if isinstance(value, str):
         text = value.strip()
@@ -15,17 +29,22 @@ def _parse_knowledge_result(value):
     if not isinstance(value, dict):
         raise ValueError("knowledge_result 必须是对象或 JSON 字符串")
 
-    knowledge_list = value.get("KnowledgeList")
-    if not isinstance(knowledge_list, list):
-        raise ValueError("knowledge_result.KnowledgeList 必须是数组")
-    return knowledge_list
+    if isinstance(value.get("KnowledgeList"), list):
+        return value["KnowledgeList"]
+
+    for key in WRAPPER_KEYS:
+        if key in value and value[key] is not None:
+            return _parse_knowledge_result(value[key])
+
+    received_keys = ", ".join(sorted(map(str, value.keys()))) or "（无）"
+    raise ValueError(
+        "knowledge_result 中未找到 KnowledgeList 数组；"
+        f"当前对象字段：{received_keys}"
+    )
 
 
 def main(knowledge_result=None, **kwargs) -> dict:
     """选择 ADP 知识库结果中相关性最高的有效 DOC 正文。"""
-    if isinstance(knowledge_result, dict) and "knowledge_result" in knowledge_result:
-        knowledge_result = knowledge_result["knowledge_result"]
-
     if knowledge_result is None:
         for key in ("knowledge_result", "Output", "output", "result"):
             if kwargs.get(key) is not None:
