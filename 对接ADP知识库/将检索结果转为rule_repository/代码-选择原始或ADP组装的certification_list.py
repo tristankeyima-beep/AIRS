@@ -5,33 +5,15 @@ def _require_object(value, field_name):
 
 
 def main(
-    knowledgeContent=None,
     originalCertificationList=None,
-    assembledCertificationList=None,
     **kwargs,
 ) -> dict:
-    """根据知识库是否命中病种，选择原始或 ADP 组装后的 certification_list。"""
-    if isinstance(knowledgeContent, dict) and any(
-        key in knowledgeContent
-        for key in ("knowledgeContent", "originalCertificationList", "assembledCertificationList")
-    ):
-        params = knowledgeContent
-        knowledgeContent = params.get("knowledgeContent")
-        originalCertificationList = originalCertificationList or params.get("originalCertificationList")
-        assembledCertificationList = assembledCertificationList or params.get("assembledCertificationList")
-
-    if knowledgeContent is None:
-        knowledgeContent = kwargs.get("knowledgeContent")
-    if knowledgeContent is not None and not isinstance(knowledgeContent, str):
-        raise ValueError("knowledgeContent 必须是字符串或为空")
+    """在知识库未命中分支中，原样返回最初的 certification_list。"""
+    if isinstance(originalCertificationList, dict) and "originalCertificationList" in originalCertificationList:
+        originalCertificationList = originalCertificationList.get("originalCertificationList")
 
     if originalCertificationList is None:
         originalCertificationList = kwargs.get("originalCertificationList")
-    if assembledCertificationList is None:
-        assembledCertificationList = kwargs.get("assembledCertificationList")
 
     original = _require_object(originalCertificationList, "originalCertificationList")
-    assembled = _require_object(assembledCertificationList, "assembledCertificationList")
-
-    selected = original if not (knowledgeContent or "").strip() else assembled
-    return {"certification_list": selected}
+    return {"certification_list": original}
