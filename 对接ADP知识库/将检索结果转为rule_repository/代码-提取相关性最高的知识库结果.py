@@ -56,13 +56,24 @@ def _read_document_name(item, content):
     raise ValueError("最高相关 DOC 缺少 DocName，且 Content 中未找到文档名")
 
 
-def main(knowledge_result=None, **kwargs) -> dict:
+def main(knowledge_result=None, chronicDiseaseName=None, **kwargs) -> dict:
     """选择 ADP 知识库结果中相关性最高的有效 DOC 正文。"""
+    if isinstance(knowledge_result, dict) and "knowledge_result" in knowledge_result:
+        params = knowledge_result
+        knowledge_result = params.get("knowledge_result")
+        chronicDiseaseName = chronicDiseaseName or params.get("chronicDiseaseName")
+
     if knowledge_result is None:
         for key in ("knowledge_result", "Output", "output", "result"):
             if kwargs.get(key) is not None:
                 knowledge_result = kwargs[key]
                 break
+
+    if chronicDiseaseName is None:
+        chronicDiseaseName = kwargs.get("chronicDiseaseName")
+    if not isinstance(chronicDiseaseName, str) or not chronicDiseaseName.strip():
+        raise ValueError("chronicDiseaseName 必须是非空字符串")
+    chronic_disease_name = chronicDiseaseName.strip()
 
     knowledge_list = _parse_knowledge_result(knowledge_result)
     selected_content = None
@@ -75,6 +86,8 @@ def main(knowledge_result=None, **kwargs) -> dict:
 
         content = item.get("Content")
         if not isinstance(content, str) or not content.strip():
+            continue
+        if chronic_disease_name not in content:
             continue
 
         try:
@@ -91,7 +104,7 @@ def main(knowledge_result=None, **kwargs) -> dict:
             selected_confidence = confidence
 
     if selected_content is None:
-        raise ValueError("未找到 Content 非空且 Confidence 有效的 DOC 知识库结果")
+        return {"knowledgeContent": "", "documentName": ""}
 
     return {
         "knowledgeContent": selected_content,
