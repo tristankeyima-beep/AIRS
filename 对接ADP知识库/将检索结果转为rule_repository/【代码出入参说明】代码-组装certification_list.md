@@ -26,6 +26,69 @@ ruleRepository = 将 ADP 提取出的 ruleRepository 结构化.ruleRepository
 logicTopology = 将 ADP 提取出的 ruleRepository 结构化.logicTopology
 ```
 
+## 可直接粘贴测试的入参示例
+
+```json
+{
+  "chronicDiseaseName": "尿毒症透析",
+  "chronicDiseaseCode": "M07801",
+  "documentName": "尿毒症透析-认定标准-v20260517.md",
+  "ruleRepository": [
+    {
+      "ruleCode": "01001",
+      "ruleContent": "各种原因造成慢性肾脏损伤，并出现肾功能异常达到尿毒症期",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "01001001",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否明确存在慢性肾脏损伤；仅一次性肾功能指标异常不得判定为慢性肾脏损伤。",
+          "enumOptions": ["是", "否", "无法判断"]
+        },
+        {
+          "keywordCode": "01001002",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否明确达到尿毒症期或终末期肾病阶段。",
+          "enumOptions": ["是", "否", "无法判断"]
+        }
+      ],
+      "sourceRuleContent": "1.各种原因造成慢性肾脏损伤，并出现肾功能异常达到尿毒症期。",
+      "sourceMdFile": "尿毒症透析-认定标准-v20260517.md",
+      "sourceSection": "认定标准"
+    },
+    {
+      "ruleCode": "01002",
+      "ruleContent": "需长期透析治疗",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "01002001",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否明确需要或已经接受长期透析治疗。",
+          "enumOptions": ["是", "否", "无法判断"]
+        }
+      ],
+      "sourceRuleContent": "2.需长期透析治疗。",
+      "sourceMdFile": "尿毒症透析-认定标准-v20260517.md",
+      "sourceSection": "认定标准"
+    }
+  ],
+  "logicTopology": {
+    "type": "GROUP",
+    "operator": "AND",
+    "children": [
+      {"type": "RULE_REF", "ruleCode": "01001"},
+      {"type": "RULE_REF", "ruleCode": "01002"}
+    ]
+  }
+}
+```
+
 ## 出参
 
 ```text
