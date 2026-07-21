@@ -177,7 +177,7 @@ M07801
 | --- | --- |
 | `llm_output 中缺少 logicTopology` | LLM 未输出完整对象，检查结构化 Schema 和绑定是否引用完整 Output。 |
 | `chronicDiseaseCode 必须以两位数字结尾` | 上游备案病种编码不符合编码规则，不能生成五位规则码。 |
-| `ruleRepository 至少包含一条规则` | LLM 没有从 DOC 生成规则，检查是否把 `knowledge_result` 插入提示词。 |
+| `ruleRepository 至少包含一条规则` | LLM 没有从 DOC 生成规则，检查是否把 `knowledgeContent` 插入提示词。 |
 | `enum 提取项必须包含非空 enumOptions` | LLM 为 enum 漏了选项；修正 LLM 输出，不要改代码节点兜底。 |
 | `logicTopology 引用了不存在的规则` | `RULE_REF.ruleCode` 不是某个 `tempRuleId`，或临时标识重复/拼写不一致。 |
 | `logicTopology 未引用规则` | 规则库与逻辑树不一致；每条规则必须在树中恰好被使用。 |

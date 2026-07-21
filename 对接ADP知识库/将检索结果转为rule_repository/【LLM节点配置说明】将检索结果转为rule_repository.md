@@ -13,7 +13,7 @@
 
 | 变量 | 类型 | 绑定来源 | 说明 |
 | --- | --- | --- | --- |
-| `knowledge_result` | `obj` | ADP 知识库检索节点 Output | 含 `KnowledgeList` 的完整检索结果。 |
+| `knowledgeContent` | `str` | “提取相关性最高的知识库结果”代码节点 `knowledgeContent` | 相关性最高 DOC 的完整正文。 |
 | `chronicDiseaseName` | `str` | 备案病种提取节点 `chronicDiseaseName` | 病种语境与检索结果校验依据。 |
 | `chronicDiseaseCode` | `str` | 备案病种提取节点 `chronicDiseaseCode` | 供模型核对病种；正式编码由后置代码节点生成。 |
 
@@ -52,7 +52,7 @@ Output: obj
 你是医保慢特病认定标准结构化专家。
 
 # 任务
-根据知识库检索结果，为当前备案病种生成认定规则库 ruleRepository 和规则逻辑树 logicTopology。
+根据已筛选的知识库 DOC 正文，为当前备案病种生成认定规则库 ruleRepository 和规则逻辑树 logicTopology。
 
 当前备案病种名称：
 【用腾讯变量选择器插入 chronicDiseaseName】
@@ -60,15 +60,13 @@ Output: obj
 当前备案病种编码：
 【用腾讯变量选择器插入 chronicDiseaseCode】
 
-知识库检索结果：
-【用腾讯变量选择器插入 knowledge_result】
+已筛选的知识库 DOC 正文：
+【用腾讯变量选择器插入 knowledgeContent】
 
 # 知识范围
-1. 只使用 KnowledgeList 中 KnowledgeType=DOC 的 Content。
-2. 忽略 KnowledgeType=QA、Title、Question、Description 中的业务结论。
-3. 多个 DOC 的 Content 完全相同时，只保留一份；多个 DOC 内容不同但属于同一病种时，合并阅读，不得重复生成相同规则。
-4. 如果 DOC 与当前备案病种明显不一致，不能借用其内容补充规则。
-5. DOC 可能把多条编号条件压缩在同一段文字中；必须按编号、分号、连接词和语义正确拆分，不能因排版压缩漏掉规则。
+1. 只能使用上方已筛选的知识库 DOC 正文；不要使用病种名称、病种编码或医学常识补充正文没有的规则。
+2. 如果 DOC 与当前备案病种明显不一致，不能借用其内容补充规则。
+3. DOC 可能把多条编号条件压缩在同一段文字中；必须按编号、分号、连接词和语义正确拆分，不能因排版压缩漏掉规则。
 
 # 规则拆解
 1. 只有“准入条件、限、应符合、需提供、经确认、首次申请、支付限制”等直接决定认定或用药资格的条件，才能生成规则。
