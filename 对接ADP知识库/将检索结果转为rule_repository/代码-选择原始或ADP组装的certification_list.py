@@ -54,7 +54,10 @@ def main(
         ConditionIndex = kwargs.get("ConditionIndex")
 
     original = _require_object(originalCertificationList, "originalCertificationList")
-    if _require_condition_index(ConditionIndex) == 2:
+    condition_index = _require_condition_index(ConditionIndex)
+    if condition_index == 1 or assembledCertificationList is None or (
+        isinstance(assembledCertificationList, str) and not assembledCertificationList.strip()
+    ):
         return {"certification_list": original}
 
     assembled = _require_object(assembledCertificationList, "assembledCertificationList")
