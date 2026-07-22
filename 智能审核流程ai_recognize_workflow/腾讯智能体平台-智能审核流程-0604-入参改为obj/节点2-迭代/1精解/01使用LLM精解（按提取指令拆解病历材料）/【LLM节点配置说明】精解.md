@@ -42,9 +42,9 @@ rawText 不允许为空。优先取 materialContent 中的原文片段；若依�
 
 你这次测试里 `materialSource` 和 `rawText` 为空，主要就是第 2、3 句需要补强。
 
-### 4. 输出格式必须从“数组”改成“对象包数组”
+### 4. 输出文本必须从“数组”改成“对象包数组”
 
-腾讯结构化输出 schema 里最外层是 `Output` 对象，里面有 `extraction_data` 数组，所以提示词不能再写“只输出 JSON 数组”。
+本地模型不配置腾讯 ADP 的结构化输出 schema，但为让下一节点稳定清洗，输出文本最外层仍应是对象，里面包含 `extraction_data` 数组；不要只输出 JSON 数组。
 
 把旧句子：
 
@@ -305,31 +305,27 @@ results 中每条结果必须包含以下字段：
 
 ## 六、LLM 输出后接哪个节点
 
-这个 LLM 节点输出的是 JSON 对象，里面包含 `extraction_data` 数组。后面接：
+本地模型的出参先进入 `02借助LLM将出参结构化处理`，不要直接接 03 代码节点：
 
 ```text
-代码-将精解结果结构化.py
+01使用LLM精解.Output
+  -> 02借助LLM将出参结构化处理.raw_llm_output
+  -> 03精解结果结构化.extraction_data
 ```
 
-它的入参建议这样配：
+02 节点使用 Qwen2.5 的腾讯 ADP 结构化输出能力，生成 `Output.extraction_data`。03 的入参配置为：
 
 ```text
-extraction_data = 1精解 LLM 节点输出文本
-```
-
-在腾讯平台里具体就是：
-
-```text
-代码节点：代码-将精解结果结构化
+代码节点：03精解结果结构化
 变量名：extraction_data
 数据来源：引用
-绑定：1精解 LLM 节点的 Output.extraction_data
-类型：[obj]
+绑定：02借助LLM将出参结构化处理.Output.extraction_data
+类型：str
 ```
 
-不要留空，也不要绑定到“开始.material_list”。这里必须绑定精解 LLM 的 `Output.extraction_data`。
+不要把 03 绑定到 01 的 Output，也不要绑定到“开始.material_list”。
 
-结构化代码节点会把 LLM 输出解析成数组，并输出：
+03 代码节点会把 Qwen2.5 的结构化出参解析成数组，并输出：
 
 ```json
 {
@@ -347,8 +343,8 @@ extraction_data = 1精解 LLM 节点输出文本
 
 ## 七、联调踩坑记录
 
-1. 腾讯结构化输出 schema 是对象包数组。
-   如果 schema 里是 `Output.extraction_data: [obj]`，提示词就必须要求输出：
+1. 腾讯结构化输出 schema 由 02 Qwen2.5 节点配置为对象包数组。
+   01 本地模型只需尽量输出如下 JSON 文本；02 会将其固定为 `Output.extraction_data: [obj]`：
 
 ```json
 {

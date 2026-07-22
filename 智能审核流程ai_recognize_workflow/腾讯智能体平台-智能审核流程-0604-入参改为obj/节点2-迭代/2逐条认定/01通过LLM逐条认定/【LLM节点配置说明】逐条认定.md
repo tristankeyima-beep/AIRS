@@ -27,7 +27,7 @@
 开始.iterator_selector.ruleContent
 开始.iterator_selector.experience
 开始.suspicion_type_options
-精解结果结构化.extractionList
+03精解结果结构化.extractionList
 ```
 
 你这次测试里输出了 `"ruleCode": "ruleCode"`、`"ruleContent": "ruleContent"`，就是变量没有真正插入成功。
@@ -35,10 +35,10 @@
 如果“逐条认定”的推理里说没有结构化审核证据，先检查上一个代码节点：
 
 ```text
-精解结果结构化.extractionList
+03精解结果结构化.extractionList
 ```
 
-它不能是空数组。若为空，说明“精解结果结构化”没有拿到“1精解 LLM”的 Output。
+它不能是空数组。若为空，说明“03精解结果结构化”没有拿到“02借助LLM将出参结构化处理”的 `Output.extraction_data`。
 
 ### 2. 输出格式示例里不要手写变量占位符
 
@@ -147,7 +147,7 @@ experience: String
 
 # 结构化审核证据
 
-【在这里用腾讯变量选择器插入：精解结果结构化.extractionList】
+【在这里用腾讯变量选择器插入：03精解结果结构化.extractionList】
 
 
 # 输出要求
@@ -253,20 +253,22 @@ experience: String
 
 ## 六、LLM 输出后接哪个节点
 
-这个 LLM 节点输出的是一段 JSON 文本，后面接：
+本地模型的出参先进入 `02借助LLM将出参结构化处理`，不要直接接 03 代码节点：
 
 ```text
-单条标准审核结果结构化.py
+01通过LLM逐条认定.Output
+  -> 02借助LLM将出参结构化处理.raw_llm_output
+  -> 03单条标准审核结果结构化.ruleResult
 ```
 
-它的入参建议这样配：
+03 代码节点的入参建议这样配：
 
 ```text
-ruleResult = 逐条认定 LLM 节点输出文本
+ruleResult = 02借助LLM将出参结构化处理.Output
 items = 开始.iterator_selector
 ```
 
-这样即使模型漏了 `ruleCode` 或 `ruleContent`，结构化代码节点也能用 `items` 兜底补上。
+02 使用 Qwen2.5 的腾讯 ADP 结构化输出能力，03 则继续用 `items` 兜底补 `ruleCode` 或 `ruleContent`。
 
 ## 七、LLM 节点输出示例
 
@@ -324,7 +326,7 @@ items = 开始.iterator_selector
 
 ## 八、联调踩坑记录
 
-1. `text` 必须绑定 `精解结果结构化.extractionList`。
+1. `text` 必须绑定 `03精解结果结构化.extractionList`。
    如果 reasoningContent 里出现“没有提供结构化审核证据”或把 `text` 当普通文字，说明变量没有插入成功。
 
 2. 规则字段必须用变量选择器插入。
