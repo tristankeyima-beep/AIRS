@@ -1,4 +1,5 @@
 import copy
+import errno
 import hashlib
 import importlib.util
 import json
@@ -134,8 +135,17 @@ def tree_state(root):
 def create_symlink_or_skip(test_case, link, target):
     try:
         link.symlink_to(target, target_is_directory=True)
-    except (OSError, NotImplementedError) as exc:
+    except NotImplementedError as exc:
         test_case.skipTest(f"当前平台不支持符号链接测试：{exc}")
+    except OSError as exc:
+        allowed_errnos = {errno.EPERM, errno.EACCES}
+        for name in ("ENOTSUP", "EOPNOTSUPP"):
+            value = getattr(errno, name, None)
+            if value is not None:
+                allowed_errnos.add(value)
+        if exc.errno in allowed_errnos or getattr(exc, "winerror", None) == 1314:
+            test_case.skipTest(f"当前平台不支持符号链接测试：{exc}")
+        raise
 
 
 class FixtureContractTests(unittest.TestCase):
@@ -274,6 +284,34 @@ class MutationGeneratorTests(unittest.TestCase):
         original = ["材料一", "材料二", "材料三"]
         self.assertEqual(self.module.reorder_materials(original), list(reversed(original)))
         self.assertEqual(original, ["材料一", "材料二", "材料三"])
+
+    def test_symlink_helper_does_not_hide_filesystem_failures(self):
+        fake_case = mock.Mock()
+        link = Path("link")
+        target = Path("target")
+        for error_number in (errno.EEXIST, errno.EIO):
+            with self.subTest(errno=error_number):
+                with mock.patch.object(
+                    Path,
+                    "symlink_to",
+                    side_effect=OSError(error_number, "injected"),
+                ):
+                    with self.assertRaises(OSError) as raised:
+                        create_symlink_or_skip(fake_case, link, target)
+                self.assertEqual(raised.exception.errno, error_number)
+        fake_case.skipTest.assert_not_called()
+
+    def test_symlink_helper_skips_only_explicit_unsupported_or_permission_errors(self):
+        fake_case = mock.Mock()
+        fake_case.skipTest.side_effect = unittest.SkipTest
+        with mock.patch.object(
+            Path,
+            "symlink_to",
+            side_effect=OSError(errno.EPERM, "permission denied"),
+        ):
+            with self.assertRaises(unittest.SkipTest):
+                create_symlink_or_skip(fake_case, Path("link"), Path("target"))
+        fake_case.skipTest.assert_called_once()
 
     def test_each_case_is_derived_from_a_named_correct_base_by_one_pure_transform(self):
         transforms = {
