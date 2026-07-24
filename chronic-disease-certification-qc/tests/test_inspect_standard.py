@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,6 +51,26 @@ class InspectStandardTests(unittest.TestCase):
         self.assertEqual(result["issues"], [])
         self.assertTrue(result["semantic_review_available"])
 
+    def test_natural_language_is_recognized_through_every_adapter(self):
+        text = "认定标准：需明确诊断；需提供影像学证据"
+        with tempfile.TemporaryDirectory() as directory:
+            text_path = Path(directory) / "standard.txt"
+            text_path.write_text(text, encoding="utf-8")
+            inputs = (
+                text,
+                text_path,
+                {"data": text},
+                {"output": {"result": {"data": text}}},
+                {"certification_list": json.dumps({"result": text}, ensure_ascii=False)},
+            )
+            for input_value in inputs:
+                with self.subTest(input_value=repr(input_value)):
+                    result = inspector.inspect_standard(input_value)
+                    self.assertEqual(result["kind"], "natural_language")
+                    self.assertEqual(result["issues"], [])
+                    self.assertEqual(result["warnings"], [])
+                    self.assertTrue(result["semantic_review_available"])
+
     def test_natural_language_with_nonleading_braces_is_not_json(self):
         result = inspector.inspect_standard("标准说明中包含 {示例}，仍以病历内容为准。")
         self.assertEqual(result["kind"], "natural_language")
@@ -79,6 +100,27 @@ class InspectStandardTests(unittest.TestCase):
                 }
             ],
         )
+
+    def test_validator_errors_and_warnings_are_propagated(self):
+        warning = {"path": "meta", "code": "source_notice", "message": "Check source.", "severity": "warning"}
+        incomplete_error = {"path": "ruleRepository", "code": "rule_repository_required", "message": "At least one rule is required.", "severity": "error"}
+        with patch.object(
+            inspector._VALIDATOR,
+            "validate_certification",
+            return_value={"valid": False, "errors": [incomplete_error], "warnings": [warning], "standard": None},
+        ):
+            incomplete = inspector.inspect_standard({"unexpected": True})
+        self.assertEqual(incomplete["issues"], [incomplete_error])
+        self.assertEqual(incomplete["warnings"], [warning])
+
+        with patch.object(
+            inspector._VALIDATOR,
+            "validate_certification",
+            return_value={"valid": True, "errors": [], "warnings": [warning], "standard": self.valid},
+        ):
+            complete = inspector.inspect_standard(self.valid)
+        self.assertEqual(complete["kind"], "structured_complete")
+        self.assertEqual(complete["warnings"], [warning])
 
     def test_wrapped_objects_and_json_strings_are_complete(self):
         for input_value in (

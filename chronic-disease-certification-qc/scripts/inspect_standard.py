@@ -13,6 +13,17 @@ _VALIDATOR_SPEC = importlib.util.spec_from_file_location(
 )
 _VALIDATOR = importlib.util.module_from_spec(_VALIDATOR_SPEC)
 _VALIDATOR_SPEC.loader.exec_module(_VALIDATOR)
+_WRAPPER_KEYS = _VALIDATOR.WRAPPER_KEYS
+_FORMAL_ROOT_KEYS = _VALIDATOR.FORMAL_ROOT_KEYS
+_MAX_WRAPPER_DEPTH = _VALIDATOR.MAX_WRAPPER_DEPTH
+
+
+class _NormalizationError(ValueError):
+    """A controlled input-adapter error with a validator-compatible code."""
+
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
 
 
 def _issue(code, message):
@@ -26,6 +37,69 @@ def _blank_string(value):
 def _json_looking(value):
     """Only leading JSON containers turn text into a structured-input attempt."""
     return isinstance(value, str) and value.lstrip().startswith(("{", "["))
+
+
+def _decode_json(value):
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, RecursionError) as exc:
+        raise _NormalizationError("invalid_json", "Input is not valid JSON.") from exc
+
+
+def _unwrap(value):
+    """Safely normalize compatible wrappers into a structured or text payload."""
+    seen_wrappers = set()
+    depth = 0
+    while True:
+        if isinstance(value, dict):
+            if _FORMAL_ROOT_KEYS.issubset(value):
+                return "structured", value
+            wrapper_key = next((key for key in _WRAPPER_KEYS if key in value), None)
+            if wrapper_key is None:
+                return "structured", value
+            value_id = id(value)
+            if value_id in seen_wrappers:
+                raise _NormalizationError("wrapper_cycle", "Wrapper nesting contains a cycle.")
+            if depth >= _MAX_WRAPPER_DEPTH:
+                raise _NormalizationError(
+                    "wrapper_depth_exceeded", "Wrapper nesting exceeds the supported depth."
+                )
+            seen_wrappers.add(value_id)
+            depth += 1
+            value = value[wrapper_key]
+            continue
+        if isinstance(value, str):
+            if _blank_string(value):
+                return "absent", None
+            # A wrapper may hold an object JSON string or a JSON-string-encoded
+            # natural-language standard. Ordinary text is never decoded.
+            if value.lstrip().startswith(("{", "[", '"')):
+                value = _decode_json(value)
+                if depth >= _MAX_WRAPPER_DEPTH:
+                    raise _NormalizationError(
+                        "wrapper_depth_exceeded", "Wrapper nesting exceeds the supported depth."
+                    )
+                depth += 1
+                continue
+            return "natural_language", value
+        return "structured", value
+
+
+def _normalize(value):
+    if isinstance(value, Path):
+        try:
+            value = value.read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            raise _NormalizationError("input_decode_error", "Input must be UTF-8 JSON.") from exc
+        except OSError as exc:
+            raise _NormalizationError("input_read_error", str(exc)) from exc
+    if value is None or _blank_string(value):
+        return "absent", None
+    if isinstance(value, str):
+        if not _json_looking(value):
+            return "natural_language", value
+        return _unwrap(_decode_json(value))
+    return _unwrap(value)
 
 
 def _rule_completeness(standard):
@@ -44,7 +118,7 @@ def _rule_completeness(standard):
     return True, traceable
 
 
-def _result(kind, structural, executable, traceable, issues, semantic_review_available):
+def _result(kind, structural, executable, traceable, issues, warnings, semantic_review_available):
     """Produce the entire public, JSON-serializable inspection contract."""
     return {
         "kind": kind,
@@ -55,6 +129,7 @@ def _result(kind, structural, executable, traceable, issues, semantic_review_ava
             "source_consistent": None,
         },
         "issues": issues,
+        "warnings": warnings,
         "semantic_review_available": semantic_review_available,
     }
 
@@ -67,6 +142,7 @@ def _validate(value):
         return {
             "valid": False,
             "errors": [_issue("inspection_error", str(exc) or "Input could not be inspected.")],
+            "warnings": [],
             "standard": None,
         }
 
@@ -78,13 +154,21 @@ def inspect_standard(value):
     inputs. Only strings that begin with a JSON container are treated as an
     attempted structured standard.
     """
-    if value is None or _blank_string(value):
-        return _result("absent", False, False, False, [], False)
-    if isinstance(value, str) and not _json_looking(value):
-        return _result("natural_language", False, False, True, [], True)
+    try:
+        input_kind, normalized_value = _normalize(value)
+    except _NormalizationError as exc:
+        return _result(
+            "structured_incomplete", False, False, False,
+            [_issue(exc.code, str(exc))], [], False,
+        )
+    if input_kind == "absent":
+        return _result("absent", False, False, False, [], [], False)
+    if input_kind == "natural_language":
+        return _result("natural_language", False, False, True, [], [], True)
 
-    validation = _validate(value)
+    validation = _validate(normalized_value)
     standard = validation.get("standard")
+    warnings = validation.get("warnings", [])
     semantic_review_available, traceable = _rule_completeness(standard)
     if validation.get("valid"):
         return _result(
@@ -93,6 +177,7 @@ def inspect_standard(value):
             True,
             traceable,
             [],
+            warnings,
             semantic_review_available,
         )
     return _result(
@@ -101,6 +186,7 @@ def inspect_standard(value):
         False,
         traceable,
         validation.get("errors", []),
+        warnings,
         semantic_review_available,
     )
 
