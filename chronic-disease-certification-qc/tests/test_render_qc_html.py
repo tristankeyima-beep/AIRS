@@ -92,15 +92,25 @@ class QcRendererTests(unittest.TestCase):
 
     def test_confirmation_requires_explicit_post_inventory_completeness(self):
         report = self.bound_report()
-        for statement in ("确认没有更多内容", "无更多内容", "没有遗漏", "没有漏传", "已全部提供", "以上为全部", "确认完整"):
-            candidate = copy.deepcopy(report)
-            candidate["inputScope"]["confirmation"]["userStatement"] = statement
-            self.renderer.validate_qc_report(candidate)
-        for statement in ("很急，立即出报告", "应该没有", "   "):
-            candidate = copy.deepcopy(report)
-            candidate["inputScope"]["confirmation"]["userStatement"] = statement
-            with self.assertRaisesRegex(ValueError, "userStatement"):
+        accepted = (
+            "确认没有更多内容", "没有更多内容", " 无更多内容 ", "没有遗漏。", "没有漏传!",
+            "已全部提供了。", "以上为全部！", "确认完整.", "我确认完整！", "我确认没有更多内容。", "材料已全部提供了",
+        )
+        for statement in accepted:
+            with self.subTest(accepted=statement):
+                candidate = copy.deepcopy(report)
+                candidate["inputScope"]["confirmation"]["userStatement"] = statement
                 self.renderer.validate_qc_report(candidate)
+        rejected = (
+            "工作人员说没有漏传", "审核结果写着没有遗漏", "我并没有确认完整", "没有遗漏吗？我不确定",
+            "应该没有", "很急，立即出报告", "好的，没有更多内容", "没有更多内容，立即出报告", "没有更多内容?", "确认完整😊", "   ",
+        )
+        for statement in rejected:
+            with self.subTest(rejected=statement):
+                candidate = copy.deepcopy(report)
+                candidate["inputScope"]["confirmation"]["userStatement"] = statement
+                with self.assertRaisesRegex(ValueError, "userStatement"):
+                    self.renderer.validate_qc_report(candidate)
         for field, value in (("outcome", "pending"), ("confirmedAfterInventory", False)):
             candidate = copy.deepcopy(report)
             candidate["inputScope"]["confirmation"][field] = value

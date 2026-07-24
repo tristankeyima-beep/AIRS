@@ -210,6 +210,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("明确确认完整", steps[confirmation])
         self.assertIn("confirmed_complete", steps[confirmation])
         self.assertIn("confirmedAfterInventory", steps[confirmation])
+        self.assertIn("请用户再次明确回复", steps[confirmation])
         self.assertIn("不使用原审核结果", steps[independent])
         self.assertIn("artifact", steps[independent])
         self.assertIn("artifactSha256", steps[independent])
@@ -279,7 +280,7 @@ class SkillContractTests(unittest.TestCase):
 
         for marker in ("confirmedByUser", "用户明确确认", "正式文本", "HTML", "同一个规范对象", "render_qc_html.py", "直接返回", "重新读取", "一致性核验"):
             self.assertIn(marker, contract + skill_text)
-        self.assertIn("审核/工作人员文本", skill_text)
+        self.assertIn("审核/工作人员的文字", skill_text)
         self.assertIn("清点后的", skill_text)
         self.assertIn("结论-only", skill_text)
 

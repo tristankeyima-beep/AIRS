@@ -30,6 +30,10 @@ RELIABILITY = {"可靠", "基本可靠", "存在重大疑点", "不可靠", "无
 RULE_RESULTS = {"满足", "不满足", "无法判断", "不适用"}
 STANDARD_KINDS = {"structured_complete", "structured_incomplete", "natural_language", "absent"}
 AUDIT_RESULT_KINDS = {"detailed", "brief", "conclusion_only"}
+CONFIRMATION_STATEMENTS = {
+    "确认没有更多内容", "没有更多内容", "无更多内容", "没有遗漏", "没有漏传", "已全部提供", "以上为全部", "确认完整",
+    "我确认完整", "我确认没有更多内容", "材料已全部提供",
+}
 CANONICAL_CAPABILITIES = {"材料缺失判断准确性", "证据提取准确性", "过度推理", "审核条件与结论一致性", "规则维护质量"}
 EVIDENCE_STATES = {"SUPPORTED", "CONTRADICTED", "NOT_FOUND", "INSUFFICIENT", "CONFLICTED", "NOT_APPLICABLE"}
 CATEGORIES = {"材料缺失判断准确性", "证据提取准确性", "过度推理", "审核条件与结论一致性", "规则维护质量"}
@@ -260,8 +264,9 @@ def _validate_interpretation_paths(input_scope, qc_conclusion, recommended_actio
 
 
 def _valid_confirmation_statement(statement):
-    normalized = re.sub(r"\s+", "", statement)
-    return any(phrase in normalized for phrase in ("没有更多内容", "无更多内容", "没有遗漏", "没有漏传", "已全部提供", "以上为全部", "确认完整"))
+    normalized = statement.strip()
+    grammar = "|".join(re.escape(item) for item in sorted(CONFIRMATION_STATEMENTS, key=len, reverse=True))
+    return bool(re.fullmatch(rf"(?:{grammar})(?:了)?[。！.!]*", normalized))
 
 
 def _validate_input_scope(input_scope, raw_input):

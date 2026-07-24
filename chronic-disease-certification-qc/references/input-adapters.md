@@ -10,7 +10,7 @@
 - 变体 B：患者材料 + 认定标准 + 详细审核结果和结论。它可以在适用能力范围内做逐项比对。
 - 也要单列无标准、`structured_incomplete` 和自然语言标准，不把它们悄悄混入“完整标准”。
 
-无论审核是否引用了缺失材料或规则配置，都必须在任何正式文本或 HTML 前明确询问“是否遗漏任何内容？”。审核引用却未提供的材料/规则配置应单独提示，但不能代替这句无条件确认。每次展示都构造 `inputScope.inventory`，revision 为正整数，含材料、权威分类的标准/审核结果类型、是否有审核过程、必有最终结论、审核引用但未提供项和 `rawInputSha256`；后者严格为 `sha256(json.dumps(rawInput, sort_keys=True, separators=(',', ':'), ensure_ascii=True, allow_nan=False))`，并纳入 `inventorySha256`。用户补充材料、标准或审核内容后必须先重新分类；分类或任何原始输入变化均使 revision 加一、重算两种摘要并使旧确认失效，重新清点和再次询问。只有用户在当前清点之后明确确认完整，才可写入 `confirmedRevision`、摘要、原话、`outcome=confirmed_complete`、`confirmedAfterInventory=true` 并设置 `confirmedByUser=true`。只接受“没有更多内容/无更多内容/没有遗漏/没有漏传/已全部提供/以上为全部/确认完整”等明确答复；审核、工作人员文本、急件、“应该没有”等都不是确认。
+无论审核是否引用了缺失材料或规则配置，都必须在任何正式文本或 HTML 前明确询问“是否遗漏任何内容？”。审核引用却未提供的材料/规则配置应单独提示，但不能代替这句无条件确认。每次展示都构造 `inputScope.inventory`，revision 为正整数，含材料、权威分类的标准/审核结果类型、是否有审核过程、必有最终结论、审核引用但未提供项和 `rawInputSha256`；后者严格为 `sha256(json.dumps(rawInput, sort_keys=True, separators=(',', ':'), ensure_ascii=True, allow_nan=False))`，并纳入 `inventorySha256`。用户补充材料、标准或审核内容后必须先重新分类；分类或任何原始输入变化均使 revision 加一、重算两种摘要并使旧确认失效，重新清点和再次询问。只有用户在当前清点之后以整句“确认没有更多内容/没有更多内容/无更多内容/没有遗漏/没有漏传/已全部提供/以上为全部/确认完整/我确认完整/我确认没有更多内容/材料已全部提供”确认，才可写入 `confirmedRevision`、摘要、原话、`outcome=confirmed_complete`、`confirmedAfterInventory=true` 并设置 `confirmedByUser=true`；仅允许句末“了”及 `。！.!`，只规范首尾空白。归因于审核或工作人员、否定、疑问、不确定、含该短语的长句和任何额外指令都不是确认；答复不符合时请用户再次明确回复，例如“没有更多内容”，不得推断。
 
 ## 标准形态与能力范围
 
