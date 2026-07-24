@@ -21,9 +21,16 @@ _BODY_PLACEHOLDER = "{{BODY}}"
 
 
 def _normalize_text(value):
-    """Replace lone UTF-16 surrogate code points before creating HTML text."""
+    """Replace surrogates, unsafe C0 controls, and DEL; retain tab, LF, and CR."""
     text = "" if value is None else str(value)
-    return "".join("\ufffd" if 0xD800 <= ord(character) <= 0xDFFF else character for character in text)
+    return "".join(
+        "\ufffd"
+        if 0xD800 <= ord(character) <= 0xDFFF
+        or (ord(character) < 0x20 and character not in "\t\n\r")
+        or ord(character) == 0x7F
+        else character
+        for character in text
+    )
 
 
 def esc(value):
@@ -66,10 +73,11 @@ def render_options(options):
     return '<ul class="options">' + "".join(f"<li>{esc(option)}</li>" for option in options) + "</ul>"
 
 
-def render_guides(guides):
+def render_guides(rule_code, guides):
     rows = []
     for guide in guides:
         required = '<span class="required">是</span>' if guide["required"] else '<span class="optional">否</span>'
+        guide_json = esc(json.dumps(guide, ensure_ascii=False, indent=2, sort_keys=True))
         rows.append(
             "<tr>"
             f"<td><code title=\"{esc(guide['keywordCode'])}\">{esc(guide['keywordCode'])}</code></td>"
@@ -77,11 +85,15 @@ def render_guides(guides):
             f"<td>{esc(guide['dataType'])}</td>"
             f"<td>{required}</td>"
             f"<td>{render_options(guide['enumOptions'])}</td>"
+            '<td><details class="guide-data"><summary>展开完整数据</summary>'
+            f"<pre>{guide_json}</pre></details></td>"
             "</tr>"
         )
     return (
-        '<div class="guide-table-wrap"><table><thead><tr>'
-        "<th>关键词编码</th><th>取证/判断指引</th><th>数据类型</th><th>是否必填</th><th>枚举选项</th>"
+        '<div class="guide-table-wrap"><table>'
+        f"<caption>规则 {esc(rule_code)} 的取证与判断指引</caption><thead><tr>"
+        '<th scope="col">关键词编码</th><th scope="col">取证/判断指引</th><th scope="col">数据类型</th>'
+        '<th scope="col">是否必填</th><th scope="col">枚举选项</th><th scope="col">完整数据结构</th>'
         "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>"
     )
 
@@ -96,16 +108,16 @@ def render_rule(rule):
         ("sourceSection", "来源章节", ""),
     )
     rendered_fields = "".join(
-        f'<div class="{css_class}"><h4>{label}</h4><p>{esc(rule[field])}</p></div>'
+        f'<div class="{css_class}"><p class="field-label">{label}</p><p>{esc(rule[field])}</p></div>'
         for field, label, css_class in fields
     )
     return (
         f'<article class="rule-card" data-rule-code="{esc(rule["ruleCode"])}">'
-        "<details open>"
+        "<details>"
         f'<summary><span class="rule-title" title="{esc(rule["ruleCode"])}">{esc(rule["ruleCode"])}</span>{esc(rule["ruleContent"])}</summary>'
         f'<div class="rule-fields">{rendered_fields}</div>'
-        "<h4>取证与判断指引</h4>"
-        f"{render_guides(rule['ruleKeywordGuide'])}"
+        "<h3>取证与判断指引</h3>"
+        f"{render_guides(rule['ruleCode'], rule['ruleKeywordGuide'])}"
         "</details></article>"
     )
 

@@ -165,6 +165,45 @@ class CertificationHtmlTests(unittest.TestCase):
         self.assertNotIn("\udcff", html)
         self.assertIsInstance(html.encode("utf-8"), bytes)
 
+    def test_rules_are_collapsed_by_default_but_print_css_reveals_details(self):
+        html = self.renderer.render_certification_html(self.standard)
+
+        self.assertIn('<article class="rule-card" data-rule-code="01001"><details>', html)
+        self.assertNotIn("<details open>", html)
+        self.assertIn("@media print", html)
+        self.assertIn("details > *:not(summary) { display: block; }", html)
+
+    def test_guide_disclosure_is_contextual_escaped_and_accessibly_named(self):
+        standard = copy.deepcopy(self.standard)
+        breakout = "</pre><script>alert(1)</script>{{BODY}}"
+        standard["ruleRepository"][0]["ruleKeywordGuide"][0].update({
+            "keywordContent": breakout, "enumOptions": [breakout],
+        })
+
+        html = self.renderer.render_certification_html(standard)
+
+        self.assertIn('<caption>规则 01001 的取证与判断指引</caption>', html)
+        for heading in ("关键词编码", "取证/判断指引", "数据类型", "是否必填", "枚举选项", "完整数据结构"):
+            self.assertIn(f'<th scope="col">{heading}</th>', html)
+        self.assertIn('<details class="guide-data"><summary>展开完整数据</summary><pre>', html)
+        self.assertIn('&lt;/pre&gt;&lt;script&gt;alert(1)&lt;/script&gt;{{BODY}}', html)
+        self.assertNotIn("</pre><script>alert(1)</script>", html)
+
+    def test_forbidden_controls_are_replaced_but_tab_linefeed_and_carriage_return_are_preserved(self):
+        standard = copy.deepcopy(self.standard)
+        forbidden = "\x00\x01\x08\x0b\x0c\x0e\x1f\x7f"
+        allowed = "保留\t制表\n换行\r回车"
+        standard["meta"]["description"] = f"说明{forbidden}{allowed}"
+        standard["ruleRepository"][0]["ruleContent"] = f"条件{forbidden}"
+        standard["ruleRepository"][0]["ruleKeywordGuide"][0]["enumOptions"] = [f"选项{forbidden}"]
+
+        html = self.renderer.render_certification_html(standard)
+
+        for character in forbidden:
+            self.assertNotIn(character, html)
+        self.assertIn(allowed, html)
+        self.assertIsInstance(html.encode("utf-8"), bytes)
+
     def test_template_and_document_meet_accessibility_responsive_print_and_dark_mode_contract(self):
         html = self.renderer.render_certification_html(self.standard)
         template = TEMPLATE.read_text(encoding="utf-8")
@@ -175,6 +214,8 @@ class CertificationHtmlTests(unittest.TestCase):
                          '@media (prefers-reduced-motion: reduce)', ':root'):
             self.assertIn(expected, html if expected not in (':root',) else template)
         self.assertEqual(html.count("<h1"), 1)
+        self.assertIn("<h3>取证与判断指引</h3>", html)
+        self.assertNotIn("<h4", html)
         self.assertNotIn("{{TITLE}}", html)
         self.assertNotIn("{{BODY}}", html)
 
@@ -225,6 +266,26 @@ class CertificationHtmlTests(unittest.TestCase):
             self.assertEqual(completed.returncode, 0, completed.stderr)
             self.assertNotIn("Traceback", completed.stderr)
             self.assertIn("\ufffd", output.read_text(encoding="utf-8"))
+
+    def test_cli_normalizes_forbidden_controls_without_traceback(self):
+        standard = copy.deepcopy(self.standard)
+        forbidden = "\x00\x01\x08\x0b\x0c\x0e\x1f\x7f"
+        standard["meta"]["description"] = f"CLI{forbidden}控制字符"
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "controls.json"
+            output = Path(directory) / "controls.html"
+            source.write_text(json.dumps(standard, ensure_ascii=True), encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, str(SCRIPT), str(source), str(output)],
+                text=True, capture_output=True, check=False,
+            )
+            rendered = output.read_text(encoding="utf-8") if output.exists() else ""
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertNotIn("Traceback", completed.stderr)
+            self.assertTrue(rendered.encode("utf-8"))
+            for character in forbidden:
+                self.assertNotIn(character, rendered)
 
 
 if __name__ == "__main__":
