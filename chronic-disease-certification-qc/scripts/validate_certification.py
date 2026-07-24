@@ -5,10 +5,20 @@ import argparse
 import copy
 import json
 import re
+import sys
 from pathlib import Path
 
 
 WRAPPER_KEYS = ("certification_list", "output", "result", "data")
+FORMAL_ROOT_KEYS = frozenset(("meta", "ruleRepository", "logicTopology"))
+META_KEYS = frozenset(("version", "chronicDiseaseName", "chronicDiseaseCode", "createdAt", "description", "sourceFile"))
+RULE_KEYS = frozenset(("ruleCode", "ruleContent", "ruleSource", "experience", "sourceRuleContent", "sourceMdFile", "sourceSection", "ruleKeywordGuide"))
+GUIDE_KEYS = frozenset(("keywordCode", "dataType", "required", "keywordContent", "enumOptions"))
+GROUP_KEYS = frozenset(("type", "operator", "children"))
+RULE_REF_KEYS = frozenset(("type", "ruleCode"))
+MAX_WRAPPER_DEPTH = 32
+MAX_TOPOLOGY_DEPTH = 64
+MAX_CODE_SEQUENCE = 999
 _DISEASE_CODE_RE = re.compile(r".*\d{2}$")
 _TEMP_RULE_ID_RE = re.compile(r"R\d{3}$")
 
@@ -43,19 +53,29 @@ def parse_value(value):
     if not isinstance(value, dict):
         raise ParseError("invalid_root", "Certification standard root must be an object.")
 
-    while isinstance(value, dict):
+    seen_wrappers = set()
+    wrapper_depth = 0
+    while True:
+        if not isinstance(value, dict):
+            raise ParseError("invalid_root", "Wrapped certification standard must be an object.")
+        if FORMAL_ROOT_KEYS.issubset(value):
+            return value
         wrapper_key = next((key for key in WRAPPER_KEYS if key in value), None)
         if wrapper_key is None:
-            break
+            return value
+        value_id = id(value)
+        if value_id in seen_wrappers:
+            raise ParseError("wrapper_cycle", "Wrapper nesting contains a cycle.")
+        if wrapper_depth >= MAX_WRAPPER_DEPTH:
+            raise ParseError("wrapper_depth_exceeded", "Wrapper nesting exceeds the supported depth.")
+        seen_wrappers.add(value_id)
+        wrapper_depth += 1
         value = value[wrapper_key]
         if isinstance(value, str):
             try:
                 value = json.loads(value)
             except json.JSONDecodeError as exc:
                 raise ParseError("invalid_json", "Input is not valid JSON.") from exc
-    if not isinstance(value, dict):
-        raise ParseError("invalid_root", "Wrapped certification standard must be an object.")
-    return value
 
 
 def _required_string(value, path, errors, nonempty=True):
@@ -66,10 +86,17 @@ def _required_string(value, path, errors, nonempty=True):
         errors.append(issue(path, "required_string", "Expected a nonempty string."))
 
 
+def _reject_unknown_fields(value, allowed_keys, path, errors):
+    for field in sorted(set(value) - allowed_keys, key=str):
+        field_path = f"{path}.{field}" if path else str(field)
+        errors.append(issue(field_path, "unknown_field", "Field is not declared by the formal contract."))
+
+
 def _validate_meta(meta, errors):
     if not isinstance(meta, dict):
         errors.append(issue("meta", "invalid_type", "Expected an object."))
         return
+    _reject_unknown_fields(meta, META_KEYS, "meta", errors)
     for field in (
         "version",
         "chronicDiseaseName",
@@ -97,6 +124,7 @@ def _validate_guides(guides, rule_path, errors, keyword_codes):
         if not isinstance(guide, dict):
             errors.append(issue(guide_path, "invalid_type", "Expected an object."))
             continue
+        _reject_unknown_fields(guide, GUIDE_KEYS, guide_path, errors)
         keyword_code = guide.get("keywordCode")
         _required_string(keyword_code, guide_path + ".keywordCode", errors)
         if isinstance(keyword_code, str) and keyword_code.strip():
@@ -133,6 +161,7 @@ def _validate_rules(rules, errors):
         if not isinstance(rule, dict):
             errors.append(issue(path, "invalid_type", "Expected an object."))
             continue
+        _reject_unknown_fields(rule, RULE_KEYS, path, errors)
         rule_code = rule.get("ruleCode")
         _required_string(rule_code, path + ".ruleCode", errors)
         if isinstance(rule_code, str) and rule_code.strip():
@@ -145,31 +174,45 @@ def _validate_rules(rules, errors):
     return rule_codes
 
 
-def _validate_topology(node, path, errors, rule_codes, references):
-    if not isinstance(node, dict):
-        errors.append(issue(path, "invalid_type", "Topology node must be an object."))
-        return
-    node_type = node.get("type")
-    if node_type == "GROUP":
-        if node.get("operator") not in ("AND", "OR"):
-            errors.append(issue(path + ".operator", "invalid_operator", "GROUP operator must be AND or OR."))
-        children = node.get("children")
-        if not isinstance(children, list) or not children:
-            errors.append(issue(path + ".children", "children_required", "GROUP must have nonempty children."))
-            return
-        for index, child in enumerate(children):
-            _validate_topology(child, f"{path}.children[{index}]", errors, rule_codes, references)
-    elif node_type == "RULE_REF":
-        code = node.get("ruleCode")
-        _required_string(code, path + ".ruleCode", errors)
-        if isinstance(code, str) and code.strip():
-            if code not in rule_codes:
-                errors.append(issue(path + ".ruleCode", "unknown_rule_reference", "RULE_REF must reference an existing ruleCode."))
-            elif code in references:
-                errors.append(issue(path + ".ruleCode", "duplicate_rule_reference", "Each rule may be referenced only once."))
-            references.add(code)
-    else:
-        errors.append(issue(path + ".type", "invalid_topology_node", "Topology node type must be GROUP or RULE_REF."))
+def _validate_topology(root, path, errors, rule_codes, references):
+    stack = [(root, path, 0, frozenset())]
+    while stack:
+        node, node_path, depth, ancestors = stack.pop()
+        if depth > MAX_TOPOLOGY_DEPTH:
+            errors.append(issue(node_path, "topology_depth_exceeded", "Topology exceeds the supported depth."))
+            continue
+        if not isinstance(node, dict):
+            errors.append(issue(node_path, "invalid_type", "Topology node must be an object."))
+            continue
+        node_id = id(node)
+        if node_id in ancestors:
+            errors.append(issue(node_path, "topology_cycle", "Topology must not contain a cycle."))
+            continue
+        child_ancestors = ancestors | {node_id}
+        node_type = node.get("type")
+        if node_type == "GROUP":
+            _reject_unknown_fields(node, GROUP_KEYS, node_path, errors)
+            if node.get("operator") not in ("AND", "OR"):
+                errors.append(issue(node_path + ".operator", "invalid_operator", "GROUP operator must be AND or OR."))
+            children = node.get("children")
+            if not isinstance(children, list) or not children:
+                errors.append(issue(node_path + ".children", "children_required", "GROUP must have nonempty children."))
+                continue
+            for index in reversed(range(len(children))):
+                stack.append((children[index], f"{node_path}.children[{index}]", depth + 1, child_ancestors))
+        elif node_type == "RULE_REF":
+            _reject_unknown_fields(node, RULE_REF_KEYS, node_path, errors)
+            code = node.get("ruleCode")
+            _required_string(code, node_path + ".ruleCode", errors)
+            if isinstance(code, str) and code.strip():
+                if code not in rule_codes:
+                    errors.append(issue(node_path + ".ruleCode", "unknown_rule_reference", "RULE_REF must reference an existing ruleCode."))
+                elif code in references:
+                    errors.append(issue(node_path + ".ruleCode", "duplicate_rule_reference", "Each rule may be referenced only once."))
+                references.add(code)
+        else:
+            _reject_unknown_fields(node, frozenset(("type",)), node_path, errors)
+            errors.append(issue(node_path + ".type", "invalid_topology_node", "Topology node type must be GROUP or RULE_REF."))
 
 
 def validate_certification(value):
@@ -181,26 +224,42 @@ def validate_certification(value):
         return {"valid": False, "errors": errors, "warnings": [], "standard": None}
 
     errors = []
+    _reject_unknown_fields(standard, FORMAL_ROOT_KEYS, "", errors)
     _validate_meta(standard.get("meta"), errors)
     rule_codes = _validate_rules(standard.get("ruleRepository"), errors)
     references = set()
     _validate_topology(standard.get("logicTopology"), "logicTopology", errors, rule_codes, references)
     for rule_code in sorted(rule_codes - references):
         errors.append(issue("logicTopology", "unreferenced_rule", f"Rule {rule_code} is not referenced by logicTopology."))
+    try:
+        json.dumps(standard, ensure_ascii=False)
+    except (TypeError, ValueError, RecursionError):
+        standard = None
     return {"valid": not errors, "errors": errors, "warnings": [], "standard": standard}
 
 
-def _rewrite_topology(node, rule_codes):
-    if not isinstance(node, dict):
-        return
-    if node.get("type") == "RULE_REF":
-        old_code = node.get("ruleCode")
-        if old_code not in rule_codes:
-            raise ValueError(f"Unknown temp rule reference: {old_code}")
-        node["ruleCode"] = rule_codes[old_code]
-    elif node.get("type") == "GROUP":
-        for child in node.get("children", []):
-            _rewrite_topology(child, rule_codes)
+def _rewrite_topology(root, rule_codes):
+    stack = [(root, 0, frozenset())]
+    while stack:
+        node, depth, ancestors = stack.pop()
+        if depth > MAX_TOPOLOGY_DEPTH:
+            raise ValueError("Topology exceeds the supported depth")
+        if not isinstance(node, dict):
+            continue
+        node_id = id(node)
+        if node_id in ancestors:
+            raise ValueError("Topology must not contain a cycle")
+        child_ancestors = ancestors | {node_id}
+        if node.get("type") == "RULE_REF":
+            old_code = node.get("ruleCode")
+            if old_code not in rule_codes:
+                raise ValueError(f"Unknown temp rule reference: {old_code}")
+            node["ruleCode"] = rule_codes[old_code]
+        elif node.get("type") == "GROUP":
+            children = node.get("children")
+            if isinstance(children, list):
+                for child in reversed(children):
+                    stack.append((child, depth + 1, child_ancestors))
 
 
 def finalize_certification(draft_value, meta):
@@ -215,6 +274,8 @@ def finalize_certification(draft_value, meta):
     rules = draft.get("ruleRepository")
     if not isinstance(rules, list):
         raise ValueError("draft.ruleRepository must be a list")
+    if len(rules) > MAX_CODE_SEQUENCE:
+        raise ValueError("ruleRepository may not contain more than 999 rules")
 
     prefix = disease_code[-2:]
     code_by_temp_id = {}
@@ -226,13 +287,15 @@ def finalize_certification(draft_value, meta):
             raise ValueError("tempRuleId must match R followed by three digits")
         if temp_rule_id in code_by_temp_id:
             raise ValueError("tempRuleId must be unique")
+        guides = rule.get("ruleKeywordGuide")
+        if not isinstance(guides, list):
+            raise ValueError("ruleKeywordGuide must be a list")
+        if len(guides) > MAX_CODE_SEQUENCE:
+            raise ValueError("ruleKeywordGuide may not contain more than 999 guides")
         rule_code = f"{prefix}{index:03d}"
         code_by_temp_id[temp_rule_id] = rule_code
         rule["ruleCode"] = rule_code
         rule.pop("tempRuleId", None)
-        guides = rule.get("ruleKeywordGuide")
-        if not isinstance(guides, list):
-            raise ValueError("ruleKeywordGuide must be a list")
         for guide_index, guide in enumerate(guides, start=1):
             if not isinstance(guide, dict):
                 raise ValueError("Each keyword guide must be an object")
@@ -267,7 +330,11 @@ def main(argv=None):
         standard = finalize_certification(args.draft, meta)
     except (ParseError, ValueError) as exc:
         parser.error(str(exc))
-    args.output.write_text(json.dumps(standard, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    try:
+        args.output.write_text(json.dumps(standard, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    except OSError as exc:
+        print(f"output_error: {exc}", file=sys.stderr)
+        return 1
     print(args.output)
     return 0
 
