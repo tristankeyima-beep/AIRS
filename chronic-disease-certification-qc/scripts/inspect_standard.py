@@ -168,7 +168,9 @@ def inspect_standard(value):
 
     validation = _validate(normalized_value)
     standard = validation.get("standard")
+    errors = validation.get("errors", [])
     warnings = validation.get("warnings", [])
+    issues = errors + warnings
     semantic_review_available, traceable = _rule_completeness(standard)
     if validation.get("valid"):
         return _result(
@@ -176,7 +178,7 @@ def inspect_standard(value):
             True,
             True,
             traceable,
-            [],
+            issues,
             warnings,
             semantic_review_available,
         )
@@ -185,7 +187,7 @@ def inspect_standard(value):
         False,
         False,
         traceable,
-        validation.get("errors", []),
+        issues,
         warnings,
         semantic_review_available,
     )

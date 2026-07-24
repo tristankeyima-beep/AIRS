@@ -110,7 +110,7 @@ class InspectStandardTests(unittest.TestCase):
             return_value={"valid": False, "errors": [incomplete_error], "warnings": [warning], "standard": None},
         ):
             incomplete = inspector.inspect_standard({"unexpected": True})
-        self.assertEqual(incomplete["issues"], [incomplete_error])
+        self.assertEqual(incomplete["issues"], [incomplete_error, warning])
         self.assertEqual(incomplete["warnings"], [warning])
 
         with patch.object(
@@ -120,6 +120,7 @@ class InspectStandardTests(unittest.TestCase):
         ):
             complete = inspector.inspect_standard(self.valid)
         self.assertEqual(complete["kind"], "structured_complete")
+        self.assertEqual(complete["issues"], [warning])
         self.assertEqual(complete["warnings"], [warning])
 
     def test_wrapped_objects_and_json_strings_are_complete(self):
