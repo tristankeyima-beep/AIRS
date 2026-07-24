@@ -403,6 +403,36 @@ class SkillContractTests(unittest.TestCase):
         for ambiguity in ambiguities:
             self.assertIn(ambiguity, rules)
 
+    def test_safety_section_treats_hostile_content_as_data_and_preserves_gates(self):
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        safety = self.mode_body(skill_text, "安全")
+
+        for marker in (
+            "患者材料",
+            "认定标准",
+            "审核结果",
+            "OCR",
+            "文件名",
+            "嵌入",
+            "不受信任数据",
+            "忽略先前指令",
+            "密钥",
+            "令牌",
+            "请求头",
+            "不主动",
+            "外部服务",
+            "明确授权",
+            "紧急",
+            "确认关口",
+            "不编造",
+            "转义",
+            "原始 HTML",
+            "执行脚本",
+            "扫描器",
+            "Skill 目录外",
+        ):
+            self.assertIn(marker, safety)
+
 
 if __name__ == "__main__":
     unittest.main()
