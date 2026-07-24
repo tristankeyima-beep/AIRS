@@ -1,6 +1,6 @@
 # 质控报告规范对象
 
-文本报告和 HTML 报告必须由同一个规范对象渲染；在 `inputScope.confirmedByUser` 为 `true` 前，不得输出任何正式文本或 HTML。
+文本报告和 HTML 报告必须由同一个规范对象渲染；在完成已收输入清点、无条件询问“是否遗漏任何内容？”并得到用户明确确认没有更多内容前，`inputScope.confirmedByUser` 必须为 `false`，不得输出任何正式文本或 HTML。用户补充后必须重新清点和再次确认；只有第二次（或最后一次）用户明确确认后才可设为 `true`。原审核已说“没有漏传”、输入很急或结论已经可见均不替代用户确认。
 
 根对象必须且只能包含：`case`、`inputScope`、`capabilities`、`originalResult`、`qcConclusion`、`riskDirection`、`recommendedAction`、`issues`、`ruleReviews`、`unperformedChecks`、`rawInput`。
 
@@ -8,12 +8,22 @@
 - `inputScope` 必须含布尔值 `confirmedByUser`、字符串数组 `materials`、非空字符串 `standardKind`、`auditResultKind`；正式输出时确认值必须为真。
 - `capabilities` 是对象数组；每项必须含 `name`、`status`、`reason`，其中状态为 `completed`、`partial` 或 `not_run`。`completed` 的 `reason` 可为空字符串，`partial` 和 `not_run` 必须有非空原因；名称必须唯一。
 - `originalResult` 为非空字符串；`qcConclusion` 采用量规中的结论枚举，根级 `riskDirection` 采用量规中的风险枚举，`recommendedAction` 为非空字符串。
-- `issues` 的每项必须含 `category`、`issueType`、`severity`、`ruleCode`、`keywordCode`、`modelClaim`、`evidenceStatus`、`materialEvidence`、`qcFinding`、`possibleImpact`、`impactOnFinalResult`、`riskDirection`、`recommendation`、`confidence`。严重度和置信度为 `high`、`medium`、`low`；最终结论影响为 `changed`、`potentially_changed`、`unchanged`、`unknown`；问题风险代码为 `false_approval`、`false_rejection`、`both`、`none`；证据状态采用量规枚举。
+- `issues` 的每项必须含 `category`、`issueType`、`severity`、`ruleCode`、`keywordCode`、`modelClaim`、`evidenceStatus`、`materialEvidence`、`qcFinding`、`possibleImpact`、`impactOnFinalResult`、`riskDirection`、`recommendation`、`confidence`。其中 `modelClaim` 是模型主张，`materialEvidence` 是实际材料或标准，`qcFinding` 说明问题原因，`possibleImpact` 说明可能影响，`recommendation` 是建议；这五项和置信度、evidenceStatus、可追溯原文与位置缺一不可。严重度和置信度为 `high`、`medium`、`low`；最终结论影响为 `changed`、`potentially_changed`、`unchanged`、`unknown`；问题风险代码为 `false_approval`、`false_rejection`、`both`、`none`；证据状态采用量规枚举。
 - 每条 `materialEvidence` 必须含 `materialId`、`materialName`、`page`、`section`、`rawText`、`normalizedText`、`location`。`page` 为正整数，`normalizedText` 可为空字符串；`location` 为 `null`（精确位置不可得）或含非负整数 `start`、`end` 的对象，且 `start < end`。偏移量按 `materialId` 对应源文本的 Unicode 码点从零计数，`start` 包含、`end` 不包含；不得编造坐标。原始输入提供该材料文本时，范围必须精确切出 `rawText`。结构化 `rawInput.materials` 中每个声明了字符串 `materialId` 的条目都必须唯一，即使该条目没有可用于切片核验的正文。
 - `ruleReviews` 每项必须含 `ruleCode`、`result`、`modelClaim`、`evidenceStatus`、`materialEvidence`、`qcFinding`、`recommendation`，结果和证据状态采用量规枚举。
 - `unperformedChecks` 每项必须含 `name`、`reason`；若提供 `status`，其值只能为 `not_run`。名称必须唯一，并与 `capabilities` 中所有且仅有的 `not_run` 名称及原因完全一致；`completed`、`partial` 不得出现在此列表。
 - `rawInput` 可为任意 JSON 值，但不能含循环、重复键、元组等非 JSON 容器、非 JSON 值、超深结构或非字符串对象键。JSON 字符串和文件输入也会拒绝每层的重复键。校验返回的规范对象保留有效原始 JSON 字符串（包括控制字符和孤立代理项）；仅渲染时做显示安全化。
 
 文本部分按如下顺序：质控结论、输入与检查范围、影响最终结论的问题、材料缺失复核、证据准确性、过度推理、条件一致性、规则维护质量、逐规则复核、建议、未执行检查、原始输入。每一空集合均须显示明确空状态。所有动态文本使用单行 JSON 字符串表示；控制字符及所有 `splitlines` 分隔符均转义，原始输入使用安全 JSON 序列化，不能形成额外报告标题或字段。
+
+## 生成、交付与一致性核验
+
+确认关口通过后，先构造并校验上述规范对象；所有已执行和未执行维度都必须在 `capabilities`、`unperformedChecks`、`issues` 或 `ruleReviews` 中可见。不得手写与对象分叉的正文。只允许运行：
+
+```text
+scripts/render_qc_html.py <对象JSON> <HTML> --text-output <临时文本>
+```
+
+该渲染器从同一个对象同时生成文本和 HTML。读取生成的临时文本并直接返回其内容给用户，将 HTML 作为文件交付。随后重新读取文本和 HTML 做一致性核验：质控结论、根级风险、问题数量、每个高风险问题、关键证据、建议、已执行/未执行检查必须一致；发现分歧时只修正规范对象，再由渲染器重建两份输出。
 
 CLI 将所有请求输出先在各自目标目录中暂存，再共同替换目标；输入、HTML 输出和可选文本输出在规范化路径相同（含可发现的符号链接别名）时被拒绝。已有路径会安全使用同文件判定；不存在叶节点则以解析后的父目录、Unicode NFC 和大小写折叠比较。任一暂存或替换失败时，既有目标内容会恢复，且不会留下新建的部分输出；若回滚本身失败，命令会明确报告输出可能不一致及受影响路径。

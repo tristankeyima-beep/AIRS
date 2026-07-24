@@ -28,6 +28,25 @@ class SkillContractTests(unittest.TestCase):
         )
         return mode_1, dict(steps)
 
+    def mode_2_steps(self, skill_text):
+        mode_2 = self.mode_body(skill_text, "模式 2：生成智能审核质控报告")
+        steps = [
+            (int(number), text)
+            for number, text in re.findall(r"(?m)^(\d+)\. (.+)$", mode_2)
+        ]
+        self.assertGreaterEqual(len(steps), 11, "Mode 2 needs an ordered QC workflow")
+        self.assertEqual(
+            [number for number, _ in steps],
+            list(range(1, len(steps) + 1)),
+            "Mode 2 steps must remain consecutively numbered",
+        )
+        return mode_2, dict(steps)
+
+    def mode_2_step_number(self, steps, marker):
+        matches = [number for number, step in steps.items() if marker in step]
+        self.assertEqual(len(matches), 1, f"Mode 2 needs one step containing: {marker}")
+        return matches[0]
+
     def assert_step_contains(self, steps, markers):
         for marker in markers:
             self.assertTrue(
@@ -62,7 +81,7 @@ class SkillContractTests(unittest.TestCase):
 
         skill_body = skill_text[frontmatter_match.end() :]
         self.assertIn("模式 1：生成结构化认定标准", skill_body)
-        self.assertIn("模式 2：进行智能审核质控", skill_body)
+        self.assertIn("模式 2：生成智能审核质控报告", skill_body)
         blocked = ("TO" + "DO", "TB" + "D")
         self.assertFalse(any(term in skill_body.upper() for term in blocked))
 
@@ -148,7 +167,7 @@ class SkillContractTests(unittest.TestCase):
     def test_skill_routes_generation_qc_and_combined_requests_in_order(self):
         skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
         mode_1, steps = self.mode_steps(skill_text)
-        mode_2 = self.mode_body(skill_text, "模式 2：进行智能审核质控")
+        mode_2 = self.mode_body(skill_text, "模式 2：生成智能审核质控报告")
 
         self.assertIn("生成、结构化、维护或可视化", mode_1)
         self.assertIn("智能审核的质控或复核", mode_2)
@@ -162,6 +181,103 @@ class SkillContractTests(unittest.TestCase):
         indexes = [combined_body.index(marker) for marker in combined_order]
         self.assertEqual(indexes, sorted(indexes))
         self.assertTrue(any("可视化" in step for step in steps.values()))
+
+    def test_mode_2_is_an_ordered_confirmation_gated_blind_review_workflow(self):
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        mode_2, steps = self.mode_2_steps(skill_text)
+
+        read_refs = self.mode_2_step_number(steps, "references/input-adapters.md")
+        inventory = self.mode_2_step_number(steps, "变体 A")
+        omission_question = self.mode_2_step_number(steps, "是否遗漏任何内容")
+        confirmation = self.mode_2_step_number(steps, "inputScope.confirmedByUser=true")
+        classify = self.mode_2_step_number(steps, "inspect_standard.py")
+        independent = self.mode_2_step_number(steps, "盲审/独立复核")
+        comparison = self.mode_2_step_number(steps, "原审核结果比对")
+        canonical = self.mode_2_step_number(steps, "写入同一个规范对象")
+        renderer = self.mode_2_step_number(steps, "render_qc_html.py")
+        parity = self.mode_2_step_number(steps, "一致性核验")
+        self.assertEqual(read_refs, 1)
+        self.assertEqual(
+            [read_refs, inventory, omission_question, confirmation, classify, independent,
+             comparison, canonical, renderer, parity],
+            sorted([read_refs, inventory, omission_question, confirmation, classify, independent,
+                    comparison, canonical, renderer, parity]),
+        )
+        self.assertIn("变体 B", steps[inventory])
+        self.assertIn("正式文本或 HTML", steps[omission_question])
+        self.assertIn("用户补充", steps[omission_question])
+        self.assertIn("重新清点", steps[omission_question])
+        self.assertIn("明确确认没有更多内容", steps[confirmation])
+        self.assertIn("不使用原审核结果", steps[independent])
+        self.assertIn("evaluate_logic.py", steps[independent])
+        self.assertIn("not_run", steps[comparison])
+        self.assertIn("五个维度", steps[canonical])
+        self.assertIn("--text-output", steps[renderer])
+        self.assertIn("直接返回", steps[renderer])
+        self.assertIn("高风险", steps[parity])
+        self.assertIn("急", mode_2)
+
+    def test_mode_2_standard_scopes_temporary_rules_and_brief_result_limits(self):
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        mode_2, steps = self.mode_2_steps(skill_text)
+        adapters = (SKILL_ROOT / "references" / "input-adapters.md").read_text(encoding="utf-8")
+        rubric = (SKILL_ROOT / "references" / "qc-rubric.md").read_text(encoding="utf-8")
+
+        for text in (mode_2, adapters):
+            for marker in ("structured_complete", "structured_incomplete", "natural_language", "absent"):
+                self.assertIn(marker, text)
+            self.assertIn("自然语言", text)
+            self.assertIn("TMP-R001", text)
+            self.assertIn("原文引用", text)
+            self.assertIn("原子事实", text)
+            self.assertIn("嵌套 AND/OR", text)
+            self.assertIn("不得作为正式标准", text)
+            self.assertIn("不影响结论", text)
+            self.assertIn("影响结论", text)
+            self.assertIn("无法确定", text)
+            self.assertIn("人工确认", text)
+            self.assertIn("不完整结构化", text)
+            self.assertIn("结构缺陷", text)
+            self.assertIn("未提供认定标准", text)
+            self.assertIn("不得断言独立政策", text)
+            self.assertIn("仅有简要", text)
+            self.assertIn("not_run", text)
+
+        self.assertIn("证据提取", rubric)
+        self.assertIn("规则条件", rubric)
+        self.assertIn("不推断缺失细节", mode_2)
+        self.assertIn("审核结果已经可见", mode_2)
+        self.assertIn("不能跳过", mode_2)
+
+    def test_mode_2_requires_all_dimensions_traceable_issues_and_safe_evidence_rules(self):
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        _, steps = self.mode_2_steps(skill_text)
+        rubric = (SKILL_ROOT / "references" / "qc-rubric.md").read_text(encoding="utf-8")
+        contract = (SKILL_ROOT / "references" / "report-contract.md").read_text(encoding="utf-8")
+
+        for text in ("\n".join(steps.values()), rubric):
+            for marker in ("材料缺失", "证据提取", "过度推理", "条件与结论", "规则维护"):
+                self.assertIn(marker, text)
+        for marker in ("整份材料缺失", "NOT_FOUND", "INSUFFICIENT", "CONTRADICTED", "CONFLICTED", "反向检索"):
+            self.assertIn(marker, rubric)
+        for marker in ("否定", "疑似", "既往", "排除", "一次", "上位概念"):
+            self.assertIn(marker, rubric)
+        for marker in ("提取项", "歧义", "矛盾", "非原子", "来源边界", "AND/OR", "路径", "细则升级"):
+            self.assertIn(marker, rubric)
+        for marker in ("模型主张", "实际材料或标准", "问题原因", "可能影响", "建议", "置信度", "evidenceStatus", "原文", "位置"):
+            self.assertIn(marker, contract)
+        for marker in ("changed", "potentially_changed", "unchanged", "unknown", "false_approval", "false_rejection", "both", "none"):
+            self.assertIn(marker, rubric)
+
+    def test_report_contract_locks_confirmation_and_shared_renderer_delivery(self):
+        contract = (SKILL_ROOT / "references" / "report-contract.md").read_text(encoding="utf-8")
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+
+        for marker in ("confirmedByUser", "用户明确确认", "正式文本", "HTML", "同一个规范对象", "render_qc_html.py", "直接返回", "重新读取", "一致性核验"):
+            self.assertIn(marker, contract + skill_text)
+        self.assertIn("审计结论说没有漏传", skill_text)
+        self.assertIn("清点之后", skill_text)
+        self.assertIn("结论-only", skill_text)
 
     def test_generation_date_version_fallback_is_recorded_in_two_destinations(self):
         skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
