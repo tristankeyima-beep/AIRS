@@ -1,0 +1,79 @@
+{
+  "case": {
+    "patientName": "测试患者",
+    "diseaseName": "测试病种",
+    "auditId": "QC-001"
+  },
+  "inputScope": {
+    "confirmedByUser": true,
+    "materials": ["出院记录"],
+    "standardKind": "natural_language",
+    "auditResultKind": "detailed"
+  },
+  "capabilities": [
+    {"name": "材料缺失复核", "status": "completed", "reason": "已基于出院记录执行"},
+    {"name": "结构化提取一致性检查", "status": "not_run", "reason": "未提供结构化提取结果"}
+  ],
+  "originalResult": "不通过",
+  "qcConclusion": "不可靠",
+  "riskDirection": "错误拒绝风险",
+  "recommendedAction": "重新执行智能审核",
+  "issues": [
+    {
+      "category": "材料缺失判断准确性",
+      "issueType": "误报缺失",
+      "severity": "high",
+      "ruleCode": "R001",
+      "keywordCode": "K001",
+      "modelClaim": "材料未说明长期治疗情况。",
+      "materialEvidence": [
+        {
+          "materialId": "M-001",
+          "name": "出院记录",
+          "page": "第2页",
+          "section": "现病史",
+          "rawText": "患者规律接受长期治疗三年。",
+          "normalizedText": "患者规律接受长期治疗三年",
+          "location": {"type": "section", "value": "第2页·现病史"}
+        }
+      ],
+      "qcFinding": "原始材料已有明确表述，不能判为材料缺失。",
+      "possibleImpact": "导致本应继续审核的案件被拒绝。",
+      "impactOnFinalResult": "changed",
+      "riskDirection": "false_rejection",
+      "recommendation": "以该证据重新执行规则 R001。",
+      "confidence": "high"
+    }
+  ],
+  "ruleReviews": [
+    {
+      "ruleCode": "R001",
+      "result": "不满足",
+      "modelClaim": "长期治疗材料缺失。",
+      "materialEvidence": [
+        {
+          "materialId": "M-001",
+          "name": "出院记录",
+          "page": "第2页",
+          "section": "现病史",
+          "rawText": "患者规律接受长期治疗三年。",
+          "normalizedText": "患者规律接受长期治疗三年",
+          "location": {"type": "section", "value": "第2页·现病史"}
+        }
+      ],
+      "qcFinding": "证据与原判断矛盾。",
+      "recommendation": "复核并重新执行该规则。"
+    }
+  ],
+  "unperformedChecks": [
+    {
+      "name": "结构化提取一致性检查",
+      "reason": "未提供结构化提取结果"
+    }
+  ],
+  "rawInput": {
+    "materials": [{"name": "出院记录", "text": "患者规律接受长期治疗三年。"}],
+    "standard": "natural_language",
+    "audit": {"conclusion": "不通过"}
+  }
+}
