@@ -1,6 +1,9 @@
 import copy
 import importlib.util
 import json
+import subprocess
+import sys
+import tempfile
 from itertools import product
 from pathlib import Path
 import unittest
@@ -175,6 +178,23 @@ class EvaluateLogicTests(unittest.TestCase):
         self.assertEqual(results, original_results)
         self.assertEqual([child["ruleCode"] for child in trace["children"]], ["b", "a"])
         self.assertEqual(json.loads(json.dumps(trace, ensure_ascii=False)), trace)
+
+    def test_cli_writes_trace_rejects_invalid_json_and_output_collisions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            tree = directory / "tree.json"; results = directory / "results.json"; output = directory / "trace.json"
+            tree.write_text(json.dumps(group("AND", rule("A")), ensure_ascii=False), encoding="utf-8")
+            results.write_text(json.dumps({"A": "满足"}, ensure_ascii=False), encoding="utf-8")
+            completed = subprocess.run([sys.executable, str(SCRIPT), str(tree), str(results), "--output", str(output)], text=True, capture_output=True)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual(completed.stdout, "")
+            self.assertTrue(output.read_text(encoding="utf-8").endswith("\n"))
+            self.assertEqual(json.loads(output.read_text(encoding="utf-8"))["result"], "满足")
+            collision = subprocess.run([sys.executable, str(SCRIPT), str(tree), str(results), "--output", str(tree)], text=True, capture_output=True)
+            self.assertNotEqual(collision.returncode, 0); self.assertIn("collision", collision.stderr); self.assertNotIn("Traceback", collision.stderr)
+            tree.write_text("{bad", encoding="utf-8")
+            invalid = subprocess.run([sys.executable, str(SCRIPT), str(tree), str(results)], text=True, capture_output=True)
+            self.assertNotEqual(invalid.returncode, 0); self.assertNotIn("Traceback", invalid.stderr)
 
 
 if __name__ == "__main__":

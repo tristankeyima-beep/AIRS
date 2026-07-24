@@ -10,11 +10,11 @@
 - 变体 B：患者材料 + 认定标准 + 详细审核结果和结论。它可以在适用能力范围内做逐项比对。
 - 也要单列无标准、`structured_incomplete` 和自然语言标准，不把它们悄悄混入“完整标准”。
 
-无论审核是否引用了缺失材料或规则配置，都必须在任何正式文本或 HTML 前明确询问“是否遗漏任何内容？”。审核引用却未提供的材料/规则配置应单独提示，但不能代替这句无条件确认。用户补充任何内容后，重新清点、重新提示引用缺项并再次询问；只有用户在清点之后明确确认没有更多内容，才可设置 `inputScope.confirmedByUser=true`。用户、审核结论或工作人员说“没有漏传”若发生在清点之前，不是有效确认；急件也不例外。
+无论审核是否引用了缺失材料或规则配置，都必须在任何正式文本或 HTML 前明确询问“是否遗漏任何内容？”。审核引用却未提供的材料/规则配置应单独提示，但不能代替这句无条件确认。每次展示都构造 `inputScope.inventory`，revision 为正整数，含材料、标准/审核结果类型、是否有审核过程、必有最终结论以及审核引用但未提供项；用 `json.dumps(inventory, sort_keys=True, separators=(',', ':'), ensure_ascii=True)` 的 SHA-256 作为确认摘要。用户补充后 revision 加一、重算摘要、旧确认失效，重新清点和再次询问；只有用户在当前清点之后明确确认没有更多内容，才可将 revision、摘要和用户原话写入 `inputScope.confirmation` 并设置 `confirmedByUser=true`。用户、审核结论或工作人员说“没有漏传”若发生在清点之前，不是有效确认；急件也不例外。
 
 ## 标准形态与能力范围
 
-先运行 `scripts/inspect_standard.py` 分类，并原样记录返回的缺陷/警告。分类不是拒绝服务的门槛，而是能力边界：
+先运行 `python3 scripts/inspect_standard.py` 分类，并原样记录返回的缺陷/警告。分类不是拒绝服务的门槛，而是能力边界：
 
 | `kind` | 可做的工作 | 必须记录的限制 |
 | --- | --- | --- |
@@ -34,3 +34,5 @@
 兼容结构化标准包装字段 `certification_list`、`output`、`result`、`data`，其值可以继续包装对象或 JSON 字符串。审核输出也可为自然语言、表格、过程明细或仅一个结论。
 
 仅有简要结果、最终结论或结论-only 时，比较阶段只能核对最终结论及其可见主张；“证据提取准确性”和“规则条件/逐规则检查”必须标为 `not_run` 并写明“未提供原审核证据或规则过程”，不得根据结论反推过程、提取值或缺失项目。
+
+`auditResultKind` 只能是 `detailed`、`brief`、`conclusion_only`：`detailed` 的 inventory 必须标明有审核过程，后两者必须标明没有。标准种类只能是 `structured_complete`、`structured_incomplete`、`natural_language`、`absent`。

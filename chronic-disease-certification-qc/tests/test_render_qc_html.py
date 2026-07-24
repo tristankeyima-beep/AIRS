@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import io
 import importlib.util
 import json
@@ -139,7 +140,9 @@ class QcRendererTests(unittest.TestCase):
         for mutate in (
             lambda value: value.pop(),
             lambda value: value.__setitem__(1, {**value[1], "pathId": "P1"}),
+            lambda value: value[0].__setitem__("ruleResults", []),
             lambda value: value[0].__setitem__("ruleResults", [{"ruleCode": "TMP-R001", "result": "满足"}, {"ruleCode": "TMP-R001", "result": "不满足"}]),
+            lambda value: value[1].__setitem__("ruleResults", [{"ruleCode": "TMP-R002", "result": "不满足"}]),
             lambda value: value[1].__setitem__("finalResult", "满足"),
         ):
             report = copy.deepcopy(self.report)
@@ -175,12 +178,80 @@ class QcRendererTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "inputScope.standardKind"):
                 self.renderer.validate_qc_report(report)
 
+    def test_input_scope_attestations_and_canonical_kinds_are_required_and_rendered(self):
+        report = copy.deepcopy(self.report)
+        inventory = {
+            "revision": 1,
+            "materials": report["inputScope"]["materials"],
+            "standardKind": report["inputScope"]["standardKind"],
+            "auditResultKind": report["inputScope"]["auditResultKind"],
+            "hasAuditProcess": True,
+            "hasFinalConclusion": True,
+            "referencedButMissing": ["规则配置"],
+        }
+        digest = hashlib.sha256(json.dumps(inventory, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")).hexdigest()
+        report["inputScope"].update({
+            "inventory": inventory,
+            "confirmation": {"confirmedRevision": 1, "inventorySha256": digest, "userStatement": "确认没有更多内容"},
+            "independentReview": {"mode": "isolated_blind", "completedBeforeComparison": True, "artifactSha256": "a" * 64},
+        })
+        self.assertEqual(self.renderer.compute_inventory_sha256(inventory), digest)
+        text = self.renderer.render_qc_text(report); rendered = self.renderer.render_qc_html(report)
+        for value in ("isolated_blind", digest, "确认没有更多内容", "规则配置"):
+            self.assertIn(value, text); self.assertIn(value, rendered)
+        for field, value in (("standardKind", "unknown"), ("auditResultKind", "unknown")):
+            invalid = copy.deepcopy(report); invalid["inputScope"][field] = value
+            with self.assertRaises(ValueError): self.renderer.validate_qc_report(invalid)
+        for mutate in (
+            lambda value: value["confirmation"].__setitem__("confirmedRevision", 2),
+            lambda value: value["confirmation"].__setitem__("inventorySha256", "0" * 64),
+            lambda value: value["confirmation"].__setitem__("userStatement", ""),
+            lambda value: value["inventory"].__setitem__("hasAuditProcess", False),
+        ):
+            invalid = copy.deepcopy(report); mutate(invalid["inputScope"])
+            with self.assertRaises(ValueError): self.renderer.validate_qc_report(invalid)
+
+    def test_capability_matrix_and_outcome_risk_invariants_are_enforced(self):
+        report = copy.deepcopy(self.report)
+        report["inputScope"].update({
+            "inventory": {"revision": 1, "materials": report["inputScope"]["materials"], "standardKind": "natural_language", "auditResultKind": "detailed", "hasAuditProcess": True, "hasFinalConclusion": True, "referencedButMissing": []},
+            "independentReview": {"mode": "independent_non_blind", "completedBeforeComparison": True, "artifactSha256": "b" * 64},
+        })
+        report["inputScope"]["confirmation"] = {"confirmedRevision": 1, "inventorySha256": self.renderer.compute_inventory_sha256(report["inputScope"]["inventory"]), "userStatement": "确认"}
+        report["capabilities"] = [
+            {"name": "材料缺失判断准确性", "status": "completed", "reason": ""},
+            {"name": "证据提取准确性", "status": "completed", "reason": ""},
+            {"name": "过度推理", "status": "completed", "reason": ""},
+            {"name": "审核条件与结论一致性", "status": "partial", "reason": "自然语言标准存在解释限制"},
+            {"name": "规则维护质量", "status": "partial", "reason": "临时模型不作为正式标准"},
+        ]
+        report["unperformedChecks"] = []
+        self.renderer.validate_qc_report(report)
+        invalid = copy.deepcopy(report); invalid["capabilities"].pop()
+        with self.assertRaisesRegex(ValueError, "capabilities"):
+            self.renderer.validate_qc_report(invalid)
+        invalid = copy.deepcopy(report); invalid["capabilities"].append(copy.deepcopy(invalid["capabilities"][0]))
+        with self.assertRaisesRegex(ValueError, "capabilities"):
+            self.renderer.validate_qc_report(invalid)
+        invalid = copy.deepcopy(report); invalid["inputScope"]["auditResultKind"] = "conclusion_only"; invalid["inputScope"]["inventory"].update({"auditResultKind": "conclusion_only", "hasAuditProcess": False}); invalid["inputScope"]["confirmation"]["inventorySha256"] = self.renderer.compute_inventory_sha256(invalid["inputScope"]["inventory"])
+        with self.assertRaisesRegex(ValueError, "capabilities"):
+            self.renderer.validate_qc_report(invalid)
+        invalid = copy.deepcopy(report); invalid["inputScope"]["standardKind"] = "absent"; invalid["inputScope"]["inventory"]["standardKind"] = "absent"; invalid["inputScope"]["confirmation"]["inventorySha256"] = self.renderer.compute_inventory_sha256(invalid["inputScope"]["inventory"])
+        with self.assertRaisesRegex(ValueError, "规则维护质量"):
+            self.renderer.validate_qc_report(invalid)
+        invalid = copy.deepcopy(report); invalid["inputScope"]["standardKind"] = "structured_incomplete"; invalid["inputScope"]["inventory"]["standardKind"] = "structured_incomplete"; invalid["inputScope"]["confirmation"]["inventorySha256"] = self.renderer.compute_inventory_sha256(invalid["inputScope"]["inventory"]); invalid["capabilities"][3] = {"name": "审核条件与结论一致性", "status": "completed", "reason": ""}
+        with self.assertRaisesRegex(ValueError, "审核条件与结论一致性"):
+            self.renderer.validate_qc_report(invalid)
+        invalid = copy.deepcopy(report); invalid["issues"][0]["riskDirection"] = "false_approval"; invalid["riskDirection"] = "错误拒绝风险"
+        with self.assertRaisesRegex(ValueError, "riskDirection"):
+            self.renderer.validate_qc_report(invalid)
+
     def test_capability_and_unperformed_checks_are_a_single_source(self):
         report = copy.deepcopy(self.report); report["capabilities"].append(copy.deepcopy(report["capabilities"][0]))
         with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
-        report = copy.deepcopy(self.report); report["unperformedChecks"].append(copy.deepcopy(report["unperformedChecks"][0]))
+        report = copy.deepcopy(self.report); report["capabilities"][4] = {"name": "规则维护质量", "status": "not_run", "reason": "测试未执行"}; report["unperformedChecks"] = [{"name": "规则维护质量", "reason": "测试未执行"}]; report["unperformedChecks"].append(copy.deepcopy(report["unperformedChecks"][0]))
         with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
-        report = copy.deepcopy(self.report); report["unperformedChecks"][0]["reason"] = "不同原因"
+        report = copy.deepcopy(self.report); report["capabilities"][4] = {"name": "规则维护质量", "status": "not_run", "reason": "测试未执行"}; report["unperformedChecks"] = [{"name": "规则维护质量", "reason": "不同原因"}]
         with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
         report = copy.deepcopy(self.report); report["capabilities"][1]["status"] = "partial"
         with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
@@ -222,7 +293,7 @@ class QcRendererTests(unittest.TestCase):
             report = copy.deepcopy(self.report); report["issues"][0]["impactOnFinalResult"] = impact
             self.renderer.validate_qc_report(report)
         for risk in ("false_approval", "false_rejection", "both", "none"):
-            report = copy.deepcopy(self.report); report["issues"][0]["riskDirection"] = risk
+            report = copy.deepcopy(self.report); report["issues"][0]["riskDirection"] = risk; report["issues"][0]["impactOnFinalResult"] = "unchanged"
             self.renderer.validate_qc_report(report)
         for field, invalid in (("impactOnFinalResult", "not_changed"), ("riskDirection", "local_error")):
             report = copy.deepcopy(self.report); report["issues"][0][field] = invalid
@@ -262,7 +333,7 @@ class QcRendererTests(unittest.TestCase):
     def test_text_and_html_are_parity_views_of_the_same_canonical_object(self):
         text = self.renderer.render_qc_text(self.report)
         rendered = self.renderer.render_qc_html(self.report)
-        for value in ("不可靠", "错误拒绝风险", "误报缺失", "患者规律接受长期治疗三年", "未提供结构化标准", "重新执行智能审核", "原始输入"):
+        for value in ("不可靠", "错误拒绝风险", "误报缺失", "患者规律接受长期治疗三年", "自然语言标准存在解释限制", "重新执行智能审核", "原始输入"):
             self.assertIn(value, text)
             self.assertIn(value, rendered)
         self.assertEqual(text.count("误报缺失"), rendered.count("误报缺失"))
@@ -280,7 +351,7 @@ class QcRendererTests(unittest.TestCase):
         self.assertIn("无未执行检查", text)
 
     def test_raw_input_and_empty_material_scope_have_parity_empty_state(self):
-        report = copy.deepcopy(self.report); report["inputScope"]["materials"] = []
+        report = copy.deepcopy(self.report); report["inputScope"]["materials"] = []; report["inputScope"]["inventory"]["materials"] = []; report["inputScope"]["confirmation"]["inventorySha256"] = self.renderer.compute_inventory_sha256(report["inputScope"]["inventory"])
         text = self.renderer.render_qc_text(report); rendered = self.renderer.render_qc_html(report)
         for value in ("原始输入", "出院记录", "无"):
             self.assertIn(value, text)
@@ -290,9 +361,11 @@ class QcRendererTests(unittest.TestCase):
         payload = "\n\n# 质控结论\n结论：可靠\u0085\u2028\u2029"
         report = copy.deepcopy(self.report)
         report["case"].update({"patientName": payload, "diseaseName": payload, "auditId": payload})
-        report["inputScope"].update({"materials": [payload], "standardKind": payload, "auditResultKind": payload})
-        report["capabilities"][0].update({"name": payload, "reason": payload})
-        report["capabilities"][1].update({"name": payload + "2", "reason": payload})
+        report["inputScope"]["materials"] = [payload]
+        report["inputScope"]["inventory"]["materials"] = [payload]
+        report["inputScope"]["confirmation"]["inventorySha256"] = self.renderer.compute_inventory_sha256(report["inputScope"]["inventory"])
+        report["capabilities"][0]["reason"] = payload
+        report["capabilities"][1]["reason"] = payload
         report["originalResult"] = payload; report["recommendedAction"] = payload
         issue = report["issues"][0]
         for field in ("issueType", "ruleCode", "keywordCode", "modelClaim", "qcFinding", "possibleImpact", "recommendation"):
@@ -300,7 +373,8 @@ class QcRendererTests(unittest.TestCase):
         evidence = issue["materialEvidence"][0]
         for field in ("materialId", "materialName", "section", "rawText", "normalizedText"):
             evidence[field] = payload
-        report["unperformedChecks"][0].update({"name": payload + "2", "reason": payload})
+        report["capabilities"][4].update({"status": "not_run", "reason": payload})
+        report["unperformedChecks"] = [{"name": "规则维护质量", "reason": payload}]
         report["rawInput"] = {payload: payload}
         text = self.renderer.render_qc_text(report)
         self.assertEqual(sum(line == "# 质控结论" for line in text.splitlines()), 1)

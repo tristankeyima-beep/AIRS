@@ -191,7 +191,7 @@ class SkillContractTests(unittest.TestCase):
         omission_question = self.mode_2_step_number(steps, "是否遗漏任何内容")
         confirmation = self.mode_2_step_number(steps, "inputScope.confirmedByUser=true")
         classify = self.mode_2_step_number(steps, "inspect_standard.py")
-        independent = self.mode_2_step_number(steps, "盲审/独立复核")
+        independent = self.mode_2_step_number(steps, "隔离的子代理")
         comparison = self.mode_2_step_number(steps, "原审核结果比对")
         canonical = self.mode_2_step_number(steps, "写入同一个规范对象")
         renderer = self.mode_2_step_number(steps, "render_qc_html.py")
@@ -304,6 +304,21 @@ class SkillContractTests(unittest.TestCase):
             self.assertIn("finalResult", text)
         for marker in ("至少 2", "不得全部相同", "qcConclusion", "无法确定", "人工确认"):
             self.assertIn(marker, adapters + rubric + contract)
+
+    def test_mode_2_documents_auditable_inventory_isolation_and_executable_commands(self):
+        skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        adapters = (SKILL_ROOT / "references" / "input-adapters.md").read_text(encoding="utf-8")
+        rubric = (SKILL_ROOT / "references" / "qc-rubric.md").read_text(encoding="utf-8")
+        contract = (SKILL_ROOT / "references" / "report-contract.md").read_text(encoding="utf-8")
+        joined = skill + adapters + rubric + contract
+
+        for marker in ("inputScope.inventory", "revision", "inventorySha256", "userStatement", "referencedButMissing", "independentReview", "artifactSha256", "completedBeforeComparison", "isolated_blind", "independent_non_blind", "确认偏差", "冻结", "SHA-256"):
+            self.assertIn(marker, joined)
+        for marker in ("structured_complete", "structured_incomplete", "natural_language", "absent", "detailed", "brief", "conclusion_only", "材料缺失判断准确性", "证据提取准确性", "过度推理", "审核条件与结论一致性", "规则维护质量", "错误放行与错误拒绝风险"):
+            self.assertIn(marker, joined)
+        self.assertIn("python3 scripts/evaluate_logic.py", skill)
+        self.assertIn("--output", skill)
+        self.assertIn("python3 scripts/render_qc_html.py", skill + contract)
 
     def test_generation_date_version_fallback_is_recorded_in_two_destinations(self):
         skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")

@@ -5,7 +5,11 @@
 根对象必须且只能包含：`case`、`inputScope`、`capabilities`、`originalResult`、`qcConclusion`、`riskDirection`、`recommendedAction`、`issues`、`ruleReviews`、`unperformedChecks`、`rawInput`。
 
 - `case` 必须含非空字符串 `patientName`、`diseaseName`、`auditId`。
-- `inputScope` 必须含布尔值 `confirmedByUser`、字符串数组 `materials`、非空字符串 `standardKind`、`auditResultKind`；正式输出时确认值必须为真。可选 `interpretationPaths` 只能用于会改变结论的自然语言标准歧义：它是至少 2 条的数组；每条必须且只能含唯一非空 `pathId`、非空 `interpretation`、`ruleResults`、`finalResult`。`ruleResults` 是规则编码唯一的数组，每条只含非空 `ruleCode` 和“满足/不满足/无法判断/不适用”之一的 `result`；`finalResult` 同样取该四值。各路径 `finalResult` 不得全部相同，且此时 `qcConclusion` 必须是“无法确定”，总体建议必须要求人工确认。不会改变结论的歧义不使用该字段，而作为正常问题或说明记录。
+- `inputScope` 必须含布尔值 `confirmedByUser`、字符串数组 `materials`、`standardKind`、`auditResultKind`、`inventory`、`confirmation`、`independentReview`；正式输出时确认值必须为真。`standardKind` 严格为 `structured_complete`、`structured_incomplete`、`natural_language`、`absent`，`auditResultKind` 严格为 `detailed`、`brief`、`conclusion_only`。
+- `inventory` 必须且只能含正整数 `revision`、`materials`、与 `inputScope` 相同的 `standardKind`/`auditResultKind`、布尔 `hasAuditProcess`、恒为 true 的 `hasFinalConclusion` 和字符串数组 `referencedButMissing`；`inventory.materials` 必须与 `inputScope.materials` 完全相同。`detailed` 必须有审核过程，`brief`/`conclusion_only` 必须没有。
+- `confirmation` 必须且只能含等于当前 inventory revision 的正整数 `confirmedRevision`、64 位小写十六进制 `inventorySha256` 和非空 `userStatement`；摘要必须等于 `sha256(json.dumps(inventory, sort_keys=True, separators=(',', ':'), ensure_ascii=True))`。补充输入必须生成新 revision 和摘要，旧确认不可复用。
+- `independentReview` 必须且只能含 `mode`（`isolated_blind` 或 `independent_non_blind`）、恒为 true 的 `completedBeforeComparison` 和 64 位小写十六进制 `artifactSha256`。后者证明冻结独立复核 JSON 已在比较前保存并哈希；`independent_non_blind` 必须披露确认偏差限制，不能称为盲审。
+- 可选 `interpretationPaths` 只能用于会改变结论的自然语言标准歧义：它是至少 2 条的数组；每条必须且只能含唯一非空 `pathId`、非空 `interpretation`、非空 `ruleResults`、`finalResult`。每条路径 `ruleResults` 的 `ruleCode` 必须唯一且所有路径使用同一集合；每项只含非空 `ruleCode` 和“满足/不满足/无法判断/不适用”之一的 `result`；`finalResult` 同样取该四值。各路径 `finalResult` 不得全部相同，且此时 `qcConclusion` 必须是“无法确定”，总体建议必须要求人工确认。不会改变结论的歧义不使用该字段，而作为正常问题或说明记录。
 - `capabilities` 是对象数组；每项必须含 `name`、`status`、`reason`，其中状态为 `completed`、`partial` 或 `not_run`。`completed` 的 `reason` 可为空字符串，`partial` 和 `not_run` 必须有非空原因；名称必须唯一。
 - `originalResult` 为非空字符串；`qcConclusion` 采用量规中的结论枚举，根级 `riskDirection` 采用量规中的风险枚举，`recommendedAction` 为非空字符串。
 - `issues` 的每项必须含 `category`、`issueType`、`severity`、`ruleCode`、`keywordCode`、`modelClaim`、`evidenceStatus`、`materialEvidence`、`qcFinding`、`possibleImpact`、`impactOnFinalResult`、`riskDirection`、`recommendation`、`confidence`。其中 `modelClaim` 是模型主张，`materialEvidence` 是实际材料或标准，`qcFinding` 说明问题原因，`possibleImpact` 说明可能影响，`recommendation` 是建议；这五项和置信度、evidenceStatus、可追溯原文与位置缺一不可。严重度和置信度为 `high`、`medium`、`low`；最终结论影响为 `changed`、`potentially_changed`、`unchanged`、`unknown`；问题风险代码为 `false_approval`、`false_rejection`、`both`、`none`；证据状态采用量规枚举。
@@ -17,12 +21,18 @@
 
 文本部分按如下顺序：质控结论、输入与检查范围、影响最终结论的问题、材料缺失复核、证据准确性、过度推理、条件一致性、规则维护质量、逐规则复核、建议、未执行检查、原始输入。每一空集合均须显示明确空状态。所有动态文本使用单行 JSON 字符串表示；控制字符及所有 `splitlines` 分隔符均转义，原始输入使用安全 JSON 序列化，不能形成额外报告标题或字段。
 
+## 能力矩阵与结论风险
+
+`capabilities` 必须恰好各一次包含：材料缺失判断准确性、证据提取准确性、过度推理、审核条件与结论一致性、规则维护质量。`brief`/`conclusion_only` 的证据提取为 `not_run` 且原因严格为“未提供原审核证据或规则过程”，没有 `ruleReviews`；材料缺失和过度推理也为 `not_run`（除非未来规范对象能表达可见主张）。无标准时规则维护为 `not_run`、没有 `ruleReviews`，条件一致性不能完成；不完整结构化的条件一致性不能完成，规则维护可完成/部分完成；自然语言的规则维护只能部分完成/未执行。
+
+任一 `changed`/`potentially_changed` 问题禁止“可靠”“基本可靠”。全为 `false_approval` 时根风险必须为“错误放行风险”，全为 `false_rejection` 时必须为“错误拒绝风险”，`both` 或混合方向时必须为“暂时无法判断”；根风险不得相反。问题风险 `both` 渲染为“错误放行与错误拒绝风险”，`none` 渲染为“未发现明显风险”。
+
 ## 生成、交付与一致性核验
 
 确认关口通过后，先构造并校验上述规范对象；所有已执行和未执行维度都必须在 `capabilities`、`unperformedChecks`、`issues` 或 `ruleReviews` 中可见。不得手写与对象分叉的正文。只允许运行：
 
 ```text
-scripts/render_qc_html.py <对象JSON> <HTML> --text-output <临时文本>
+python3 scripts/render_qc_html.py <对象JSON> <HTML> --text-output <临时文本>
 ```
 
 该渲染器从同一个对象同时生成文本和 HTML；`interpretationPaths` 存在时，两份输出均在“输入与检查范围”逐条展示路径、解释、逐规则结果和最终结果。读取生成的临时文本并直接返回其内容给用户，将 HTML 作为文件交付。随后重新读取文本和 HTML 做一致性核验：质控结论、根级风险、问题数量、每个高风险问题、关键证据、建议、已执行/未执行检查以及解释路径必须一致；发现分歧时只修正规范对象，再由渲染器重建两份输出。

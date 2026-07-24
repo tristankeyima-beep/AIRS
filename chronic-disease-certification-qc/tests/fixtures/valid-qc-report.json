@@ -8,11 +8,33 @@
     "confirmedByUser": true,
     "materials": ["出院记录"],
     "standardKind": "natural_language",
-    "auditResultKind": "detailed"
+    "auditResultKind": "detailed",
+    "inventory": {
+      "revision": 1,
+      "materials": ["出院记录"],
+      "standardKind": "natural_language",
+      "auditResultKind": "detailed",
+      "hasAuditProcess": true,
+      "hasFinalConclusion": true,
+      "referencedButMissing": []
+    },
+    "confirmation": {
+      "confirmedRevision": 1,
+      "inventorySha256": "f46d5398941059a4b5c77e3289e8b0ac38a9a6d454c0c3bf1965cb393ad933a6",
+      "userStatement": "确认没有更多内容"
+    },
+    "independentReview": {
+      "mode": "isolated_blind",
+      "completedBeforeComparison": true,
+      "artifactSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
   },
   "capabilities": [
-    {"name": "材料与证据质控", "status": "completed", "reason": ""},
-    {"name": "结构化提取项维护检查", "status": "not_run", "reason": "未提供结构化标准"}
+    {"name": "材料缺失判断准确性", "status": "completed", "reason": ""},
+    {"name": "证据提取准确性", "status": "completed", "reason": ""},
+    {"name": "过度推理", "status": "completed", "reason": ""},
+    {"name": "审核条件与结论一致性", "status": "partial", "reason": "自然语言标准存在解释限制"},
+    {"name": "规则维护质量", "status": "partial", "reason": "临时模型不作为正式标准"}
   ],
   "originalResult": "不通过",
   "qcConclusion": "不可靠",
@@ -47,12 +69,7 @@
     }
   ],
   "ruleReviews": [],
-  "unperformedChecks": [
-    {
-      "name": "结构化提取项维护检查",
-      "reason": "未提供结构化标准"
-    }
-  ],
+  "unperformedChecks": [],
   "rawInput": {
     "materials": [
       {

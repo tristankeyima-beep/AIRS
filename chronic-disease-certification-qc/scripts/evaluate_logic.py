@@ -1,5 +1,10 @@
 """Evaluate chronic-disease certification logic trees with four result states."""
 
+import argparse
+import json
+import sys
+from pathlib import Path
+
 VALID_RESULTS = {"满足", "不满足", "无法判断", "不适用"}
 MAX_LOGIC_DEPTH = 64
 _RESULT_MESSAGE = "Rule result must be one of: 不满足, 不适用, 无法判断, 满足."
@@ -76,3 +81,52 @@ def evaluate_logic(node, rule_results):
         }
 
     return evaluate(node, 0, frozenset())
+
+
+def _reject_duplicate_pairs(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError(f"duplicate JSON key {key!r}")
+        value[key] = item
+    return value
+
+
+def _read_json(path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8-sig"), object_pairs_hook=_reject_duplicate_pairs)
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        raise ValueError(f"invalid JSON {path}: {exc}") from None
+
+
+def _same_path(left, right):
+    try:
+        return left.resolve(strict=False) == right.resolve(strict=False)
+    except OSError:
+        return str(left) == str(right)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("logic_tree", type=Path, help="UTF-8 JSON logic tree")
+    parser.add_argument("rule_results", type=Path, help="UTF-8 JSON rule-result object")
+    parser.add_argument("--output", type=Path, help="write trace JSON to this file")
+    args = parser.parse_args(argv)
+    if args.output and (_same_path(args.output, args.logic_tree) or _same_path(args.output, args.rule_results)):
+        print("evaluate_error: output collision with input", file=sys.stderr)
+        return 1
+    try:
+        trace = evaluate_logic(_read_json(args.logic_tree), _read_json(args.rule_results))
+        content = json.dumps(trace, ensure_ascii=False, sort_keys=True) + "\n"
+        if args.output:
+            args.output.write_text(content, encoding="utf-8")
+        else:
+            sys.stdout.write(content)
+    except (OSError, UnicodeError, ValueError) as exc:
+        print(f"evaluate_error: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

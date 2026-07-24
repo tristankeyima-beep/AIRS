@@ -3,9 +3,11 @@
 
 import argparse
 import copy
+import hashlib
 import html
 import json
 import os
+import re
 import sys
 import tempfile
 import unicodedata
@@ -26,6 +28,9 @@ ISSUE_RISKS = {"false_approval", "false_rejection", "both", "none"}
 ROOT_RISKS = {"错误放行风险", "错误拒绝风险", "局部判断错误", "仅影响规则质量", "暂时无法判断", "未发现明显风险"}
 RELIABILITY = {"可靠", "基本可靠", "存在重大疑点", "不可靠", "无法确定"}
 RULE_RESULTS = {"满足", "不满足", "无法判断", "不适用"}
+STANDARD_KINDS = {"structured_complete", "structured_incomplete", "natural_language", "absent"}
+AUDIT_RESULT_KINDS = {"detailed", "brief", "conclusion_only"}
+CANONICAL_CAPABILITIES = {"材料缺失判断准确性", "证据提取准确性", "过度推理", "审核条件与结论一致性", "规则维护质量"}
 EVIDENCE_STATES = {"SUPPORTED", "CONTRADICTED", "NOT_FOUND", "INSUFFICIENT", "CONFLICTED", "NOT_APPLICABLE"}
 CATEGORIES = {"材料缺失判断准确性", "证据提取准确性", "过度推理", "审核条件与结论一致性", "规则维护质量"}
 SECTION_CATEGORIES = (("材料缺失复核", "材料缺失判断准确性"), ("证据准确性", "证据提取准确性"), ("过度推理", "过度推理"), ("条件一致性", "审核条件与结论一致性"), ("规则维护质量", "规则维护质量"))
@@ -129,6 +134,25 @@ def _enum(value, path, choices):
         _error(path, f"must be one of {', '.join(sorted(choices))}")
 
 
+def _exact_object(value, path, fields):
+    _object(value, path, fields)
+    extra = set(value) - fields
+    if extra:
+        _error(path, f"unexpected field {sorted(extra)[0]}")
+
+
+def _sha256(value, path):
+    _text(value, path)
+    if not re.fullmatch(r"[0-9a-f]{64}", value):
+        _error(path, "must be 64 lowercase hexadecimal characters")
+
+
+def compute_inventory_sha256(inventory):
+    """Hash the canonical inventory JSON used by the post-inventory confirmation."""
+    encoded = json.dumps(inventory, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def _evidence(items, path, material_sources):
     if not isinstance(items, list):
         _error(path, "must be an array")
@@ -179,7 +203,7 @@ def _validate_interpretation_paths(input_scope, qc_conclusion, recommended_actio
         _error("inputScope.interpretationPaths", "must be an array with at least 2 paths")
     if input_scope["standardKind"] != "natural_language":
         _error("inputScope.standardKind", "must be natural_language when interpretationPaths is present")
-    path_ids, final_results = set(), []
+    path_ids, final_results, shared_rule_codes = set(), [], None
     for index, path in enumerate(paths):
         point = f"inputScope.interpretationPaths[{index}]"
         required = {"pathId", "interpretation", "ruleResults", "finalResult"}
@@ -192,8 +216,8 @@ def _validate_interpretation_paths(input_scope, qc_conclusion, recommended_actio
         if path["pathId"] in path_ids:
             _error(f"{point}.pathId", "must be unique")
         path_ids.add(path["pathId"])
-        if not isinstance(path["ruleResults"], list):
-            _error(f"{point}.ruleResults", "must be an array")
+        if not isinstance(path["ruleResults"], list) or not path["ruleResults"]:
+            _error(f"{point}.ruleResults", "must be a nonempty array")
         rule_codes = set()
         for rule_index, rule_result in enumerate(path["ruleResults"]):
             rule_point = f"{point}.ruleResults[{rule_index}]"
@@ -206,6 +230,10 @@ def _validate_interpretation_paths(input_scope, qc_conclusion, recommended_actio
             if rule_result["ruleCode"] in rule_codes:
                 _error(f"{rule_point}.ruleCode", "must be unique within the interpretation path")
             rule_codes.add(rule_result["ruleCode"])
+        if shared_rule_codes is None:
+            shared_rule_codes = rule_codes
+        elif rule_codes != shared_rule_codes:
+            _error(f"{point}.ruleResults", "must use the same ruleCode set as every interpretation path")
         _enum(path["finalResult"], f"{point}.finalResult", RULE_RESULTS)
         final_results.append(path["finalResult"])
     if len(set(final_results)) == 1:
@@ -214,6 +242,121 @@ def _validate_interpretation_paths(input_scope, qc_conclusion, recommended_actio
         _error("qcConclusion", "must be 无法确定 when interpretationPaths has different final results")
     if "人工确认" not in recommended_action:
         _error("recommendedAction", "must recommend 人工确认 when interpretationPaths has different final results")
+
+
+def _validate_input_scope(input_scope):
+    required = {"confirmedByUser", "materials", "standardKind", "auditResultKind", "inventory", "confirmation", "independentReview"}
+    allowed = required | {"interpretationPaths"}
+    _object(input_scope, "inputScope", required)
+    extra = set(input_scope) - allowed
+    if extra:
+        _error("inputScope", f"unexpected field {sorted(extra)[0]}")
+    if type(input_scope["confirmedByUser"]) is not bool or not input_scope["confirmedByUser"]:
+        _error("inputScope.confirmedByUser", "输入清单尚未得到用户确认；must be true before formal output")
+    if not isinstance(input_scope["materials"], list):
+        _error("inputScope.materials", "must be an array")
+    for index, item in enumerate(input_scope["materials"]):
+        _text(item, f"inputScope.materials[{index}]")
+    _enum(input_scope["standardKind"], "inputScope.standardKind", STANDARD_KINDS)
+    _enum(input_scope["auditResultKind"], "inputScope.auditResultKind", AUDIT_RESULT_KINDS)
+
+    inventory_fields = {"revision", "materials", "standardKind", "auditResultKind", "hasAuditProcess", "hasFinalConclusion", "referencedButMissing"}
+    inventory = input_scope["inventory"]
+    _exact_object(inventory, "inputScope.inventory", inventory_fields)
+    if type(inventory["revision"]) is not int or inventory["revision"] <= 0:
+        _error("inputScope.inventory.revision", "must be a positive integer")
+    if not isinstance(inventory["materials"], list):
+        _error("inputScope.inventory.materials", "must be an array")
+    for index, item in enumerate(inventory["materials"]):
+        _text(item, f"inputScope.inventory.materials[{index}]")
+    if inventory["materials"] != input_scope["materials"]:
+        _error("inputScope.inventory.materials", "must exactly match inputScope.materials")
+    for field, choices in (("standardKind", STANDARD_KINDS), ("auditResultKind", AUDIT_RESULT_KINDS)):
+        _enum(inventory[field], f"inputScope.inventory.{field}", choices)
+        if inventory[field] != input_scope[field]:
+            _error(f"inputScope.inventory.{field}", f"must match inputScope.{field}")
+    if type(inventory["hasAuditProcess"]) is not bool:
+        _error("inputScope.inventory.hasAuditProcess", "must be boolean")
+    if inventory["hasFinalConclusion"] is not True:
+        _error("inputScope.inventory.hasFinalConclusion", "must be true")
+    if not isinstance(inventory["referencedButMissing"], list):
+        _error("inputScope.inventory.referencedButMissing", "must be an array")
+    for index, item in enumerate(inventory["referencedButMissing"]):
+        _text(item, f"inputScope.inventory.referencedButMissing[{index}]")
+    if input_scope["auditResultKind"] == "detailed" and not inventory["hasAuditProcess"]:
+        _error("inputScope.inventory.hasAuditProcess", "must be true for detailed audit result")
+    if input_scope["auditResultKind"] in {"brief", "conclusion_only"} and inventory["hasAuditProcess"]:
+        _error("inputScope.inventory.hasAuditProcess", "must be false for brief or conclusion_only audit result")
+
+    confirmation = input_scope["confirmation"]
+    _exact_object(confirmation, "inputScope.confirmation", {"confirmedRevision", "inventorySha256", "userStatement"})
+    if type(confirmation["confirmedRevision"]) is not int or confirmation["confirmedRevision"] <= 0:
+        _error("inputScope.confirmation.confirmedRevision", "must be a positive integer")
+    if confirmation["confirmedRevision"] != inventory["revision"]:
+        _error("inputScope.confirmation.confirmedRevision", "must match current inventory revision")
+    _sha256(confirmation["inventorySha256"], "inputScope.confirmation.inventorySha256")
+    if confirmation["inventorySha256"] != compute_inventory_sha256(inventory):
+        _error("inputScope.confirmation.inventorySha256", "must match current inventory")
+    _text(confirmation["userStatement"], "inputScope.confirmation.userStatement")
+
+    independent = input_scope["independentReview"]
+    _exact_object(independent, "inputScope.independentReview", {"mode", "completedBeforeComparison", "artifactSha256"})
+    _enum(independent["mode"], "inputScope.independentReview.mode", {"isolated_blind", "independent_non_blind"})
+    if independent["completedBeforeComparison"] is not True:
+        _error("inputScope.independentReview.completedBeforeComparison", "must be true")
+    _sha256(independent["artifactSha256"], "inputScope.independentReview.artifactSha256")
+
+
+def _validate_capability_matrix(capabilities, input_scope, rule_reviews):
+    by_name = {item["name"]: item for item in capabilities}
+    if set(by_name) != CANONICAL_CAPABILITIES or len(by_name) != len(capabilities):
+        _error("capabilities", "must contain each of the five canonical capability names exactly once")
+    kind, audit_kind = input_scope["standardKind"], input_scope["auditResultKind"]
+    if audit_kind in {"brief", "conclusion_only"}:
+        for name in ("材料缺失判断准确性", "证据提取准确性", "过度推理"):
+            capability = by_name[name]
+            if capability["status"] != "not_run":
+                _error(f"capabilities.{name}", "must be not_run without detailed audit claims")
+        if by_name["证据提取准确性"]["reason"] != "未提供原审核证据或规则过程":
+            _error("capabilities.证据提取准确性.reason", "must be 未提供原审核证据或规则过程")
+        condition = by_name["审核条件与结论一致性"]
+        if kind == "absent" and condition["status"] != "not_run":
+            _error("capabilities.审核条件与结论一致性", "must be not_run without a usable standard")
+        if kind != "absent" and condition["status"] not in {"partial", "not_run"}:
+            _error("capabilities.审核条件与结论一致性", "may only be partial or not_run for brief/conclusion_only")
+        if rule_reviews:
+            _error("ruleReviews", "must be empty for brief or conclusion_only audit result")
+    if kind == "absent":
+        if by_name["规则维护质量"]["status"] != "not_run":
+            _error("capabilities.规则维护质量", "must be not_run when standardKind is absent")
+        if rule_reviews:
+            _error("ruleReviews", "must be empty when standardKind is absent")
+        condition = by_name["审核条件与结论一致性"]
+        if condition["status"] == "completed":
+            _error("capabilities.审核条件与结论一致性", "cannot be completed when standardKind is absent")
+        if audit_kind != "detailed" and condition["status"] != "not_run":
+            _error("capabilities.审核条件与结论一致性", "must be not_run without detailed audit output")
+    if kind == "structured_incomplete" and by_name["审核条件与结论一致性"]["status"] == "completed":
+        _error("capabilities.审核条件与结论一致性", "cannot be completed when standardKind is structured_incomplete")
+    if kind == "natural_language" and by_name["规则维护质量"]["status"] == "completed":
+        _error("capabilities.规则维护质量", "cannot be completed when standardKind is natural_language")
+
+
+def _validate_outcome_risk(report):
+    changing = [item for item in report["issues"] if item["impactOnFinalResult"] in {"changed", "potentially_changed"}]
+    if not changing:
+        return
+    if report["qcConclusion"] in {"可靠", "基本可靠"}:
+        _error("qcConclusion", "cannot be reliable when an issue changes or may change the final result")
+    directions = {item["riskDirection"] for item in changing}
+    if directions == {"false_approval"}:
+        expected = "错误放行风险"
+    elif directions == {"false_rejection"}:
+        expected = "错误拒绝风险"
+    else:
+        expected = "暂时无法判断"
+    if report["riskDirection"] != expected:
+        _error("riskDirection", f"must be {expected} for outcome-changing issue directions")
 
 
 def _validate_report(report):
@@ -227,17 +370,7 @@ def _validate_report(report):
     _object(report["case"], "case", {"patientName", "diseaseName", "auditId"})
     for field in ("patientName", "diseaseName", "auditId"):
         _text(report["case"][field], f"case.{field}")
-    _object(report["inputScope"], "inputScope", {"confirmedByUser", "materials", "standardKind", "auditResultKind"})
-    if type(report["inputScope"]["confirmedByUser"]) is not bool:
-        _error("inputScope.confirmedByUser", "must be boolean")
-    if not report["inputScope"]["confirmedByUser"]:
-        _error("inputScope.confirmedByUser", "输入清单尚未得到用户确认；must be true before formal output")
-    if not isinstance(report["inputScope"]["materials"], list):
-        _error("inputScope.materials", "must be an array")
-    for index, item in enumerate(report["inputScope"]["materials"]):
-        _text(item, f"inputScope.materials[{index}]")
-    _text(report["inputScope"]["standardKind"], "inputScope.standardKind")
-    _text(report["inputScope"]["auditResultKind"], "inputScope.auditResultKind")
+    _validate_input_scope(report["inputScope"])
     if not isinstance(report["capabilities"], list):
         _error("capabilities", "must be an array")
     capabilities_by_name = {}
@@ -286,6 +419,8 @@ def _validate_report(report):
     for name, capability in not_run.items():
         if capability["reason"] != unperformed_by_name[name]["reason"]:
             _error("unperformedChecks", f"reason must match capability {name}")
+    _validate_capability_matrix(report["capabilities"], report["inputScope"], report["ruleReviews"])
+    _validate_outcome_risk(report)
 
 
 def validate_qc_report(source):
@@ -343,6 +478,26 @@ def _interpretation_paths_text(paths):
     return lines
 
 
+def _attestation_text(scope):
+    inventory, confirmation, independent = scope["inventory"], scope["confirmation"], scope["independentReview"]
+    lines = [
+        "输入清单修订：{}；清单摘要：{}；用户确认：{}".format(
+            _text_scalar(inventory["revision"]),
+            _text_scalar(confirmation["inventorySha256"]),
+            _text_scalar(confirmation["userStatement"]),
+        ),
+        "审核引用但未提供：{}".format(_text_scalar("、".join(inventory["referencedButMissing"]) or "无")),
+        "独立复核：模式：{}；比较前完成：{}；冻结产物摘要：{}".format(
+            _text_scalar(independent["mode"]),
+            _text_scalar(independent["completedBeforeComparison"]),
+            _text_scalar(independent["artifactSha256"]),
+        ),
+    ]
+    if independent["mode"] == "independent_non_blind":
+        lines.append("限制：独立二次复核（非盲）；原审核结果已暴露或隔离不可用，存在确认偏差限制。")
+    return lines
+
+
 def render_qc_text(source):
     report = validate_qc_report(source)
     issue_groups = {category: [item for item in report["issues"] if item["category"] == category] for _, category in SECTION_CATEGORIES}
@@ -350,6 +505,7 @@ def render_qc_text(source):
     lines = ["# 质控结论", f"结论：{_text_scalar(report['qcConclusion'])}", f"风险方向：{_text_scalar(report['riskDirection'])}", f"原审核结论：{_text_scalar(report['originalResult'])}", f"问题数量：{len(report['issues'])}", "", "# 输入与检查范围", "案例：{}／{}／{}".format(_text_scalar(report["case"]["patientName"]), _text_scalar(report["case"]["diseaseName"]), _text_scalar(report["case"]["auditId"])), "材料：{}".format(_text_scalar("、".join(report["inputScope"]["materials"]) or "无")), f"标准格式：{_text_scalar(report['inputScope']['standardKind'])}", f"审核结果类型：{_text_scalar(report['inputScope']['auditResultKind'])}"]
     if "interpretationPaths" in report["inputScope"]:
         lines += _interpretation_paths_text(report["inputScope"]["interpretationPaths"])
+    lines += _attestation_text(report["inputScope"])
     if report["capabilities"]:
         lines += ["- 名称：{}；状态：{}；原因：{}".format(_text_scalar(item["name"]), _text_scalar(item["status"]), _text_scalar(item["reason"])) for item in report["capabilities"]]
     else: lines.append("无能力检查记录")
@@ -408,6 +564,25 @@ def _interpretation_paths_html(paths):
     return '<h3>解释路径</h3>' + ''.join(cards)
 
 
+def _attestation_html(scope):
+    inventory, confirmation, independent = scope["inventory"], scope["confirmation"], scope["independentReview"]
+    fields = (
+        ("输入清单修订", inventory["revision"]),
+        ("清单摘要", confirmation["inventorySha256"]),
+        ("用户确认", confirmation["userStatement"]),
+        ("审核引用但未提供", "、".join(inventory["referencedButMissing"]) or "无"),
+        ("独立复核模式", independent["mode"]),
+        ("比较前完成", independent["completedBeforeComparison"]),
+        ("冻结产物摘要", independent["artifactSha256"]),
+    )
+    rendered = '<div class="grid">' + ''.join(
+        f'<div class="field"><b>{esc(label)}</b>{esc(value)}</div>' for label, value in fields
+    ) + '</div>'
+    if independent["mode"] == "independent_non_blind":
+        rendered += '<p class="empty">限制：独立二次复核（非盲）；存在确认偏差限制。</p>'
+    return rendered
+
+
 def _template_parts():
     try: template = TEMPLATE.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc: raise ValueError(f"qc_report_template: {exc}") from None
@@ -423,6 +598,7 @@ def render_qc_html(source):
     scope = f'<div class="grid"><div class="field"><b>案例</b>{esc(report["case"]["patientName"])}／{esc(report["case"]["diseaseName"])}／{esc(report["case"]["auditId"])} </div><div class="field"><b>材料</b>{esc("、".join(report["inputScope"]["materials"]) or "无")}</div><div class="field"><b>标准格式</b>{esc(report["inputScope"]["standardKind"])}</div><div class="field"><b>审核结果类型</b>{esc(report["inputScope"]["auditResultKind"])}</div></div>'
     if "interpretationPaths" in report["inputScope"]:
         scope += _interpretation_paths_html(report["inputScope"]["interpretationPaths"])
+    scope += '<h3>输入与独立复核证明</h3>' + _attestation_html(report["inputScope"])
     capabilities = ''.join(f'<div class="field"><b>{esc(item["name"])}</b><span class="status {"not-run" if item["status"] == "not_run" else ""}">{esc(item["status"])}</span><br>{esc(item["reason"])}</div>' for item in report["capabilities"]) or '<p class="empty">无能力检查记录</p>'
     body = '<header class="page-header"><div class="header-inner"><p class="eyebrow">门诊慢特病 · 审核质控</p><h1>智能审核质控报告</h1><p class="lede">案例 ' + esc(report["case"]["auditId"]) + ' · 由同一规范对象生成文本与本报告</p></div></header><main id="qc-report-main">'
     body += section("质控结论", f'<div class="grid"><div class="field"><b>质控结论</b>{esc(report["qcConclusion"])}</div><div class="field"><b>风险方向</b>{esc(report["riskDirection"])}</div><div class="field"><b>原审核结论</b>{esc(report["originalResult"])}</div><div class="field"><b>问题数量</b>{len(report["issues"])}</div></div>')
