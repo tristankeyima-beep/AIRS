@@ -2,9 +2,12 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
+import stat
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -116,6 +119,23 @@ def tree_digest(root):
         digest.update(path.read_bytes())
         digest.update(b"\0")
     return digest.hexdigest()
+
+
+def tree_state(root):
+    return {
+        path.relative_to(root).as_posix(): (
+            path.read_bytes(),
+            stat.S_IMODE(path.stat().st_mode),
+        )
+        for path in sorted(item for item in root.rglob("*") if item.is_file())
+    }
+
+
+def create_symlink_or_skip(test_case, link, target):
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except (OSError, NotImplementedError) as exc:
+        test_case.skipTest(f"当前平台不支持符号链接测试：{exc}")
 
 
 class FixtureContractTests(unittest.TestCase):
@@ -237,7 +257,7 @@ class MutationGeneratorTests(unittest.TestCase):
     def test_low_level_pure_text_mutations(self):
         self.assertEqual(
             self.module.negate_claim("出院诊断：明确诊断为测试病种。"),
-            "出院诊断：明确排除为测试病种。",
+            "出院诊断：已明确排除测试病种。",
         )
         self.assertEqual(
             self.module.weaken_claim("出院诊断：明确诊断为测试病种。"),
@@ -296,6 +316,10 @@ class MutationGeneratorTests(unittest.TestCase):
         self.assertEqual(
             cases["negated-diagnosis"]["materials"][0],
             self.module.negate_claim(bases["diagnosis"]["materials"][0]),
+        )
+        self.assertIn(
+            "已明确排除测试病种",
+            cases["negated-diagnosis"]["materials"][0],
         )
         self.assertEqual(
             cases["weakened-diagnosis"]["materials"][0],
@@ -425,6 +449,113 @@ class MutationGeneratorTests(unittest.TestCase):
                             materials + "\n" + standard + "\n" + audit_text,
                         )
 
+    def _fail_on_commit_replace(self, generated, failure_number):
+        real_replace = self.module.os.replace
+        state = {"count": 0}
+
+        def injected(source, destination):
+            source_path = Path(source)
+            destination_path = Path(destination)
+            is_payload_commit = (
+                any(part.startswith(".fixture-stage-") for part in source_path.parts)
+                and "payload" in source_path.parts
+                and generated in destination_path.parents
+                and destination_path.name in {
+                    "materials.txt",
+                    "standard.txt",
+                    "audit-result.json",
+                    "expected.json",
+                }
+            )
+            if is_payload_commit:
+                state["count"] += 1
+                if state["count"] == failure_number:
+                    raise OSError("注入的中途提交失败")
+            return real_replace(source, destination)
+
+        return mock.patch.object(self.module.os, "replace", side_effect=injected)
+
+    def test_second_generation_rolls_back_all_bytes_and_modes_on_mid_commit_failure(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            anchor = Path(temp_dir)
+            trusted = anchor / "fixtures"
+            trusted.mkdir()
+            generated = trusted / "generated"
+            self.module.generate(
+                output_root=generated,
+                trusted_base=trusted,
+                trusted_anchor=anchor,
+            )
+            mode_target = generated / "and-to-or" / "materials.txt"
+            second_mode_target = generated / "negated-diagnosis" / "expected.json"
+            mode_target.chmod(0o640)
+            second_mode_target.chmod(0o600)
+            before = tree_state(generated)
+
+            with self._fail_on_commit_replace(generated, 7):
+                with self.assertRaisesRegex(RuntimeError, "事务生成失败"):
+                    self.module.generate(
+                        output_root=generated,
+                        trusted_base=trusted,
+                        trusted_anchor=anchor,
+                    )
+
+            self.assertEqual(tree_state(generated), before)
+            self.assertFalse(
+                any(path.name.startswith(".fixture-stage-") for path in generated.iterdir())
+            )
+
+    def test_first_generation_rolls_back_known_outputs_but_preserves_unknown_file(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            anchor = Path(temp_dir)
+            trusted = anchor / "fixtures"
+            trusted.mkdir()
+            generated = trusted / "generated"
+            generated.mkdir()
+            unknown = generated / "user-note.txt"
+            unknown.write_bytes(b"keep-me\n")
+            unknown.chmod(0o640)
+            before = tree_state(generated)
+
+            with self._fail_on_commit_replace(generated, 7):
+                with self.assertRaisesRegex(RuntimeError, "事务生成失败"):
+                    self.module.generate(
+                        output_root=generated,
+                        trusted_base=trusted,
+                        trusted_anchor=anchor,
+                    )
+
+            self.assertEqual(tree_state(generated), before)
+            self.assertEqual(
+                {path.name for path in generated.iterdir()},
+                {"user-note.txt"},
+            )
+
+    @unittest.skipUnless(os.name == "posix", "POSIX mode contract")
+    def test_new_files_are_0644_and_updates_preserve_existing_modes(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            anchor = Path(temp_dir)
+            trusted = anchor / "fixtures"
+            trusted.mkdir()
+            generated = trusted / "generated"
+            self.module.generate(
+                output_root=generated,
+                trusted_base=trusted,
+                trusted_anchor=anchor,
+            )
+            for path in generated.rglob("*"):
+                if path.is_file():
+                    self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o644)
+
+            preserved = generated / "and-to-or" / "materials.txt"
+            preserved.chmod(0o640)
+            self.module.generate(
+                output_root=generated,
+                trusted_base=trusted,
+                trusted_anchor=anchor,
+            )
+            self.assertEqual(stat.S_IMODE(preserved.stat().st_mode), 0o640)
+
     def test_generator_preserves_unknown_files_and_rejects_root_symlink(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             anchor = Path(temp_dir)
@@ -447,7 +578,7 @@ class MutationGeneratorTests(unittest.TestCase):
             real_root = anchor / "real"
             real_root.mkdir()
             generated = trusted / "generated"
-            generated.symlink_to(real_root, target_is_directory=True)
+            create_symlink_or_skip(self, generated, real_root)
             with self.assertRaises(ValueError):
                 self.module.generate(
                     output_root=generated,
@@ -463,7 +594,7 @@ class MutationGeneratorTests(unittest.TestCase):
             external = Path(temp_dir) / "external"
             external.mkdir()
             linked_parent = anchor / "link"
-            linked_parent.symlink_to(external, target_is_directory=True)
+            create_symlink_or_skip(self, linked_parent, external)
             trusted = linked_parent / "nested" / "fixtures"
             generated = trusted / "generated"
             with self.assertRaisesRegex(ValueError, "符号链接"):
@@ -539,7 +670,7 @@ class MutationGeneratorTests(unittest.TestCase):
             external = Path(temp_dir) / "external"
             external.mkdir()
             link = anchor / "link"
-            link.symlink_to(external, target_is_directory=True)
+            create_symlink_or_skip(self, link, external)
             trusted = link / "nested" / "fixtures"
             generated = trusted / "generated"
             with self.assertRaisesRegex(ValueError, "符号链接"):

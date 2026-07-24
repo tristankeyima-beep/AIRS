@@ -3,6 +3,8 @@ import copy
 import json
 import os
 import re
+import shutil
+import stat
 import tempfile
 from pathlib import Path
 
@@ -92,7 +94,7 @@ BASE_CORRECT = {
 def negate_claim(text):
     if "明确诊断为" not in text:
         raise ValueError("文本中没有可否定的“明确诊断为”")
-    return text.replace("明确诊断为", "明确排除为", 1)
+    return text.replace("明确诊断为", "已明确排除", 1)
 
 
 def weaken_claim(text):
@@ -149,7 +151,7 @@ def negate_diagnosis(base):
             "不可靠",
             "错误放行风险",
             ["证据含义提取错误"],
-            ["明确排除为测试病种"],
+            ["已明确排除测试病种"],
             ["材料支持明确诊断"],
         ),
     )
@@ -360,14 +362,8 @@ def _validate_output_root(output_root, trusted_base, trusted_anchor):
     if output_root.exists() and not output_root.is_dir():
         raise ValueError("生成目录必须是普通目录")
 
-    output_root.parent.mkdir(parents=True, exist_ok=True)
-    _reject_symlink_components(output_root, trusted_anchor)
-    output_root.mkdir(exist_ok=True)
-    _reject_symlink_components(output_root, trusted_anchor)
-    if not output_root.is_dir():
-        raise ValueError("生成目录必须是普通目录")
-    if trusted_resolved not in output_root.resolve(strict=True).parents:
-        raise ValueError("解析后的输出目录必须位于可信目录内")
+    if not output_root.parent.exists() or not output_root.parent.is_dir():
+        raise ValueError("生成目录的父目录必须是已存在的普通目录")
     return output_root
 
 
@@ -381,53 +377,175 @@ def _json_text(value):
     return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
-def _atomic_write(path, text):
-    if path.is_symlink():
-        raise ValueError(f"拒绝覆盖符号链接：{path.name}")
-    data = text.encode("utf-8")
+def _build_payloads():
+    payloads = {}
+    for name, case in sorted(build_cases().items()):
+        if not CASE_NAME.fullmatch(name):
+            raise ValueError(f"非法案例目录名：{name}")
+        case_payloads = {
+            "materials.txt": _single_newline("\n".join(case["materials"])),
+            "standard.txt": _single_newline(case["standard"]),
+            "audit-result.json": _json_text(case["audit"]),
+            "expected.json": _json_text(case["expected"]),
+        }
+        if set(case_payloads) != CASE_FILES:
+            raise ValueError(f"案例文件合同不完整：{name}")
+        for filename, text in sorted(case_payloads.items()):
+            payloads[Path(name) / filename] = text.encode("utf-8")
+    return payloads
+
+
+def _preflight_targets(root, trusted_anchor, payloads):
+    root_resolved = root.resolve(strict=False)
+    for relative in payloads:
+        target = root / relative
+        case_dir = target.parent
+        _reject_symlink_components(target, trusted_anchor)
+        if case_dir.exists() and not case_dir.is_dir():
+            raise ValueError(f"案例路径不是普通目录：{relative.parent}")
+        if target.is_symlink():
+            raise ValueError(f"拒绝覆盖符号链接：{relative}")
+        if target.exists() and not target.is_file():
+            raise ValueError(f"目标必须是普通文件：{relative}")
+        target_resolved = target.resolve(strict=False)
+        if root_resolved not in target_resolved.parents:
+            raise ValueError(f"目标越出生成目录：{relative}")
+
+
+def _write_staged_file(path, data, mode):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("xb") as handle:
+        handle.write(data)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.chmod(path, mode)
+
+
+def _cleanup_staging(staging):
+    if staging is None or not staging.exists():
+        return
+    if staging.is_symlink() or not staging.name.startswith(".fixture-stage-"):
+        raise RuntimeError("拒绝清理非事务 staging 目录")
+    shutil.rmtree(staging)
+
+
+def _restore_file(target, data, mode):
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(
             mode="wb",
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
+            dir=target.parent,
+            prefix=".fixture-rollback-",
             delete=False,
         ) as handle:
             temporary = Path(handle.name)
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, path)
+        os.chmod(temporary, mode)
+        os.replace(temporary, target)
     finally:
         if temporary is not None and temporary.exists():
             temporary.unlink()
 
 
-def _write_case(root, name, case):
-    if not CASE_NAME.fullmatch(name):
-        raise ValueError(f"非法案例目录名：{name}")
-    case_dir = root / name
-    if case_dir.is_symlink():
-        raise ValueError(f"拒绝写入符号链接案例目录：{name}")
-    case_dir.mkdir(exist_ok=True)
-    _reject_symlink_components(case_dir, root)
-    if not case_dir.is_dir() or root.resolve(strict=True) not in case_dir.resolve(strict=True).parents:
-        raise ValueError(f"案例路径不是生成目录下的普通目录：{name}")
+def _rollback_transaction(journal, created_dirs, staging, root, root_created):
+    errors = []
+    for entry in reversed(journal):
+        target = entry["target"]
+        try:
+            if entry["existed"]:
+                _restore_file(target, entry["original"], entry["mode"])
+            elif target.exists() or target.is_symlink():
+                target.unlink()
+        except Exception as exc:
+            errors.append(f"{target}: {exc}")
+    for directory in reversed(created_dirs):
+        try:
+            directory.rmdir()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            errors.append(f"{directory}: {exc}")
+    try:
+        _cleanup_staging(staging)
+    except Exception as exc:
+        errors.append(f"staging: {exc}")
+    if root_created:
+        try:
+            root.rmdir()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            errors.append(f"{root}: {exc}")
+    return errors
 
-    payloads = {
-        "materials.txt": _single_newline("\n".join(case["materials"])),
-        "standard.txt": _single_newline(case["standard"]),
-        "audit-result.json": _json_text(case["audit"]),
-        "expected.json": _json_text(case["expected"]),
-    }
-    if set(payloads) != CASE_FILES:
-        raise ValueError(f"案例文件合同不完整：{name}")
-    for filename in sorted(payloads):
-        _atomic_write(case_dir / filename, payloads[filename])
+
+def _transactional_write(root, trusted_anchor, payloads):
+    root_created = False
+    staging = None
+    journal = []
+    created_dirs = []
+    try:
+        if not root.exists():
+            root.mkdir(mode=0o755)
+            root_created = True
+        _reject_symlink_components(root, trusted_anchor)
+        if not root.is_dir():
+            raise ValueError("生成目录必须是普通目录")
+        staging = Path(tempfile.mkdtemp(prefix=".fixture-stage-", dir=root))
+        payload_root = staging / "payload"
+        backup_root = staging / "backup"
+
+        staged = []
+        for relative, data in sorted(payloads.items(), key=lambda item: item[0].as_posix()):
+            target = root / relative
+            existed = target.exists()
+            original = target.read_bytes() if existed else None
+            mode = stat.S_IMODE(target.stat().st_mode) if existed else 0o644
+            payload_path = payload_root / relative
+            _write_staged_file(payload_path, data, mode)
+            if existed:
+                _write_staged_file(backup_root / relative, original, mode)
+            staged.append(
+                {
+                    "target": target,
+                    "payload": payload_path,
+                    "existed": existed,
+                    "original": original,
+                    "mode": mode,
+                }
+            )
+
+        for entry in staged:
+            target = entry["target"]
+            case_dir = target.parent
+            if not case_dir.exists():
+                case_dir.mkdir(mode=0o755)
+                created_dirs.append(case_dir)
+            _reject_symlink_components(target, trusted_anchor)
+            if target.is_symlink():
+                raise ValueError(f"拒绝覆盖符号链接：{target}")
+            journal.append(entry)
+            os.replace(entry["payload"], target)
+
+        _cleanup_staging(staging)
+        staging = None
+        return
+    except Exception as exc:
+        rollback_errors = _rollback_transaction(
+            journal,
+            created_dirs,
+            staging,
+            root,
+            root_created,
+        )
+        detail = f"；回滚异常：{' | '.join(rollback_errors)}" if rollback_errors else ""
+        raise RuntimeError(f"事务生成失败，已执行尽力回滚：{exc}{detail}") from exc
 
 
 def generate(output_root=None, trusted_base=None, trusted_anchor=None):
+    """Generate all fixtures as one transactional batch with best-effort rollback."""
     custom_paths = output_root is not None or trusted_base is not None
     if custom_paths and trusted_anchor is None:
         raise ValueError("非默认生成必须显式提供 trusted_anchor")
@@ -435,8 +553,9 @@ def generate(output_root=None, trusted_base=None, trusted_anchor=None):
     trusted = FIXTURES if trusted_base is None else Path(trusted_base)
     output = GENERATED if output_root is None else Path(output_root)
     root = _validate_output_root(output, trusted, anchor)
-    for name, case in sorted(build_cases().items()):
-        _write_case(root, name, case)
+    payloads = _build_payloads()
+    _preflight_targets(root, _absolute_lexical(anchor), payloads)
+    _transactional_write(root, _absolute_lexical(anchor), payloads)
     return root
 
 
