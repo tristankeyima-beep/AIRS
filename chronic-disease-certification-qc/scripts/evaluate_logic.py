@@ -49,7 +49,7 @@ def evaluate_logic(node, rule_results):
             if not isinstance(rule_code, str) or not rule_code.strip():
                 raise ValueError("RULE_REF ruleCode must be a nonempty string.")
             result = rule_results.get(rule_code, "无法判断")
-            if result not in VALID_RESULTS:
+            if not isinstance(result, str) or result not in VALID_RESULTS:
                 raise ValueError(_RESULT_MESSAGE)
             return {"type": "RULE_REF", "ruleCode": rule_code, "result": result}
 

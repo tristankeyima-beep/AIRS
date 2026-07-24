@@ -144,8 +144,11 @@ class EvaluateLogicTests(unittest.TestCase):
                     evaluator.evaluate_logic(node, {})
 
     def test_rejects_invalid_rule_results_with_a_stable_message(self):
-        with self.assertRaisesRegex(ValueError, r"^Rule result must be one of: 不满足, 不适用, 无法判断, 满足\.$"):
-            evaluator.evaluate_logic(rule("a"), {"a": "通过"})
+        message = r"^Rule result must be one of: 不满足, 不适用, 无法判断, 满足\.$"
+        for result in ("通过", [], {}, ["满足"]):
+            with self.subTest(result=result):
+                with self.assertRaisesRegex(ValueError, message):
+                    evaluator.evaluate_logic(rule("a"), {"a": result})
         with self.assertRaisesRegex(ValueError, r"^rule_results must be an object\.$"):
             evaluator.evaluate_logic(rule("a"), [])
 
