@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "version": "V20260724",
+    "chronicDiseaseName": "测试病种",
+    "chronicDiseaseCode": "CS01",
+    "createdAt": "2026-07-24",
+    "description": "故意缺少提取项的测试标准",
+    "sourceFile": "测试认定标准.txt"
+  },
+  "ruleRepository": [
+    {
+      "ruleCode": "01001",
+      "ruleContent": "已明确诊断为测试病种",
+      "ruleSource": "测试认定标准.txt",
+      "experience": "",
+      "ruleKeywordGuide": [],
+      "sourceRuleContent": "已明确诊断为测试病种",
+      "sourceMdFile": "测试认定标准.txt",
+      "sourceSection": "认定标准"
+    }
+  ],
+  "logicTopology": {
+    "type": "GROUP",
+    "operator": "AND",
+    "children": [
+      {
+        "type": "RULE_REF",
+        "ruleCode": "01001"
+      }
+    ]
+  }
+}

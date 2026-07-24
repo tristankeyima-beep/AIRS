@@ -1,0 +1,15 @@
+{
+  "expectedInvariant": false,
+  "expectedIssues": [
+    "过度推理"
+  ],
+  "expectedQcConclusion": "不可靠",
+  "expectedRisk": "错误放行风险",
+  "mustFindText": [
+    "疑似测试病种"
+  ],
+  "mustNotReport": [
+    "已经明确确诊"
+  ],
+  "mutationKind": "defect"
+}

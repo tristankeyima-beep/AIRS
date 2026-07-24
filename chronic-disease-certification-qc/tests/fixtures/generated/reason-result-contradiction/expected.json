@@ -1,0 +1,15 @@
+{
+  "expectedInvariant": false,
+  "expectedIssues": [
+    "审核理由与最终结论矛盾"
+  ],
+  "expectedQcConclusion": "存在重大疑点",
+  "expectedRisk": "暂时无法判断",
+  "mustFindText": [
+    "未明确诊断为测试病种"
+  ],
+  "mustNotReport": [
+    "审核理由确认条件满足"
+  ],
+  "mutationKind": "defect"
+}

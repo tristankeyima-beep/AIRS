@@ -1,0 +1,15 @@
+{
+  "expectedInvariant": false,
+  "expectedIssues": [
+    "误报缺失"
+  ],
+  "expectedQcConclusion": "不可靠",
+  "expectedRisk": "错误拒绝风险",
+  "mustFindText": [
+    "患者规律接受长期治疗三年"
+  ],
+  "mustNotReport": [
+    "材料确实没有治疗记录"
+  ],
+  "mutationKind": "defect"
+}

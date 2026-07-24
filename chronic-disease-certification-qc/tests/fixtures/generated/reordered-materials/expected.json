@@ -1,0 +1,14 @@
+{
+  "expectedInvariant": true,
+  "expectedIssues": [],
+  "expectedQcConclusion": "可靠",
+  "expectedRisk": "未发现明显风险",
+  "mustFindText": [
+    "治疗记录：患者需继续治疗",
+    "诊断证明：已明确诊断为测试病种"
+  ],
+  "mustNotReport": [
+    "材料顺序改变导致结论变化"
+  ],
+  "mutationKind": "invariance"
+}

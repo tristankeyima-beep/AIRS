@@ -1,0 +1,14 @@
+{
+  "expectedInvariant": true,
+  "expectedIssues": [],
+  "expectedQcConclusion": "可靠",
+  "expectedRisk": "未发现明显风险",
+  "mustFindText": [
+    "挂号记录：就诊序号为001",
+    "已明确诊断为测试病种"
+  ],
+  "mustNotReport": [
+    "无关材料改变审核结论"
+  ],
+  "mutationKind": "invariance"
+}

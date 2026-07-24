@@ -1,0 +1,15 @@
+{
+  "expectedInvariant": false,
+  "expectedIssues": [
+    "OR 逻辑计算错误"
+  ],
+  "expectedQcConclusion": "不可靠",
+  "expectedRisk": "错误拒绝风险",
+  "mustFindText": [
+    "条件A已满足"
+  ],
+  "mustNotReport": [
+    "条件A也缺失"
+  ],
+  "mutationKind": "defect"
+}

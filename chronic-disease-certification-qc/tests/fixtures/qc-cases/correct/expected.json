@@ -1,0 +1,11 @@
+{
+  "expectedQcConclusion": "可靠",
+  "expectedRisk": "未发现明显风险",
+  "expectedIssues": [],
+  "mustFindText": [
+    "出院诊断：测试病种，需继续治疗。"
+  ],
+  "mustNotReport": [
+    "证据不足"
+  ]
+}

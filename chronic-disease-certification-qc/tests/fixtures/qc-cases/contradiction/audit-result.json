@@ -1,0 +1,10 @@
+{
+  "ruleResults": [
+    {
+      "rule": "明确诊断",
+      "result": "满足"
+    }
+  ],
+  "finalResult": "通过",
+  "advice": "无法确认诊断"
+}

@@ -1,0 +1,13 @@
+{
+  "expectedQcConclusion": "基本可靠",
+  "expectedRisk": "仅影响规则质量",
+  "expectedIssues": [
+    "规则维护不完整"
+  ],
+  "mustFindText": [
+    "已明确诊断为测试病种。"
+  ],
+  "mustNotReport": [
+    "患者材料缺失"
+  ]
+}

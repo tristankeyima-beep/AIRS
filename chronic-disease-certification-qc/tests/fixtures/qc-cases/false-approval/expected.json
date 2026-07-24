@@ -1,0 +1,13 @@
+{
+  "expectedQcConclusion": "不可靠",
+  "expectedRisk": "错误放行风险",
+  "expectedIssues": [
+    "必需条件缺失但错误放行"
+  ],
+  "mustFindText": [
+    "条件A已满足"
+  ],
+  "mustNotReport": [
+    "条件B已满足"
+  ]
+}

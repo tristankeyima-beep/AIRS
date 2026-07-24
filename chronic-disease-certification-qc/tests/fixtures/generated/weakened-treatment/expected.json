@@ -1,0 +1,15 @@
+{
+  "expectedInvariant": false,
+  "expectedIssues": [
+    "过度推理"
+  ],
+  "expectedQcConclusion": "不可靠",
+  "expectedRisk": "错误放行风险",
+  "mustFindText": [
+    "建议评估是否需要长期治疗"
+  ],
+  "mustNotReport": [
+    "长期治疗事实已明确"
+  ],
+  "mutationKind": "defect"
+}

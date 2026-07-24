@@ -1,0 +1,13 @@
+{
+  "expectedQcConclusion": "不可靠",
+  "expectedRisk": "错误拒绝风险",
+  "expectedIssues": [
+    "误报缺失"
+  ],
+  "mustFindText": [
+    "患者规律接受长期治疗三年"
+  ],
+  "mustNotReport": [
+    "材料确实缺失"
+  ]
+}

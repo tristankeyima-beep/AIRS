@@ -1,0 +1,13 @@
+{
+  "expectedQcConclusion": "不可靠",
+  "expectedRisk": "错误放行风险",
+  "expectedIssues": [
+    "过度推理"
+  ],
+  "mustFindText": [
+    "建议进一步评估"
+  ],
+  "mustNotReport": [
+    "已明确接受长期治疗"
+  ]
+}

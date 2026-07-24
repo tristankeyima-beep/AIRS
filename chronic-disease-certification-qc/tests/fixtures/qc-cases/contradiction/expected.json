@@ -1,0 +1,13 @@
+{
+  "expectedQcConclusion": "存在重大疑点",
+  "expectedRisk": "暂时无法判断",
+  "expectedIssues": [
+    "审核条件与结论矛盾"
+  ],
+  "mustFindText": [
+    "已明确诊断为测试病种。"
+  ],
+  "mustNotReport": [
+    "材料未提及诊断"
+  ]
+}

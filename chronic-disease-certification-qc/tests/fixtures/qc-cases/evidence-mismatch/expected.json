@@ -1,0 +1,13 @@
+{
+  "expectedQcConclusion": "不可靠",
+  "expectedRisk": "错误放行风险",
+  "expectedIssues": [
+    "证据含义提取错误"
+  ],
+  "mustFindText": [
+    "未发现测试病种相关表现。"
+  ],
+  "mustNotReport": [
+    "材料支持已发现相关表现"
+  ]
+}
