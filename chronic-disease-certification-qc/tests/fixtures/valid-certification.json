@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "version": "V20260724",
+    "chronicDiseaseName": "测试病种",
+    "chronicDiseaseCode": "CS01",
+    "createdAt": "2026-07-24",
+    "description": "测试标准",
+    "sourceFile": "测试认定标准.txt"
+  },
+  "ruleRepository": [
+    {
+      "ruleCode": "01001",
+      "ruleContent": "需明确诊断为测试病种",
+      "ruleSource": "测试认定标准.txt",
+      "experience": "",
+      "sourceRuleContent": "需明确诊断为测试病种",
+      "sourceMdFile": "测试认定标准.txt",
+      "sourceSection": "认定标准",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "01001001",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "明确记录阳性证据、阴性证据、无信息/无法判断边界，并优先在诊断证明材料中查找。",
+          "enumOptions": ["是", "否", "无法判断"]
+        }
+      ]
+    }
+  ],
+  "logicTopology": {
+    "type": "GROUP",
+    "operator": "AND",
+    "children": [
+      {"type": "RULE_REF", "ruleCode": "01001"}
+    ]
+  }
+}
