@@ -1,12 +1,15 @@
 import copy
+import io
 import importlib.util
 import json
 import subprocess
 import sys
 import tempfile
 import unittest
+import unicodedata
 from pathlib import Path
 from unittest import mock
+from contextlib import redirect_stderr
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -109,6 +112,10 @@ class QcRendererTests(unittest.TestCase):
         self.assertEqual(source[evidence["location"]["start"]:evidence["location"]["end"]], evidence["rawText"])
         report = copy.deepcopy(self.report); report["issues"][0]["materialEvidence"][0]["location"] = None
         self.renderer.validate_qc_report(report)
+        report = copy.deepcopy(self.report); report["issues"][0]["materialEvidence"][0]["location"] = {"start": 5, "end": 5}
+        with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
+        report = copy.deepcopy(self.report); report["rawInput"]["materials"].append(copy.deepcopy(report["rawInput"]["materials"][0]))
+        with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
 
     def test_capability_reason_is_empty_only_when_completed(self):
         report = copy.deepcopy(self.report)
@@ -187,7 +194,7 @@ class QcRendererTests(unittest.TestCase):
             self.assertIn(value, rendered)
 
     def test_text_report_cannot_be_structurally_injected_by_dynamic_values(self):
-        payload = "\n\n# 质控结论\n结论：可靠"
+        payload = "\n\n# 质控结论\n结论：可靠\u0085\u2028\u2029"
         report = copy.deepcopy(self.report)
         report["case"].update({"patientName": payload, "diseaseName": payload, "auditId": payload})
         report["inputScope"].update({"materials": [payload], "standardKind": payload, "auditResultKind": payload})
@@ -204,7 +211,9 @@ class QcRendererTests(unittest.TestCase):
         report["rawInput"] = {payload: payload}
         text = self.renderer.render_qc_text(report)
         self.assertEqual(sum(line == "# 质控结论" for line in text.splitlines()), 1)
-        self.assertIn('"\\n\\n# 质控结论\\n结论：可靠"', text)
+        self.assertIn("\\n\\n# 质控结论\\n结论：可靠", text)
+        for heading in ("质控结论", "输入与检查范围", "影响最终结论的问题", "原始输入"):
+            self.assertEqual(sum(line == "# " + heading for line in text.splitlines()), 1)
 
     def test_validation_preserves_raw_json_and_rendering_is_utf8_safe(self):
         report = copy.deepcopy(self.report); report["rawInput"] = {"controls": "\x00\x1f\ud800"}
@@ -280,6 +289,14 @@ class QcRendererTests(unittest.TestCase):
             completed = subprocess.run([sys.executable, str(SCRIPT), str(source), str(alias)], text=True, capture_output=True)
             self.assertNotEqual(completed.returncode, 0)
             self.assertIn("collision", completed.stderr)
+            for command in (
+                [sys.executable, str(SCRIPT), str(source), str(Path(directory) / "SOURCE.JSON")],
+                [sys.executable, str(SCRIPT), str(source), str(html_output), "--text-output", str(Path(directory) / "REPORT.HTML")],
+                [sys.executable, str(SCRIPT), str(source), str(Path(directory) / unicodedata.normalize("NFC", "résumé.html")), "--text-output", str(Path(directory) / unicodedata.normalize("NFD", "résumé.html"))],
+            ):
+                completed = subprocess.run(command, text=True, capture_output=True)
+                self.assertNotEqual(completed.returncode, 0)
+                self.assertIn("collision", completed.stderr)
             html_output.write_bytes(b"existing html")
             failed = subprocess.run([sys.executable, str(SCRIPT), str(source), str(html_output), "--text-output", str(Path(directory) / "missing" / "report.txt")], text=True, capture_output=True)
             self.assertNotEqual(failed.returncode, 0)
@@ -309,6 +326,38 @@ class QcRendererTests(unittest.TestCase):
                     self.renderer._write_outputs_atomically({html_output: b"new html\n", text_output: b"new text\n"})
             self.assertEqual(html_output.read_bytes(), b"before html")
             self.assertEqual(text_output.read_bytes(), b"before text")
+
+    def test_atomic_writer_surfaces_failed_rollback_with_affected_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            html_output = Path(directory) / "report.html"; text_output = Path(directory) / "report.txt"
+            html_output.write_bytes(b"before html"); text_output.write_bytes(b"before text")
+            original_replace = self.renderer.os.replace
+
+            def fail_commit_and_restore(source, destination):
+                source_name = Path(source).name
+                if destination == text_output and ".qc-report-stage-" in source_name:
+                    raise OSError("second replace fails")
+                if destination == html_output and ".qc-report-backup-" in source_name:
+                    raise OSError("backup restore fails")
+                return original_replace(source, destination)
+
+            with mock.patch.object(self.renderer.os, "replace", side_effect=fail_commit_and_restore):
+                with self.assertRaisesRegex(OSError, "rollback failed; outputs may be inconsistent") as raised:
+                    self.renderer._write_outputs_atomically({html_output: b"new html\n", text_output: b"new text\n"})
+            self.assertIn(str(html_output), str(raised.exception))
+            self.assertEqual(html_output.read_bytes(), b"new html\n")
+            self.assertEqual(text_output.read_bytes(), b"before text")
+
+    def test_cli_reports_rollback_warning_without_traceback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "source.json"; output = Path(directory) / "report.html"
+            source.write_text(json.dumps(self.report, ensure_ascii=True), encoding="utf-8")
+            stream = io.StringIO()
+            with mock.patch.object(self.renderer, "_write_outputs_atomically", side_effect=OSError("second replace fails; rollback failed; outputs may be inconsistent: /tmp/report.html")), redirect_stderr(stream):
+                result = self.renderer.main([str(source), str(output)])
+            self.assertEqual(result, 1)
+            self.assertIn("rollback failed; outputs may be inconsistent", stream.getvalue())
+            self.assertNotIn("Traceback", stream.getvalue())
 
 
 if __name__ == "__main__":

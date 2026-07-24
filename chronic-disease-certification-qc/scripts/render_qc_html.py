@@ -8,6 +8,7 @@ import json
 import os
 import sys
 import tempfile
+import unicodedata
 from pathlib import Path
 
 
@@ -143,8 +144,8 @@ def _evidence(items, path, material_sources):
             continue
         _object(location, f"{point}.location", {"start", "end"})
         start, end = location["start"], location["end"]
-        if type(start) is not int or type(end) is not int or start < 0 or end < 0 or start > end:
-            _error(f"{point}.location", "start/end must be nonnegative integers with start <= end")
+        if type(start) is not int or type(end) is not int or start < 0 or end < 0 or start >= end:
+            _error(f"{point}.location", "start/end must be nonnegative integers with start < end")
         source = material_sources.get(item["materialId"])
         if source is not None and (end > len(source) or source[start:end] != item["rawText"]):
             _error(f"{point}.location", "must locate rawText in the source material")
@@ -156,6 +157,8 @@ def _material_sources(raw_input):
     sources = {}
     for item in raw_input["materials"]:
         if isinstance(item, dict) and isinstance(item.get("materialId"), str) and isinstance(item.get("content"), str):
+            if item["materialId"] in sources:
+                _error("rawInput.materials", "materialId must be unique")
             sources[item["materialId"]] = item["content"]
     return sources
 
@@ -250,7 +253,10 @@ def validate_qc_report(source):
 
 def _text_scalar(value):
     """Display a scalar as one JSON-quoted line, never as report structure."""
-    return json.dumps(_safe_text(str(value)), ensure_ascii=False)
+    displayed = _safe_text(str(value))
+    for separator in ("\u0085", "\u2028", "\u2029"):
+        displayed = displayed.replace(separator, f"\\u{ord(separator):04x}")
+    return json.dumps(displayed, ensure_ascii=False)
 
 
 def _evidence_text(evidence):
@@ -354,13 +360,31 @@ def _canonical_path(path):
         raise ValueError(f"output path cannot be resolved: {exc}") from None
 
 
+def _collision_key(path):
+    resolved = _canonical_path(path)
+    parent = _canonical_path(resolved.parent)
+    leaf = unicodedata.normalize("NFC", resolved.name).casefold()
+    return unicodedata.normalize("NFC", str(parent / leaf)).casefold()
+
+
+def _paths_collide(left, right):
+    left, right = _canonical_path(left), _canonical_path(right)
+    if left.exists() and right.exists():
+        try:
+            if os.path.samefile(left, right):
+                return True
+        except OSError:
+            pass
+    return _collision_key(left) == _collision_key(right)
+
+
 def _reject_output_collisions(input_path, html_output, text_output=None):
     named = [("input", _canonical_path(input_path)), ("HTML output", _canonical_path(html_output))]
     if text_output is not None:
         named.append(("text output", _canonical_path(text_output)))
     for index, (name, path) in enumerate(named):
         for other_name, other_path in named[index + 1:]:
-            if path == other_path:
+            if _paths_collide(path, other_path):
                 raise ValueError(f"output collision: {name} and {other_name} resolve to the same path")
     return {name: path for name, path in named}
 
@@ -390,7 +414,8 @@ def _write_outputs_atomically(outputs):
             os.replace(stage, destination)
             committed.append(destination)
             staged.pop(destination, None)
-    except Exception:
+    except Exception as commit_error:
+        rollback_errors = []
         for destination in reversed(committed):
             backup = backups.get(destination)
             try:
@@ -399,8 +424,11 @@ def _write_outputs_atomically(outputs):
                     backups.pop(destination, None)
                 elif destination.exists():
                     destination.unlink()
-            except OSError:
-                pass
+            except OSError as exc:
+                rollback_errors.append(f"{destination}: {exc}")
+        if rollback_errors:
+            detail = "; ".join(rollback_errors)
+            raise OSError(f"{commit_error}; rollback failed; outputs may be inconsistent: {detail}") from commit_error
         raise
     finally:
         for temporary in (*staged.values(), *backups.values()):
