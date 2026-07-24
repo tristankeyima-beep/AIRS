@@ -4,7 +4,7 @@
 
 ## 证据与规则
 
-- 每个问题和每项逐规则复核都必须记录证据状态，且只能是 `SUPPORTED`、`CONTRADICTED`、`NOT_FOUND`、`INSUFFICIENT`、`CONFLICTED`、`NOT_APPLICABLE`。`NOT_FOUND` 可与空的材料证据数组并存。
+- 每个问题和每项逐规则复核都必须记录证据状态，且只能是 `SUPPORTED`、`CONTRADICTED`、`NOT_FOUND`、`INSUFFICIENT`、`CONFLICTED`、`NOT_APPLICABLE`。`SUPPORTED`、`CONTRADICTED`、`INSUFFICIENT`、`CONFLICTED` 必须至少有一条材料证据；`NOT_FOUND`、`NOT_APPLICABLE` 必须没有材料证据。
 - 规则复核结果只能是“满足”“不满足”“无法判断”“不适用”。
 - 可质控的维度是：材料缺失判断准确性、证据提取准确性、过度推理、审核条件与结论一致性、规则维护质量。
 
@@ -12,6 +12,6 @@
 
 - 质控结论只能是：可靠、基本可靠、存在重大疑点、不可靠、无法确定。
 - 根级风险方向只能是：错误放行风险、错误拒绝风险、局部判断错误、仅影响规则质量、暂时无法判断、未发现明显风险。报告不得用“可能错误通过”或“可能错误不通过”。
-- `high` 表示可能改变最终结果；`medium` 表示影响规则、可执行性或解释；`low` 表示不直接影响最终结果。问题风险代码只可为 `false_approval`、`false_rejection`、`both`、`none`，并在报告中渲染成清晰中文风险表述。
+- `high` 表示可能改变最终结果；`medium` 表示影响规则、可执行性或解释；`low` 表示不直接影响最终结果。`changed` 和 `potentially_changed` 的问题严重度必须为 `high`；高严重度可对应任一影响状态。问题风险代码只可为 `false_approval`、`false_rejection`、`both`、`none`，并在报告中渲染成清晰中文风险表述。
 
 每个问题必须分别说明：模型主张、实际材料或标准证据、问题原因、可能影响和建议。没有材料明确表达的事实只能标为未找到、证据不足或无法判断，不能推断为肯定或否定。

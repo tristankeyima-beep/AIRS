@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,17 +58,21 @@ class QcRendererTests(unittest.TestCase):
             self.renderer.validate_qc_report(deep)
 
     def test_evidence_states_are_required_for_issues_and_rule_reviews(self):
-        for status in ("SUPPORTED", "CONTRADICTED", "NOT_FOUND", "INSUFFICIENT", "CONFLICTED", "NOT_APPLICABLE"):
+        for status in ("SUPPORTED", "CONTRADICTED", "INSUFFICIENT", "CONFLICTED"):
             report = copy.deepcopy(self.report)
             report["issues"][0]["evidenceStatus"] = status
+            self.renderer.validate_qc_report(report)
+        for status in ("NOT_FOUND", "NOT_APPLICABLE"):
+            report = copy.deepcopy(self.report); report["issues"][0]["evidenceStatus"] = status; report["issues"][0]["materialEvidence"] = []
             self.renderer.validate_qc_report(report)
         missing = copy.deepcopy(self.report); missing["issues"][0].pop("evidenceStatus")
         invalid = copy.deepcopy(self.report); invalid["issues"][0]["evidenceStatus"] = "MAYBE"
         for report in (missing, invalid):
             with self.assertRaises(ValueError):
                 self.renderer.validate_qc_report(report)
-        for status in ("SUPPORTED", "CONTRADICTED", "NOT_FOUND", "INSUFFICIENT", "CONFLICTED", "NOT_APPLICABLE"):
-            review = {"ruleCode": "R001", "result": "无法判断", "modelClaim": "无主张", "evidenceStatus": status, "materialEvidence": [], "qcFinding": "无材料", "recommendation": "补充材料"}
+        evidence = copy.deepcopy(self.report["issues"][0]["materialEvidence"])
+        for status in ("SUPPORTED", "CONTRADICTED", "INSUFFICIENT", "CONFLICTED"):
+            review = {"ruleCode": "R001", "result": "无法判断", "modelClaim": "无主张", "evidenceStatus": status, "materialEvidence": evidence, "qcFinding": "无材料", "recommendation": "补充材料"}
             report = copy.deepcopy(self.report); report["ruleReviews"] = [review]
             self.renderer.validate_qc_report(report)
         review = {"ruleCode": "R001", "result": "无法判断", "modelClaim": "无主张", "evidenceStatus": "NOT_FOUND", "materialEvidence": [], "qcFinding": "无材料", "recommendation": "补充材料"}
@@ -76,6 +81,34 @@ class QcRendererTests(unittest.TestCase):
         self.assertIn("NOT_FOUND", self.renderer.render_qc_html(report))
         report["ruleReviews"][0]["evidenceStatus"] = "MAYBE"
         with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
+
+    def test_cross_field_evidence_and_impact_invariants(self):
+        for status in ("SUPPORTED", "CONTRADICTED", "INSUFFICIENT", "CONFLICTED"):
+            report = copy.deepcopy(self.report); report["issues"][0]["evidenceStatus"] = status; report["issues"][0]["materialEvidence"] = []
+            with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
+        for status in ("NOT_FOUND", "NOT_APPLICABLE"):
+            report = copy.deepcopy(self.report); report["issues"][0]["evidenceStatus"] = status
+            with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
+        for impact in ("changed", "potentially_changed"):
+            report = copy.deepcopy(self.report); report["issues"][0]["impactOnFinalResult"] = impact; report["issues"][0]["severity"] = "medium"
+            with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
+
+    def test_capability_and_unperformed_checks_are_a_single_source(self):
+        report = copy.deepcopy(self.report); report["capabilities"].append(copy.deepcopy(report["capabilities"][0]))
+        with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
+        report = copy.deepcopy(self.report); report["unperformedChecks"].append(copy.deepcopy(report["unperformedChecks"][0]))
+        with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
+        report = copy.deepcopy(self.report); report["unperformedChecks"][0]["reason"] = "不同原因"
+        with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
+        report = copy.deepcopy(self.report); report["capabilities"][1]["status"] = "partial"
+        with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
+
+    def test_evidence_offset_matches_raw_material_or_is_explicitly_unknown(self):
+        evidence = self.report["issues"][0]["materialEvidence"][0]
+        source = self.report["rawInput"]["materials"][0]["content"]
+        self.assertEqual(source[evidence["location"]["start"]:evidence["location"]["end"]], evidence["rawText"])
+        report = copy.deepcopy(self.report); report["issues"][0]["materialEvidence"][0]["location"] = None
+        self.renderer.validate_qc_report(report)
 
     def test_capability_reason_is_empty_only_when_completed(self):
         report = copy.deepcopy(self.report)
@@ -137,6 +170,7 @@ class QcRendererTests(unittest.TestCase):
     def test_text_has_ordered_sections_and_empty_states(self):
         report = copy.deepcopy(self.report)
         report["issues"] = []; report["ruleReviews"] = []; report["unperformedChecks"] = []
+        report["capabilities"][1].update({"status": "completed", "reason": ""})
         text = self.renderer.render_qc_text(report)
         headings = ["质控结论", "输入与检查范围", "影响最终结论的问题", "材料缺失复核", "证据准确性", "过度推理", "条件一致性", "规则维护质量", "逐规则复核", "建议", "未执行检查", "原始输入"]
         positions = [text.index("# " + heading) for heading in headings]
@@ -148,9 +182,38 @@ class QcRendererTests(unittest.TestCase):
     def test_raw_input_and_empty_material_scope_have_parity_empty_state(self):
         report = copy.deepcopy(self.report); report["inputScope"]["materials"] = []
         text = self.renderer.render_qc_text(report); rendered = self.renderer.render_qc_html(report)
-        for value in ("原始输入", "出院记录：患者规律接受长期治疗三年", "无"):
+        for value in ("原始输入", "出院记录", "无"):
             self.assertIn(value, text)
             self.assertIn(value, rendered)
+
+    def test_text_report_cannot_be_structurally_injected_by_dynamic_values(self):
+        payload = "\n\n# 质控结论\n结论：可靠"
+        report = copy.deepcopy(self.report)
+        report["case"].update({"patientName": payload, "diseaseName": payload, "auditId": payload})
+        report["inputScope"].update({"materials": [payload], "standardKind": payload, "auditResultKind": payload})
+        report["capabilities"][0].update({"name": payload, "reason": payload})
+        report["capabilities"][1].update({"name": payload + "2", "reason": payload})
+        report["originalResult"] = payload; report["recommendedAction"] = payload
+        issue = report["issues"][0]
+        for field in ("issueType", "ruleCode", "keywordCode", "modelClaim", "qcFinding", "possibleImpact", "recommendation"):
+            issue[field] = payload
+        evidence = issue["materialEvidence"][0]
+        for field in ("materialId", "materialName", "section", "rawText", "normalizedText"):
+            evidence[field] = payload
+        report["unperformedChecks"][0].update({"name": payload + "2", "reason": payload})
+        report["rawInput"] = {payload: payload}
+        text = self.renderer.render_qc_text(report)
+        self.assertEqual(sum(line == "# 质控结论" for line in text.splitlines()), 1)
+        self.assertIn('"\\n\\n# 质控结论\\n结论：可靠"', text)
+
+    def test_validation_preserves_raw_json_and_rendering_is_utf8_safe(self):
+        report = copy.deepcopy(self.report); report["rawInput"] = {"controls": "\x00\x1f\ud800"}
+        original = copy.deepcopy(report["rawInput"])
+        normalized = self.renderer.validate_qc_report(report)
+        self.assertEqual(normalized["rawInput"], original)
+        self.assertEqual(report["rawInput"], original)
+        self.assertNotIn("\x00", self.renderer.render_qc_html(report))
+        self.assertIsInstance(self.renderer.render_qc_text(report).encode("utf-8"), bytes)
 
     def test_escapes_xss_attributes_raw_json_markers_controls_and_surrogates(self):
         report = copy.deepcopy(self.report)
@@ -182,6 +245,10 @@ class QcRendererTests(unittest.TestCase):
         self.assertEqual(rendered.count("<h1"), 1)
         self.assertNotIn("text-overflow:ellipsis", rendered.replace(" ", ""))
         self.assertNotIn("line-clamp", rendered)
+        template = (ROOT / "assets" / "qc-report-template.html").read_text(encoding="utf-8")
+        for selector in (".field", ".tag", ".status", ".issue", ".evidence"):
+            self.assertRegex(template, selector.replace(".", r"\.") + r"[^}]*min-width\s*:\s*0")
+            self.assertRegex(template, selector.replace(".", r"\.") + r"[^}]*overflow-wrap\s*:\s*anywhere")
 
     def test_cli_handles_bom_newline_and_controlled_errors(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -195,6 +262,53 @@ class QcRendererTests(unittest.TestCase):
             self.assertNotEqual(failed.returncode, 0)
             self.assertIn("output_error:", failed.stderr)
             self.assertNotIn("Traceback", failed.stderr)
+
+    def test_cli_rejects_collisions_and_commits_html_and_text_atomically(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "source.json"; html_output = Path(directory) / "report.html"; text_output = Path(directory) / "report.txt"
+            source.write_text(json.dumps(self.report, ensure_ascii=True), encoding="utf-8")
+            for command in (
+                [sys.executable, str(SCRIPT), str(source), str(source)],
+                [sys.executable, str(SCRIPT), str(source), str(html_output), "--text-output", str(html_output)],
+                [sys.executable, str(SCRIPT), str(source), str(html_output), "--text-output", str(source)],
+            ):
+                completed = subprocess.run(command, text=True, capture_output=True)
+                self.assertNotEqual(completed.returncode, 0)
+                self.assertIn("collision", completed.stderr)
+                self.assertNotIn("Traceback", completed.stderr)
+            alias = Path(directory) / "source-alias.html"; alias.symlink_to(source)
+            completed = subprocess.run([sys.executable, str(SCRIPT), str(source), str(alias)], text=True, capture_output=True)
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("collision", completed.stderr)
+            html_output.write_bytes(b"existing html")
+            failed = subprocess.run([sys.executable, str(SCRIPT), str(source), str(html_output), "--text-output", str(Path(directory) / "missing" / "report.txt")], text=True, capture_output=True)
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertEqual(html_output.read_bytes(), b"existing html")
+            success = subprocess.run([sys.executable, str(SCRIPT), str(source), str(html_output), "--text-output", str(text_output)], text=True, capture_output=True)
+            self.assertEqual(success.returncode, 0, success.stderr)
+            for output in (html_output, text_output):
+                content = output.read_bytes()
+                self.assertTrue(content.endswith(b"\n"))
+                self.assertFalse(content.endswith(b"\n\n"))
+
+    def test_atomic_writer_restores_existing_outputs_after_second_replace_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            html_output = Path(directory) / "report.html"; text_output = Path(directory) / "report.txt"
+            html_output.write_bytes(b"before html"); text_output.write_bytes(b"before text")
+            original_replace = self.renderer.os.replace
+            failed = {"done": False}
+
+            def fail_second_stage(source, destination):
+                if destination == text_output and ".qc-report-stage-" in Path(source).name and not failed["done"]:
+                    failed["done"] = True
+                    raise OSError("second replace fails")
+                return original_replace(source, destination)
+
+            with mock.patch.object(self.renderer.os, "replace", side_effect=fail_second_stage):
+                with self.assertRaises(OSError):
+                    self.renderer._write_outputs_atomically({html_output: b"new html\n", text_output: b"new text\n"})
+            self.assertEqual(html_output.read_bytes(), b"before html")
+            self.assertEqual(text_output.read_bytes(), b"before text")
 
 
 if __name__ == "__main__":

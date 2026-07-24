@@ -35,7 +35,7 @@
           "section": "治疗经过",
           "rawText": "患者规律接受长期治疗三年",
           "normalizedText": "",
-          "location": {"start": 12, "end": 27}
+          "location": {"start": 5, "end": 17}
         }
       ],
       "qcFinding": "材料中已经存在长期治疗证据，缺失判断不成立",
@@ -54,7 +54,13 @@
     }
   ],
   "rawInput": {
-    "materials": "出院记录：患者规律接受长期治疗三年",
+    "materials": [
+      {
+        "materialId": "M001",
+        "materialName": "出院记录",
+        "content": "出院记录：患者规律接受长期治疗三年"
+      }
+    ],
     "standard": "需有长期治疗证据",
     "auditResult": {"finalResult": "不通过", "advice": "缺少长期治疗证据"}
   }
