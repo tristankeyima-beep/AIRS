@@ -59,6 +59,7 @@ class _OfflineHtmlInspector(HTMLParser):
         "object",
         "embed",
         "source",
+        "base",
     }
     RESOURCE_ATTRIBUTES = {"src", "poster", "data", "action", "formaction"}
     RESOURCE_HREF_TAGS = {"link", "image", "use"}
@@ -72,6 +73,7 @@ class _OfflineHtmlInspector(HTMLParser):
         self.event_handlers = []
         self.style_attribute_resources = []
         self.meta_refreshes = []
+        self.xml_base_attributes = []
         self.style_blocks = []
         self._in_style = False
 
@@ -102,6 +104,8 @@ class _OfflineHtmlInspector(HTMLParser):
         for lowered_name, value in lowered_attrs:
             if lowered_name.startswith("on"):
                 self.event_handlers.append((lowered_tag, lowered_name))
+            if lowered_name == "xml:base":
+                self.xml_base_attributes.append((lowered_tag, value))
             if lowered_name == "style" and self.CSS_RESOURCE_RE.search(value):
                 self.style_attribute_resources.append((lowered_tag, value))
             if lowered_name == "srcset":
@@ -161,6 +165,7 @@ def assert_offline_html(testcase, rendered):
     testcase.assertEqual(inspector.event_handlers, [])
     testcase.assertEqual(inspector.style_attribute_resources, [])
     testcase.assertEqual(inspector.meta_refreshes, [])
+    testcase.assertEqual(inspector.xml_base_attributes, [])
     testcase.assertTrue(inspector.style_blocks, "offline HTML must retain inline CSS")
     css = "\n".join(inspector.style_blocks)
     testcase.assertIsNone(_OfflineHtmlInspector.CSS_RESOURCE_RE.search(css))
@@ -210,6 +215,17 @@ class OfflineHtmlInspectorTests(unittest.TestCase):
             with self.subTest(body=body):
                 self.assert_rejected(body)
 
+    def test_rejects_base_and_xml_base_fragment_rebasing(self):
+        for body in (
+            '<base href="/outside.svg"><svg><use href="#icon"></use></svg>',
+            '<BASE href="assets/" href="/shadow/"><svg>'
+            '<image href="#photo"></image></svg>',
+            '<svg xml:base="/assets/"><use href="#icon"></use></svg>',
+            '<svg XML:BASE=""><use href="#icon"></use></svg>',
+        ):
+            with self.subTest(body=body):
+                self.assert_rejected(body)
+
     def test_rejects_relative_video_audio_track_and_source_resources(self):
         for body in (
             '<video src="movie.mp4"></video>',
@@ -246,6 +262,7 @@ class OfflineHtmlInspectorTests(unittest.TestCase):
             "<iframe></iframe>",
             "<object></object>",
             "<embed>",
+            "<base>",
         ):
             with self.subTest(body=body):
                 self.assert_rejected(body)
