@@ -347,9 +347,15 @@ class MutationGeneratorTests(unittest.TestCase):
 
     def test_generator_builds_ten_deterministic_contract_cases(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            trusted = Path(temp_dir) / "fixtures"
+            anchor = Path(temp_dir)
+            trusted = anchor / "fixtures"
+            trusted.mkdir()
             generated = trusted / "generated"
-            self.module.generate(output_root=generated, trusted_base=trusted)
+            self.module.generate(
+                output_root=generated,
+                trusted_base=trusted,
+                trusted_anchor=anchor,
+            )
             first_digest = tree_digest(generated)
             first_bytes = {
                 path.relative_to(generated): path.read_bytes()
@@ -357,7 +363,11 @@ class MutationGeneratorTests(unittest.TestCase):
                 if path.is_file()
             }
 
-            self.module.generate(output_root=generated, trusted_base=trusted)
+            self.module.generate(
+                output_root=generated,
+                trusted_base=trusted,
+                trusted_anchor=anchor,
+            )
             self.assertEqual(tree_digest(generated), first_digest)
             self.assertEqual(
                 {
@@ -417,53 +427,93 @@ class MutationGeneratorTests(unittest.TestCase):
 
     def test_generator_preserves_unknown_files_and_rejects_root_symlink(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            trusted = Path(temp_dir) / "fixtures"
+            anchor = Path(temp_dir)
+            trusted = anchor / "fixtures"
             generated = trusted / "generated"
             generated.mkdir(parents=True)
             unknown = generated / "user-note.txt"
             unknown.write_text("保留我\n", encoding="utf-8")
-            self.module.generate(output_root=generated, trusted_base=trusted)
+            self.module.generate(
+                output_root=generated,
+                trusted_base=trusted,
+                trusted_anchor=anchor,
+            )
             self.assertEqual(unknown.read_text(encoding="utf-8"), "保留我\n")
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            base = Path(temp_dir)
-            trusted = base / "fixtures"
+            anchor = Path(temp_dir)
+            trusted = anchor / "fixtures"
             trusted.mkdir()
-            real_root = base / "real"
+            real_root = anchor / "real"
             real_root.mkdir()
             generated = trusted / "generated"
             generated.symlink_to(real_root, target_is_directory=True)
             with self.assertRaises(ValueError):
-                self.module.generate(output_root=generated, trusted_base=trusted)
+                self.module.generate(
+                    output_root=generated,
+                    trusted_base=trusted,
+                    trusted_anchor=anchor,
+                )
             self.assertEqual(list(real_root.iterdir()), [])
 
     def test_generator_rejects_symlink_in_an_ancestor_above_fixtures(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            base = Path(temp_dir)
-            external = base / "external"
+            anchor = Path(temp_dir) / "anchor"
+            anchor.mkdir()
+            external = Path(temp_dir) / "external"
             external.mkdir()
-            linked_parent = base / "link"
+            linked_parent = anchor / "link"
             linked_parent.symlink_to(external, target_is_directory=True)
-            trusted = linked_parent / "fixtures"
+            trusted = linked_parent / "nested" / "fixtures"
             generated = trusted / "generated"
             with self.assertRaisesRegex(ValueError, "符号链接"):
-                self.module.generate(output_root=generated, trusted_base=trusted)
+                self.module.generate(
+                    output_root=generated,
+                    trusted_base=trusted,
+                    trusted_anchor=anchor,
+                )
             self.assertEqual(list(external.iterdir()), [])
 
     def test_generator_rejects_escape_and_regular_file_roots(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            trusted = Path(temp_dir) / "fixtures"
+            anchor = Path(temp_dir)
+            trusted = anchor / "fixtures"
             trusted.mkdir()
-            outside = Path(temp_dir) / "outside" / "generated"
+            outside = anchor / "outside" / "generated"
             with self.assertRaisesRegex(ValueError, "可信目录"):
-                self.module.generate(output_root=outside, trusted_base=trusted)
+                self.module.generate(
+                    output_root=outside,
+                    trusted_base=trusted,
+                    trusted_anchor=anchor,
+                )
             self.assertFalse(outside.exists())
 
             generated = trusted / "generated"
             generated.write_text("不是目录\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "普通目录"):
-                self.module.generate(output_root=generated, trusted_base=trusted)
+                self.module.generate(
+                    output_root=generated,
+                    trusted_base=trusted,
+                    trusted_anchor=anchor,
+                )
             self.assertEqual(generated.read_text(encoding="utf-8"), "不是目录\n")
+
+    def test_custom_generation_requires_an_explicit_existing_trusted_anchor(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            anchor = Path(temp_dir)
+            trusted = anchor / "fixtures"
+            trusted.mkdir()
+            generated = trusted / "generated"
+            with self.assertRaisesRegex(ValueError, "trusted_anchor"):
+                self.module.generate(output_root=generated, trusted_base=trusted)
+
+            missing_anchor = anchor / "missing"
+            with self.assertRaisesRegex(ValueError, "已存在"):
+                self.module.generate(
+                    output_root=generated,
+                    trusted_base=trusted,
+                    trusted_anchor=missing_anchor,
+                )
 
     def test_main_generated_fixtures_match_the_contract(self):
         self.module.generate()

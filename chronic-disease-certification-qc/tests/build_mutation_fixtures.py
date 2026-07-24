@@ -328,24 +328,32 @@ def _reject_symlink_components(path, boundary):
             raise ValueError(f"路径组件不能是符号链接：{current}")
 
 
-def _validate_output_root(output_root, trusted_base):
+def _validate_output_root(output_root, trusted_base, trusted_anchor):
     output_root = _absolute_lexical(output_root)
     trusted_base = _absolute_lexical(trusted_base)
+    trusted_anchor = _absolute_lexical(trusted_anchor)
     if output_root.name != "generated":
         raise ValueError("输出目录名必须是 generated")
+    if not trusted_anchor.exists() or not trusted_anchor.is_dir():
+        raise ValueError("trusted_anchor 必须是已存在的普通目录")
+    if trusted_anchor.is_symlink():
+        raise ValueError("trusted_anchor 不能是符号链接")
+    if trusted_base == trusted_anchor or trusted_anchor not in trusted_base.parents:
+        raise ValueError("可信目录必须位于 trusted_anchor 内")
     if output_root == trusted_base or trusted_base not in output_root.parents:
         raise ValueError("输出目录必须位于可信目录内")
 
-    boundary = trusted_base.parent
-    if not boundary.exists() or not boundary.is_dir():
-        raise ValueError("可信目录的父目录必须是已存在的普通目录")
-    _reject_symlink_components(trusted_base, boundary)
-    _reject_symlink_components(output_root, boundary)
-    trusted_base.mkdir(exist_ok=True)
-    _reject_symlink_components(trusted_base, boundary)
-    _reject_symlink_components(output_root, boundary)
+    _reject_symlink_components(trusted_base, trusted_anchor)
+    _reject_symlink_components(output_root, trusted_anchor)
+    if not trusted_base.exists() or not trusted_base.is_dir():
+        raise ValueError("可信目录必须是已存在的普通目录")
+    if trusted_base.is_symlink():
+        raise ValueError("可信目录不能是符号链接")
 
+    anchor_resolved = trusted_anchor.resolve(strict=True)
     trusted_resolved = trusted_base.resolve(strict=True)
+    if trusted_resolved == anchor_resolved or anchor_resolved not in trusted_resolved.parents:
+        raise ValueError("解析后的可信目录必须位于 trusted_anchor 内")
     output_resolved = output_root.resolve(strict=False)
     if output_resolved == trusted_resolved or trusted_resolved not in output_resolved.parents:
         raise ValueError("解析后的输出目录必须位于可信目录内")
@@ -353,9 +361,9 @@ def _validate_output_root(output_root, trusted_base):
         raise ValueError("生成目录必须是普通目录")
 
     output_root.parent.mkdir(parents=True, exist_ok=True)
-    _reject_symlink_components(output_root, boundary)
+    _reject_symlink_components(output_root, trusted_anchor)
     output_root.mkdir(exist_ok=True)
-    _reject_symlink_components(output_root, boundary)
+    _reject_symlink_components(output_root, trusted_anchor)
     if not output_root.is_dir():
         raise ValueError("生成目录必须是普通目录")
     if trusted_resolved not in output_root.resolve(strict=True).parents:
@@ -419,10 +427,14 @@ def _write_case(root, name, case):
         _atomic_write(case_dir / filename, payloads[filename])
 
 
-def generate(output_root=None, trusted_base=None):
+def generate(output_root=None, trusted_base=None, trusted_anchor=None):
+    custom_paths = output_root is not None or trusted_base is not None
+    if custom_paths and trusted_anchor is None:
+        raise ValueError("非默认生成必须显式提供 trusted_anchor")
+    anchor = ROOT if trusted_anchor is None else Path(trusted_anchor)
     trusted = FIXTURES if trusted_base is None else Path(trusted_base)
     output = GENERATED if output_root is None else Path(output_root)
-    root = _validate_output_root(output, trusted)
+    root = _validate_output_root(output, trusted, anchor)
     for name, case in sorted(build_cases().items()):
         _write_case(root, name, case)
     return root
@@ -432,7 +444,11 @@ def build_mutation_fixtures(generated_root=None):
     if generated_root is None:
         return generate()
     root = Path(generated_root)
-    return generate(output_root=root, trusted_base=root.parent)
+    return generate(
+        output_root=root,
+        trusted_base=root.parent,
+        trusted_anchor=root.parent.parent,
+    )
 
 
 def main():
