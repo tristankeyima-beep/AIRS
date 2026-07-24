@@ -440,14 +440,28 @@ def generate(output_root=None, trusted_base=None, trusted_anchor=None):
     return root
 
 
-def build_mutation_fixtures(generated_root=None):
-    if generated_root is None:
+def build_mutation_fixtures(
+    generated_root=None,
+    *,
+    trusted_base=None,
+    trusted_anchor=None,
+):
+    """Build fixtures at the fixed default path or an explicitly anchored custom path.
+
+    Custom generation never infers a trust boundary: ``generated_root``,
+    ``trusted_base``, and ``trusted_anchor`` must be supplied together.
+    """
+    values = (generated_root, trusted_base, trusted_anchor)
+    if all(value is None for value in values):
         return generate()
-    root = Path(generated_root)
+    if any(value is None for value in values):
+        raise ValueError(
+            "自定义 generated_root 必须同时显式提供 trusted_base 和 trusted_anchor"
+        )
     return generate(
-        output_root=root,
-        trusted_base=root.parent,
-        trusted_anchor=root.parent.parent,
+        output_root=Path(generated_root),
+        trusted_base=Path(trusted_base),
+        trusted_anchor=Path(trusted_anchor),
     )
 
 

@@ -515,8 +515,43 @@ class MutationGeneratorTests(unittest.TestCase):
                     trusted_anchor=missing_anchor,
                 )
 
+    def test_compatibility_entry_never_infers_anchor_for_custom_paths(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            anchor = Path(temp_dir)
+            trusted = anchor / "fixtures"
+            trusted.mkdir()
+            generated = trusted / "generated"
+            with self.assertRaisesRegex(ValueError, "trusted_base.*trusted_anchor"):
+                self.module.build_mutation_fixtures(generated)
+            self.assertFalse(generated.exists())
+
+            self.module.build_mutation_fixtures(
+                generated,
+                trusted_base=trusted,
+                trusted_anchor=anchor,
+            )
+            self.assertTrue(generated.is_dir())
+
+    def test_compatibility_entry_rejects_deep_link_attack_without_external_write(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            anchor = Path(temp_dir) / "anchor"
+            anchor.mkdir()
+            external = Path(temp_dir) / "external"
+            external.mkdir()
+            link = anchor / "link"
+            link.symlink_to(external, target_is_directory=True)
+            trusted = link / "nested" / "fixtures"
+            generated = trusted / "generated"
+            with self.assertRaisesRegex(ValueError, "符号链接"):
+                self.module.build_mutation_fixtures(
+                    generated,
+                    trusted_base=trusted,
+                    trusted_anchor=anchor,
+                )
+            self.assertEqual(list(external.iterdir()), [])
+
     def test_main_generated_fixtures_match_the_contract(self):
-        self.module.generate()
+        self.module.build_mutation_fixtures()
         generated = ROOT / "tests" / "fixtures" / "generated"
         self.assertEqual(
             {path.name for path in generated.iterdir() if path.is_dir()},
