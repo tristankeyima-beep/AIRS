@@ -198,17 +198,21 @@ class SkillContractTests(unittest.TestCase):
         parity = self.mode_2_step_number(steps, "一致性核验")
         self.assertEqual(read_refs, 1)
         self.assertEqual(
-            [read_refs, inventory, omission_question, confirmation, classify, independent,
+            [read_refs, classify, inventory, omission_question, confirmation, independent,
              comparison, canonical, renderer, parity],
-            sorted([read_refs, inventory, omission_question, confirmation, classify, independent,
+            sorted([read_refs, classify, inventory, omission_question, confirmation, independent,
                     comparison, canonical, renderer, parity]),
         )
         self.assertIn("变体 B", steps[inventory])
         self.assertIn("正式文本或 HTML", steps[omission_question])
         self.assertIn("用户补充", steps[omission_question])
         self.assertIn("重新清点", steps[omission_question])
-        self.assertIn("明确确认没有更多内容", steps[confirmation])
+        self.assertIn("明确确认完整", steps[confirmation])
+        self.assertIn("confirmed_complete", steps[confirmation])
+        self.assertIn("confirmedAfterInventory", steps[confirmation])
         self.assertIn("不使用原审核结果", steps[independent])
+        self.assertIn("artifact", steps[independent])
+        self.assertIn("artifactSha256", steps[independent])
         self.assertIn("evaluate_logic.py", steps[independent])
         self.assertIn("not_run", steps[comparison])
         self.assertIn("五个维度", steps[canonical])
@@ -275,8 +279,8 @@ class SkillContractTests(unittest.TestCase):
 
         for marker in ("confirmedByUser", "用户明确确认", "正式文本", "HTML", "同一个规范对象", "render_qc_html.py", "直接返回", "重新读取", "一致性核验"):
             self.assertIn(marker, contract + skill_text)
-        self.assertIn("审计结论说没有漏传", skill_text)
-        self.assertIn("清点之后", skill_text)
+        self.assertIn("审核/工作人员文本", skill_text)
+        self.assertIn("清点后的", skill_text)
         self.assertIn("结论-only", skill_text)
 
     def test_qc_references_lock_rule_maintenance_taxonomy_risk_label_and_interpretation_paths(self):
@@ -296,6 +300,7 @@ class SkillContractTests(unittest.TestCase):
         for text in (rubric, contract, renderer):
             self.assertIn("未发现明显风险", text)
             self.assertNotIn("未发现直接风险", text)
+        self.assertNotIn("双向" + "风险", skill + adapters + rubric + contract + renderer)
         self.assertIn("interpretationPaths", skill)
         for text in (adapters, rubric, contract, renderer):
             self.assertIn("interpretationPaths", text)
@@ -312,7 +317,7 @@ class SkillContractTests(unittest.TestCase):
         contract = (SKILL_ROOT / "references" / "report-contract.md").read_text(encoding="utf-8")
         joined = skill + adapters + rubric + contract
 
-        for marker in ("inputScope.inventory", "revision", "inventorySha256", "userStatement", "referencedButMissing", "independentReview", "artifactSha256", "completedBeforeComparison", "isolated_blind", "independent_non_blind", "确认偏差", "冻结", "SHA-256"):
+        for marker in ("inputScope.inventory", "revision", "inventorySha256", "rawInputSha256", "userStatement", "confirmed_complete", "confirmedAfterInventory", "referencedButMissing", "independentReview", "artifact", "artifactSha256", "completedBeforeComparison", "isolated_blind", "independent_non_blind", "确认偏差", "冻结", "SHA-256"):
             self.assertIn(marker, joined)
         for marker in ("structured_complete", "structured_incomplete", "natural_language", "absent", "detailed", "brief", "conclusion_only", "材料缺失判断准确性", "证据提取准确性", "过度推理", "审核条件与结论一致性", "规则维护质量", "错误放行与错误拒绝风险"):
             self.assertIn(marker, joined)

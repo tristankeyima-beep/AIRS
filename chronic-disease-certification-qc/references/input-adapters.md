@@ -4,13 +4,13 @@
 
 ## 输入清点与确认关口
 
-首次响应必须先展示已收到的清单：患者材料（文件名/材料 ID/页或段）、认定标准、审核过程或明细、最终审核结论。清单中必须说明输入变体：
+首次先运行权威 `python3 scripts/inspect_standard.py` 分类标准并记录缺陷/警告；该结果先于 inventory 的构造、展示与摘要，且 `inventory.standardKind` 必须与其一致。随后展示已收到的清单：患者材料（文件名/材料 ID/页或段）、认定标准、审核过程或明细、最终审核结论。清单中必须说明输入变体：
 
 - 变体 A：患者材料 + 仅审核结论或简要结果。它没有可逐项复核的证据/规则过程。
 - 变体 B：患者材料 + 认定标准 + 详细审核结果和结论。它可以在适用能力范围内做逐项比对。
 - 也要单列无标准、`structured_incomplete` 和自然语言标准，不把它们悄悄混入“完整标准”。
 
-无论审核是否引用了缺失材料或规则配置，都必须在任何正式文本或 HTML 前明确询问“是否遗漏任何内容？”。审核引用却未提供的材料/规则配置应单独提示，但不能代替这句无条件确认。每次展示都构造 `inputScope.inventory`，revision 为正整数，含材料、标准/审核结果类型、是否有审核过程、必有最终结论以及审核引用但未提供项；用 `json.dumps(inventory, sort_keys=True, separators=(',', ':'), ensure_ascii=True)` 的 SHA-256 作为确认摘要。用户补充后 revision 加一、重算摘要、旧确认失效，重新清点和再次询问；只有用户在当前清点之后明确确认没有更多内容，才可将 revision、摘要和用户原话写入 `inputScope.confirmation` 并设置 `confirmedByUser=true`。用户、审核结论或工作人员说“没有漏传”若发生在清点之前，不是有效确认；急件也不例外。
+无论审核是否引用了缺失材料或规则配置，都必须在任何正式文本或 HTML 前明确询问“是否遗漏任何内容？”。审核引用却未提供的材料/规则配置应单独提示，但不能代替这句无条件确认。每次展示都构造 `inputScope.inventory`，revision 为正整数，含材料、权威分类的标准/审核结果类型、是否有审核过程、必有最终结论、审核引用但未提供项和 `rawInputSha256`；后者严格为 `sha256(json.dumps(rawInput, sort_keys=True, separators=(',', ':'), ensure_ascii=True, allow_nan=False))`，并纳入 `inventorySha256`。用户补充材料、标准或审核内容后必须先重新分类；分类或任何原始输入变化均使 revision 加一、重算两种摘要并使旧确认失效，重新清点和再次询问。只有用户在当前清点之后明确确认完整，才可写入 `confirmedRevision`、摘要、原话、`outcome=confirmed_complete`、`confirmedAfterInventory=true` 并设置 `confirmedByUser=true`。只接受“没有更多内容/无更多内容/没有遗漏/没有漏传/已全部提供/以上为全部/确认完整”等明确答复；审核、工作人员文本、急件、“应该没有”等都不是确认。
 
 ## 标准形态与能力范围
 

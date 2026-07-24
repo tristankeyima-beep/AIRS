@@ -16,17 +16,30 @@
       "auditResultKind": "detailed",
       "hasAuditProcess": true,
       "hasFinalConclusion": true,
-      "referencedButMissing": []
+      "referencedButMissing": [],
+      "rawInputSha256": "63add0e0d2ff487df98e0dec1b90d66eafe697c73e562674255af1ffc63acd5e"
     },
     "confirmation": {
       "confirmedRevision": 1,
-      "inventorySha256": "f46d5398941059a4b5c77e3289e8b0ac38a9a6d454c0c3bf1965cb393ad933a6",
-      "userStatement": "确认没有更多内容"
+      "inventorySha256": "4cc412438f9a28c61fafff150a0a128df39b32832665005dfb2d9e39a32d676f",
+      "userStatement": "确认没有更多内容",
+      "outcome": "confirmed_complete",
+      "confirmedAfterInventory": true
     },
     "independentReview": {
       "mode": "isolated_blind",
       "completedBeforeComparison": true,
-      "artifactSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      "artifact": {
+        "materialFacts": [
+          {"materialId": "M001", "fact": "长期治疗三年"}
+        ],
+        "standardKind": "natural_language",
+        "ruleResults": [
+          {"ruleCode": "TMP-R001", "result": "不满足"}
+        ],
+        "finalResult": "不满足"
+      },
+      "artifactSha256": "657d298caa2472751b57f6b500c05d739c0a2c70f7c88a9ff0e84c2e65930f1e"
     }
   },
   "capabilities": [

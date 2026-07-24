@@ -30,10 +30,126 @@ class QcRendererTests(unittest.TestCase):
         self.renderer = load_renderer()
         self.report = json.loads(FIXTURE.read_text(encoding="utf-8"))
 
+    def bound_report(self):
+        report = copy.deepcopy(self.report)
+        inventory = report["inputScope"]["inventory"]
+        inventory["rawInputSha256"] = self.renderer.compute_raw_input_sha256(report["rawInput"])
+        report["inputScope"]["confirmation"].update({
+            "inventorySha256": self.renderer.compute_inventory_sha256(inventory),
+            "outcome": "confirmed_complete",
+            "confirmedAfterInventory": True,
+        })
+        artifact = {
+            "materialFacts": [{"materialId": "M001", "fact": "长期治疗三年"}],
+            "standardKind": report["inputScope"]["standardKind"],
+            "ruleResults": [{"ruleCode": "TMP-R001", "result": "不满足"}],
+            "finalResult": "不满足",
+        }
+        report["inputScope"]["independentReview"].update({
+            "artifact": artifact,
+            "artifactSha256": self.renderer.compute_independent_review_sha256(artifact),
+        })
+        return report
+
+    def rebind_attestations(self, report):
+        inventory = report["inputScope"]["inventory"]
+        inventory["rawInputSha256"] = self.renderer.compute_raw_input_sha256(report["rawInput"])
+        report["inputScope"]["confirmation"]["inventorySha256"] = self.renderer.compute_inventory_sha256(inventory)
+        artifact = report["inputScope"]["independentReview"]["artifact"]
+        artifact["standardKind"] = report["inputScope"]["standardKind"]
+        report["inputScope"]["independentReview"]["artifactSha256"] = self.renderer.compute_independent_review_sha256(artifact)
+
+    def set_capability_status(self, report, category, status, reason=""):
+        for capability in report["capabilities"]:
+            if capability["name"] == category:
+                capability.update({"status": status, "reason": reason})
+                break
+        report["unperformedChecks"] = [item for item in report["unperformedChecks"] if item["name"] != category]
+        if status == "not_run":
+            report["unperformedChecks"].append({"name": category, "reason": reason})
+
+    def test_attestation_hash_helpers_use_canonical_json(self):
+        raw_input = {"b": ["中", 2], "a": {"x": True}}
+        artifact = {"materialFacts": [], "standardKind": "absent", "ruleResults": [], "finalResult": "无法判断"}
+        canonical_raw = json.dumps(raw_input, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False).encode("utf-8")
+        canonical_artifact = json.dumps(artifact, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False).encode("utf-8")
+        self.assertEqual(self.renderer.compute_raw_input_sha256(raw_input), hashlib.sha256(canonical_raw).hexdigest())
+        self.assertEqual(self.renderer.compute_independent_review_sha256(artifact), hashlib.sha256(canonical_artifact).hexdigest())
+
+    def test_inventory_is_bound_to_all_raw_input_components(self):
+        report = self.bound_report()
+        self.renderer.validate_qc_report(report)
+        mutations = (
+            lambda raw: raw["materials"][0].__setitem__("content", "已变更材料"),
+            lambda raw: raw.__setitem__("standard", "已变更标准"),
+            lambda raw: raw["auditResult"].__setitem__("advice", "已变更审核内容"),
+        )
+        for mutate in mutations:
+            invalid = copy.deepcopy(report)
+            mutate(invalid["rawInput"])
+            with self.assertRaisesRegex(ValueError, "rawInputSha256"):
+                self.renderer.validate_qc_report(invalid)
+
+    def test_confirmation_requires_explicit_post_inventory_completeness(self):
+        report = self.bound_report()
+        for statement in ("确认没有更多内容", "无更多内容", "没有遗漏", "没有漏传", "已全部提供", "以上为全部", "确认完整"):
+            candidate = copy.deepcopy(report)
+            candidate["inputScope"]["confirmation"]["userStatement"] = statement
+            self.renderer.validate_qc_report(candidate)
+        for statement in ("很急，立即出报告", "应该没有", "   "):
+            candidate = copy.deepcopy(report)
+            candidate["inputScope"]["confirmation"]["userStatement"] = statement
+            with self.assertRaisesRegex(ValueError, "userStatement"):
+                self.renderer.validate_qc_report(candidate)
+        for field, value in (("outcome", "pending"), ("confirmedAfterInventory", False)):
+            candidate = copy.deepcopy(report)
+            candidate["inputScope"]["confirmation"][field] = value
+            with self.assertRaisesRegex(ValueError, field):
+                self.renderer.validate_qc_report(candidate)
+
+    def test_independent_artifact_is_frozen_and_validated(self):
+        report = self.bound_report()
+        self.renderer.validate_qc_report(report)
+        missing = copy.deepcopy(report); missing["inputScope"]["independentReview"].pop("artifact")
+        with self.assertRaisesRegex(ValueError, "artifact"):
+            self.renderer.validate_qc_report(missing)
+        mismatch = copy.deepcopy(report); mismatch["inputScope"]["independentReview"]["artifactSha256"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "artifactSha256"):
+            self.renderer.validate_qc_report(mismatch)
+        kind_mismatch = copy.deepcopy(report); kind_mismatch["inputScope"]["independentReview"]["artifact"]["standardKind"] = "absent"; kind_mismatch["inputScope"]["independentReview"]["artifactSha256"] = self.renderer.compute_independent_review_sha256(kind_mismatch["inputScope"]["independentReview"]["artifact"])
+        with self.assertRaisesRegex(ValueError, "artifact.standardKind"):
+            self.renderer.validate_qc_report(kind_mismatch)
+        duplicate = copy.deepcopy(report); duplicate["inputScope"]["independentReview"]["artifact"]["ruleResults"].append({"ruleCode": "TMP-R001", "result": "满足"}); self.rebind_attestations(duplicate)
+        with self.assertRaisesRegex(ValueError, "ruleCode"):
+            self.renderer.validate_qc_report(duplicate)
+        absent = copy.deepcopy(report)
+        absent["inputScope"]["standardKind"] = absent["inputScope"]["inventory"]["standardKind"] = "absent"
+        self.set_capability_status(absent, "规则维护质量", "not_run", "未提供认定标准")
+        self.rebind_attestations(absent)
+        with self.assertRaisesRegex(ValueError, "ruleResults|finalResult"):
+            self.renderer.validate_qc_report(absent)
+
+    def test_issues_require_a_non_not_run_matching_capability(self):
+        for category in self.renderer.CANONICAL_CAPABILITIES:
+            for status in ("completed", "partial"):
+                report = self.bound_report()
+                report["inputScope"]["standardKind"] = report["inputScope"]["inventory"]["standardKind"] = "structured_complete"
+                self.set_capability_status(report, category, status, "" if status == "completed" else "范围受限")
+                report["issues"][0]["category"] = category
+                self.rebind_attestations(report)
+                self.renderer.validate_qc_report(report)
+            invalid = self.bound_report()
+            self.set_capability_status(invalid, category, "not_run", "本项未执行")
+            invalid["issues"][0]["category"] = category
+            with self.assertRaisesRegex(ValueError, "issues\\[0\\].category"):
+                self.renderer.validate_qc_report(invalid)
+
     def test_fixture_renders_all_core_facts_offline(self):
         rendered = self.renderer.render_qc_html(FIXTURE)
-        for value in ("不可靠", "错误拒绝风险", "患者规律接受长期治疗三年", "未执行的检查", "原始输入"):
+        text = self.renderer.render_qc_text(FIXTURE)
+        for value in ("不可靠", "错误拒绝风险", "患者规律接受长期治疗三年", "原始输入", "原始输入摘要", "确认结果", "冻结独立复核产物", "materialFacts", "ruleResults", "finalResult", "657d298caa2472751b57f6b500c05d739c0a2c70f7c88a9ff0e84c2e65930f1e"):
             self.assertIn(value, rendered)
+            self.assertIn(value, text)
         self.assertNotIn("http://", rendered)
         self.assertNotIn("https://", rendered)
 
@@ -179,22 +295,11 @@ class QcRendererTests(unittest.TestCase):
                 self.renderer.validate_qc_report(report)
 
     def test_input_scope_attestations_and_canonical_kinds_are_required_and_rendered(self):
-        report = copy.deepcopy(self.report)
-        inventory = {
-            "revision": 1,
-            "materials": report["inputScope"]["materials"],
-            "standardKind": report["inputScope"]["standardKind"],
-            "auditResultKind": report["inputScope"]["auditResultKind"],
-            "hasAuditProcess": True,
-            "hasFinalConclusion": True,
-            "referencedButMissing": ["规则配置"],
-        }
-        digest = hashlib.sha256(json.dumps(inventory, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")).hexdigest()
-        report["inputScope"].update({
-            "inventory": inventory,
-            "confirmation": {"confirmedRevision": 1, "inventorySha256": digest, "userStatement": "确认没有更多内容"},
-            "independentReview": {"mode": "isolated_blind", "completedBeforeComparison": True, "artifactSha256": "a" * 64},
-        })
+        report = self.bound_report()
+        inventory = report["inputScope"]["inventory"]
+        inventory["referencedButMissing"] = ["规则配置"]
+        self.rebind_attestations(report)
+        digest = report["inputScope"]["confirmation"]["inventorySha256"]
         self.assertEqual(self.renderer.compute_inventory_sha256(inventory), digest)
         text = self.renderer.render_qc_text(report); rendered = self.renderer.render_qc_html(report)
         for value in ("isolated_blind", digest, "确认没有更多内容", "规则配置"):
@@ -212,12 +317,8 @@ class QcRendererTests(unittest.TestCase):
             with self.assertRaises(ValueError): self.renderer.validate_qc_report(invalid)
 
     def test_capability_matrix_and_outcome_risk_invariants_are_enforced(self):
-        report = copy.deepcopy(self.report)
-        report["inputScope"].update({
-            "inventory": {"revision": 1, "materials": report["inputScope"]["materials"], "standardKind": "natural_language", "auditResultKind": "detailed", "hasAuditProcess": True, "hasFinalConclusion": True, "referencedButMissing": []},
-            "independentReview": {"mode": "independent_non_blind", "completedBeforeComparison": True, "artifactSha256": "b" * 64},
-        })
-        report["inputScope"]["confirmation"] = {"confirmedRevision": 1, "inventorySha256": self.renderer.compute_inventory_sha256(report["inputScope"]["inventory"]), "userStatement": "确认"}
+        report = self.bound_report()
+        report["inputScope"]["independentReview"]["mode"] = "independent_non_blind"
         report["capabilities"] = [
             {"name": "材料缺失判断准确性", "status": "completed", "reason": ""},
             {"name": "证据提取准确性", "status": "completed", "reason": ""},
@@ -236,10 +337,10 @@ class QcRendererTests(unittest.TestCase):
         invalid = copy.deepcopy(report); invalid["inputScope"]["auditResultKind"] = "conclusion_only"; invalid["inputScope"]["inventory"].update({"auditResultKind": "conclusion_only", "hasAuditProcess": False}); invalid["inputScope"]["confirmation"]["inventorySha256"] = self.renderer.compute_inventory_sha256(invalid["inputScope"]["inventory"])
         with self.assertRaisesRegex(ValueError, "capabilities"):
             self.renderer.validate_qc_report(invalid)
-        invalid = copy.deepcopy(report); invalid["inputScope"]["standardKind"] = "absent"; invalid["inputScope"]["inventory"]["standardKind"] = "absent"; invalid["inputScope"]["confirmation"]["inventorySha256"] = self.renderer.compute_inventory_sha256(invalid["inputScope"]["inventory"])
+        invalid = copy.deepcopy(report); invalid["inputScope"]["standardKind"] = "absent"; invalid["inputScope"]["inventory"]["standardKind"] = "absent"; self.rebind_attestations(invalid)
         with self.assertRaisesRegex(ValueError, "规则维护质量"):
             self.renderer.validate_qc_report(invalid)
-        invalid = copy.deepcopy(report); invalid["inputScope"]["standardKind"] = "structured_incomplete"; invalid["inputScope"]["inventory"]["standardKind"] = "structured_incomplete"; invalid["inputScope"]["confirmation"]["inventorySha256"] = self.renderer.compute_inventory_sha256(invalid["inputScope"]["inventory"]); invalid["capabilities"][3] = {"name": "审核条件与结论一致性", "status": "completed", "reason": ""}
+        invalid = copy.deepcopy(report); invalid["inputScope"]["standardKind"] = "structured_incomplete"; invalid["inputScope"]["inventory"]["standardKind"] = "structured_incomplete"; self.rebind_attestations(invalid); invalid["capabilities"][3] = {"name": "审核条件与结论一致性", "status": "completed", "reason": ""}
         with self.assertRaisesRegex(ValueError, "审核条件与结论一致性"):
             self.renderer.validate_qc_report(invalid)
         invalid = copy.deepcopy(report); invalid["issues"][0]["riskDirection"] = "false_approval"; invalid["riskDirection"] = "错误拒绝风险"
@@ -277,6 +378,7 @@ class QcRendererTests(unittest.TestCase):
             {"name": "过度推理", "reason": "仅提供最终结论"},
         ]
         conclusion_only["inputScope"]["confirmation"]["inventorySha256"] = self.renderer.compute_inventory_sha256(conclusion_only["inputScope"]["inventory"])
+        conclusion_only["issues"] = []
         self.renderer.validate_qc_report(conclusion_only)
         invalid = copy.deepcopy(conclusion_only); invalid["capabilities"][0] = {"name": "材料缺失判断准确性", "status": "completed", "reason": ""}; invalid["unperformedChecks"] = [item for item in invalid["unperformedChecks"] if item["name"] != "材料缺失判断准确性"]
         with self.assertRaisesRegex(ValueError, "材料缺失判断准确性"):
@@ -314,11 +416,13 @@ class QcRendererTests(unittest.TestCase):
         report = copy.deepcopy(self.report)
         report["issues"] = []; report["ruleReviews"] = []
         report["rawInput"]["materials"].append(copy.deepcopy(report["rawInput"]["materials"][0]))
+        self.rebind_attestations(report)
         with self.assertRaisesRegex(ValueError, "materialId must be unique"):
             self.renderer.validate_qc_report(report)
         report = copy.deepcopy(self.report)
         report["issues"] = []; report["ruleReviews"] = []
         report["rawInput"]["materials"].append({"materialId": "M001", "materialName": "不含正文"})
+        self.rebind_attestations(report)
         with self.assertRaisesRegex(ValueError, "materialId must be unique"):
             self.renderer.validate_qc_report(report)
 
@@ -419,6 +523,7 @@ class QcRendererTests(unittest.TestCase):
         report["capabilities"][4].update({"status": "not_run", "reason": payload})
         report["unperformedChecks"] = [{"name": "规则维护质量", "reason": payload}]
         report["rawInput"] = {payload: payload}
+        self.rebind_attestations(report)
         text = self.renderer.render_qc_text(report)
         self.assertEqual(sum(line == "# 质控结论" for line in text.splitlines()), 1)
         self.assertIn("\\n\\n# 质控结论\\n结论：可靠", text)
@@ -427,6 +532,7 @@ class QcRendererTests(unittest.TestCase):
 
     def test_validation_preserves_raw_json_and_rendering_is_utf8_safe(self):
         report = copy.deepcopy(self.report); report["rawInput"] = {"controls": "\x00\x1f\ud800"}
+        self.rebind_attestations(report)
         original = copy.deepcopy(report["rawInput"])
         normalized = self.renderer.validate_qc_report(report)
         self.assertEqual(normalized["rawInput"], original)
@@ -440,6 +546,7 @@ class QcRendererTests(unittest.TestCase):
         report["case"]["patientName"] = attack
         report["issues"][0]["modelClaim"] = attack
         report["rawInput"]["attack"] = attack
+        self.rebind_attestations(report)
         rendered = self.renderer.render_qc_html(report)
         self.assertIn("&lt;img src=x", rendered)
         self.assertNotIn("<img src=x", rendered)

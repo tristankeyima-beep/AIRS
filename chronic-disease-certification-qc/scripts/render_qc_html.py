@@ -33,6 +33,7 @@ AUDIT_RESULT_KINDS = {"detailed", "brief", "conclusion_only"}
 CANONICAL_CAPABILITIES = {"材料缺失判断准确性", "证据提取准确性", "过度推理", "审核条件与结论一致性", "规则维护质量"}
 EVIDENCE_STATES = {"SUPPORTED", "CONTRADICTED", "NOT_FOUND", "INSUFFICIENT", "CONFLICTED", "NOT_APPLICABLE"}
 CATEGORIES = {"材料缺失判断准确性", "证据提取准确性", "过度推理", "审核条件与结论一致性", "规则维护质量"}
+ISSUE_CAPABILITY_BY_CATEGORY = {name: name for name in CATEGORIES}
 SECTION_CATEGORIES = (("材料缺失复核", "材料缺失判断准确性"), ("证据准确性", "证据提取准确性"), ("过度推理", "过度推理"), ("条件一致性", "审核条件与结论一致性"), ("规则维护质量", "规则维护质量"))
 RISK_LABELS = {"false_approval": "错误放行风险", "false_rejection": "错误拒绝风险", "both": "错误放行与错误拒绝风险", "none": "未发现明显风险"}
 IMPACT_LABELS = {"changed": "已改变最终结论", "potentially_changed": "可能改变最终结论", "unchanged": "未改变最终结论", "unknown": "最终影响暂无法判断"}
@@ -147,10 +148,24 @@ def _sha256(value, path):
         _error(path, "must be 64 lowercase hexadecimal characters")
 
 
+def _canonical_sha256(value):
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def compute_raw_input_sha256(raw_input):
+    """Hash the normalized canonical raw-input JSON bound to the inventory."""
+    return _canonical_sha256(raw_input)
+
+
 def compute_inventory_sha256(inventory):
     """Hash the canonical inventory JSON used by the post-inventory confirmation."""
-    encoded = json.dumps(inventory, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    return _canonical_sha256(inventory)
+
+
+def compute_independent_review_sha256(artifact):
+    """Hash the frozen independent-review artifact before comparison."""
+    return _canonical_sha256(artifact)
 
 
 def _evidence(items, path, material_sources):
@@ -244,7 +259,12 @@ def _validate_interpretation_paths(input_scope, qc_conclusion, recommended_actio
         _error("recommendedAction", "must recommend 人工确认 when interpretationPaths has different final results")
 
 
-def _validate_input_scope(input_scope):
+def _valid_confirmation_statement(statement):
+    normalized = re.sub(r"\s+", "", statement)
+    return any(phrase in normalized for phrase in ("没有更多内容", "无更多内容", "没有遗漏", "没有漏传", "已全部提供", "以上为全部", "确认完整"))
+
+
+def _validate_input_scope(input_scope, raw_input):
     required = {"confirmedByUser", "materials", "standardKind", "auditResultKind", "inventory", "confirmation", "independentReview"}
     allowed = required | {"interpretationPaths"}
     _object(input_scope, "inputScope", required)
@@ -260,7 +280,7 @@ def _validate_input_scope(input_scope):
     _enum(input_scope["standardKind"], "inputScope.standardKind", STANDARD_KINDS)
     _enum(input_scope["auditResultKind"], "inputScope.auditResultKind", AUDIT_RESULT_KINDS)
 
-    inventory_fields = {"revision", "materials", "standardKind", "auditResultKind", "hasAuditProcess", "hasFinalConclusion", "referencedButMissing"}
+    inventory_fields = {"revision", "materials", "standardKind", "auditResultKind", "hasAuditProcess", "hasFinalConclusion", "referencedButMissing", "rawInputSha256"}
     inventory = input_scope["inventory"]
     _exact_object(inventory, "inputScope.inventory", inventory_fields)
     if type(inventory["revision"]) is not int or inventory["revision"] <= 0:
@@ -283,13 +303,16 @@ def _validate_input_scope(input_scope):
         _error("inputScope.inventory.referencedButMissing", "must be an array")
     for index, item in enumerate(inventory["referencedButMissing"]):
         _text(item, f"inputScope.inventory.referencedButMissing[{index}]")
+    _sha256(inventory["rawInputSha256"], "inputScope.inventory.rawInputSha256")
+    if inventory["rawInputSha256"] != compute_raw_input_sha256(raw_input):
+        _error("inputScope.inventory.rawInputSha256", "must match report.rawInput")
     if input_scope["auditResultKind"] == "detailed" and not inventory["hasAuditProcess"]:
         _error("inputScope.inventory.hasAuditProcess", "must be true for detailed audit result")
     if input_scope["auditResultKind"] in {"brief", "conclusion_only"} and inventory["hasAuditProcess"]:
         _error("inputScope.inventory.hasAuditProcess", "must be false for brief or conclusion_only audit result")
 
     confirmation = input_scope["confirmation"]
-    _exact_object(confirmation, "inputScope.confirmation", {"confirmedRevision", "inventorySha256", "userStatement"})
+    _exact_object(confirmation, "inputScope.confirmation", {"confirmedRevision", "inventorySha256", "userStatement", "outcome", "confirmedAfterInventory"})
     if type(confirmation["confirmedRevision"]) is not int or confirmation["confirmedRevision"] <= 0:
         _error("inputScope.confirmation.confirmedRevision", "must be a positive integer")
     if confirmation["confirmedRevision"] != inventory["revision"]:
@@ -298,13 +321,39 @@ def _validate_input_scope(input_scope):
     if confirmation["inventorySha256"] != compute_inventory_sha256(inventory):
         _error("inputScope.confirmation.inventorySha256", "must match current inventory")
     _text(confirmation["userStatement"], "inputScope.confirmation.userStatement")
+    if not _valid_confirmation_statement(confirmation["userStatement"]):
+        _error("inputScope.confirmation.userStatement", "must explicitly confirm completeness after inventory")
+    _enum(confirmation["outcome"], "inputScope.confirmation.outcome", {"confirmed_complete"})
+    if confirmation["confirmedAfterInventory"] is not True:
+        _error("inputScope.confirmation.confirmedAfterInventory", "must be true")
 
     independent = input_scope["independentReview"]
-    _exact_object(independent, "inputScope.independentReview", {"mode", "completedBeforeComparison", "artifactSha256"})
+    _exact_object(independent, "inputScope.independentReview", {"mode", "completedBeforeComparison", "artifact", "artifactSha256"})
     _enum(independent["mode"], "inputScope.independentReview.mode", {"isolated_blind", "independent_non_blind"})
     if independent["completedBeforeComparison"] is not True:
         _error("inputScope.independentReview.completedBeforeComparison", "must be true")
+    artifact = independent["artifact"]
+    _exact_object(artifact, "inputScope.independentReview.artifact", {"materialFacts", "standardKind", "ruleResults", "finalResult"})
+    if not isinstance(artifact["materialFacts"], list):
+        _error("inputScope.independentReview.artifact.materialFacts", "must be an array")
+    _enum(artifact["standardKind"], "inputScope.independentReview.artifact.standardKind", STANDARD_KINDS)
+    if artifact["standardKind"] != input_scope["standardKind"]:
+        _error("inputScope.independentReview.artifact.standardKind", "must match inputScope.standardKind")
+    if not isinstance(artifact["ruleResults"], list):
+        _error("inputScope.independentReview.artifact.ruleResults", "must be an array")
+    artifact_rule_codes = set()
+    for index, rule_result in enumerate(artifact["ruleResults"]):
+        point = f"inputScope.independentReview.artifact.ruleResults[{index}]"
+        _exact_object(rule_result, point, {"ruleCode", "result"})
+        _text(rule_result["ruleCode"], f"{point}.ruleCode")
+        _enum(rule_result["result"], f"{point}.result", RULE_RESULTS)
+        if rule_result["ruleCode"] in artifact_rule_codes:
+            _error(f"{point}.ruleCode", "must be unique")
+        artifact_rule_codes.add(rule_result["ruleCode"])
+    _enum(artifact["finalResult"], "inputScope.independentReview.artifact.finalResult", RULE_RESULTS)
     _sha256(independent["artifactSha256"], "inputScope.independentReview.artifactSha256")
+    if independent["artifactSha256"] != compute_independent_review_sha256(artifact):
+        _error("inputScope.independentReview.artifactSha256", "must match frozen artifact")
 
 
 def _validate_capability_matrix(capabilities, input_scope, rule_reviews):
@@ -370,6 +419,17 @@ def _validate_outcome_risk(report):
         _error("riskDirection", f"must be {expected} for outcome-changing issue directions")
 
 
+def _validate_independent_artifact_requirements(input_scope, capabilities_by_name):
+    artifact = input_scope["independentReview"]["artifact"]
+    if input_scope["standardKind"] == "absent":
+        if artifact["ruleResults"]:
+            _error("inputScope.independentReview.artifact.ruleResults", "must be empty when standardKind is absent")
+        if artifact["finalResult"] != "无法判断":
+            _error("inputScope.independentReview.artifact.finalResult", "must be 无法判断 when standardKind is absent")
+    elif not artifact["ruleResults"] and capabilities_by_name["审核条件与结论一致性"]["status"] != "not_run":
+        _error("inputScope.independentReview.artifact.ruleResults", "may be empty only when the condition capability is not_run")
+
+
 def _validate_report(report):
     if not isinstance(report, dict):
         _error("root", "must be an object")
@@ -381,7 +441,7 @@ def _validate_report(report):
     _object(report["case"], "case", {"patientName", "diseaseName", "auditId"})
     for field in ("patientName", "diseaseName", "auditId"):
         _text(report["case"][field], f"case.{field}")
-    _validate_input_scope(report["inputScope"])
+    _validate_input_scope(report["inputScope"], report["rawInput"])
     if not isinstance(report["capabilities"], list):
         _error("capabilities", "must be an array")
     capabilities_by_name = {}
@@ -402,6 +462,9 @@ def _validate_report(report):
     for index, issue in enumerate(report["issues"]):
         point = f"issues[{index}]"; _object(issue, point, issue_fields)
         _enum(issue["category"], f"{point}.category", CATEGORIES); _text(issue["issueType"], f"{point}.issueType")
+        capability = capabilities_by_name.get(ISSUE_CAPABILITY_BY_CATEGORY[issue["category"]])
+        if capability and capability["status"] == "not_run":
+            _error(f"{point}.category", "cannot contain issues when its capability is not_run")
         for field in ("ruleCode", "modelClaim", "qcFinding", "possibleImpact", "recommendation"):
             _text(issue[field], f"{point}.{field}")
         if not isinstance(issue["keywordCode"], str): _error(f"{point}.keywordCode", "must be a string")
@@ -431,6 +494,7 @@ def _validate_report(report):
         if capability["reason"] != unperformed_by_name[name]["reason"]:
             _error("unperformedChecks", f"reason must match capability {name}")
     _validate_capability_matrix(report["capabilities"], report["inputScope"], report["ruleReviews"])
+    _validate_independent_artifact_requirements(report["inputScope"], capabilities_by_name)
     _validate_outcome_risk(report)
 
 
@@ -492,10 +556,13 @@ def _interpretation_paths_text(paths):
 def _attestation_text(scope):
     inventory, confirmation, independent = scope["inventory"], scope["confirmation"], scope["independentReview"]
     lines = [
-        "输入清单修订：{}；清单摘要：{}；用户确认：{}".format(
+        "输入清单修订：{}；清单摘要：{}；原始输入摘要：{}；用户确认：{}；确认结果：{}；清点后确认：{}".format(
             _text_scalar(inventory["revision"]),
             _text_scalar(confirmation["inventorySha256"]),
+            _text_scalar(inventory["rawInputSha256"]),
             _text_scalar(confirmation["userStatement"]),
+            _text_scalar(confirmation["outcome"]),
+            _text_scalar(confirmation["confirmedAfterInventory"]),
         ),
         "审核引用但未提供：{}".format(_text_scalar("、".join(inventory["referencedButMissing"]) or "无")),
         "独立复核：模式：{}；比较前完成：{}；冻结产物摘要：{}".format(
@@ -503,6 +570,7 @@ def _attestation_text(scope):
             _text_scalar(independent["completedBeforeComparison"]),
             _text_scalar(independent["artifactSha256"]),
         ),
+        "冻结独立复核产物：{}".format(_text_scalar(json.dumps(independent["artifact"], ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False))),
     ]
     if independent["mode"] == "independent_non_blind":
         lines.append("限制：独立二次复核（非盲）；原审核结果已暴露或隔离不可用，存在确认偏差限制。")
@@ -580,7 +648,10 @@ def _attestation_html(scope):
     fields = (
         ("输入清单修订", inventory["revision"]),
         ("清单摘要", confirmation["inventorySha256"]),
+        ("原始输入摘要", inventory["rawInputSha256"]),
         ("用户确认", confirmation["userStatement"]),
+        ("确认结果", confirmation["outcome"]),
+        ("清点后确认", confirmation["confirmedAfterInventory"]),
         ("审核引用但未提供", "、".join(inventory["referencedButMissing"]) or "无"),
         ("独立复核模式", independent["mode"]),
         ("比较前完成", independent["completedBeforeComparison"]),
@@ -591,6 +662,8 @@ def _attestation_html(scope):
     ) + '</div>'
     if independent["mode"] == "independent_non_blind":
         rendered += '<p class="empty">限制：独立二次复核（非盲）；存在确认偏差限制。</p>'
+    artifact = esc(json.dumps(independent["artifact"], ensure_ascii=True, indent=2, sort_keys=True, allow_nan=False))
+    rendered += '<details class="raw-data"><summary>冻结独立复核产物（已转义，仅供核对）</summary><pre>' + artifact + '</pre></details>'
     return rendered
 
 
