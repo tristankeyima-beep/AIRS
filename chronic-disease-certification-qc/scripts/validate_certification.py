@@ -4,8 +4,11 @@
 import argparse
 import copy
 import json
+import os
 import re
+import stat
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -19,8 +22,10 @@ RULE_REF_KEYS = frozenset(("type", "ruleCode"))
 MAX_WRAPPER_DEPTH = 32
 MAX_TOPOLOGY_DEPTH = 64
 MAX_CODE_SEQUENCE = 999
-_DISEASE_CODE_RE = re.compile(r".*\d{2}$")
-_TEMP_RULE_ID_RE = re.compile(r"R\d{3}$")
+_DISEASE_CODE_RE = re.compile(r".*[0-9]{2}$")
+_TEMP_RULE_ID_RE = re.compile(r"R[0-9]{3}$")
+_RULE_CODE_RE = re.compile(r"[0-9]{5}$")
+_KEYWORD_CODE_RE = re.compile(r"[0-9]{8}$")
 
 
 class ParseError(ValueError):
@@ -29,6 +34,26 @@ class ParseError(ValueError):
     def __init__(self, code, message):
         super().__init__(message)
         self.code = code
+
+
+def _reject_duplicate_pairs(pairs):
+    """Build one JSON object while rejecting duplicate keys at any depth."""
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ParseError("duplicate_json_key", "Input JSON contains a duplicate object key.")
+        result[key] = value
+    return result
+
+
+def decode_json_text(value):
+    """Decode strict JSON text without silently accepting duplicate object keys."""
+    try:
+        return json.loads(value, object_pairs_hook=_reject_duplicate_pairs)
+    except ParseError:
+        raise
+    except json.JSONDecodeError as exc:
+        raise ParseError("invalid_json", "Input is not valid JSON.") from exc
 
 
 def issue(path, code, message, severity="error"):
@@ -47,10 +72,7 @@ def parse_value(value):
             raise ParseError("input_read_error", str(exc)) from exc
     if isinstance(value, str):
         value = value.removeprefix("\ufeff")
-        try:
-            value = json.loads(value)
-        except json.JSONDecodeError as exc:
-            raise ParseError("invalid_json", "Input is not valid JSON.") from exc
+        value = decode_json_text(value)
     if not isinstance(value, dict):
         raise ParseError("invalid_root", "Certification standard root must be an object.")
 
@@ -73,10 +95,7 @@ def parse_value(value):
         value = value[wrapper_key]
         if isinstance(value, str):
             value = value.removeprefix("\ufeff")
-            try:
-                value = json.loads(value)
-            except json.JSONDecodeError as exc:
-                raise ParseError("invalid_json", "Input is not valid JSON.") from exc
+            value = decode_json_text(value)
 
 
 def _required_string(value, path, errors, nonempty=True):
@@ -112,7 +131,7 @@ def _validate_meta(meta, errors):
         errors.append(issue("meta.chronicDiseaseCode", "invalid_disease_code", "Disease code must end in two digits."))
 
 
-def _validate_guides(guides, rule_path, errors, keyword_codes):
+def _validate_guides(guides, rule_path, errors, keyword_codes, expected_rule_code):
     path = rule_path + ".ruleKeywordGuide"
     if not isinstance(guides, list):
         errors.append(issue(path, "invalid_type", "Expected a list."))
@@ -129,6 +148,24 @@ def _validate_guides(guides, rule_path, errors, keyword_codes):
         keyword_code = guide.get("keywordCode")
         _required_string(keyword_code, guide_path + ".keywordCode", errors)
         if isinstance(keyword_code, str) and keyword_code.strip():
+            if not _KEYWORD_CODE_RE.fullmatch(keyword_code):
+                errors.append(
+                    issue(
+                        guide_path + ".keywordCode",
+                        "invalid_keyword_code_format",
+                        "keywordCode must contain exactly eight digits.",
+                    )
+                )
+            elif isinstance(expected_rule_code, str):
+                expected_keyword_code = f"{expected_rule_code}{index + 1:03d}"
+                if keyword_code != expected_keyword_code:
+                    errors.append(
+                        issue(
+                            guide_path + ".keywordCode",
+                            "invalid_keyword_code_sequence",
+                            "keywordCode must equal its parent ruleCode plus its 1-based three-digit guide position.",
+                        )
+                    )
             if keyword_code in keyword_codes:
                 errors.append(issue(guide_path + ".keywordCode", "duplicate_keyword_code", "keywordCode must be unique."))
             keyword_codes.add(keyword_code)
@@ -148,7 +185,7 @@ def _validate_guides(guides, rule_path, errors, keyword_codes):
                 errors.append(issue(options_path, "string_enum_options_must_be_empty", "enumOptions must be [] for string guides."))
 
 
-def _validate_rules(rules, errors):
+def _validate_rules(rules, errors, disease_code):
     rule_codes = set()
     if not isinstance(rules, list):
         errors.append(issue("ruleRepository", "invalid_type", "Expected a list."))
@@ -166,12 +203,30 @@ def _validate_rules(rules, errors):
         rule_code = rule.get("ruleCode")
         _required_string(rule_code, path + ".ruleCode", errors)
         if isinstance(rule_code, str) and rule_code.strip():
+            if not _RULE_CODE_RE.fullmatch(rule_code):
+                errors.append(
+                    issue(
+                        path + ".ruleCode",
+                        "invalid_rule_code_format",
+                        "ruleCode must contain exactly five digits.",
+                    )
+                )
+            elif isinstance(disease_code, str) and _DISEASE_CODE_RE.fullmatch(disease_code):
+                expected_rule_code = f"{disease_code[-2:]}{index + 1:03d}"
+                if rule_code != expected_rule_code:
+                    errors.append(
+                        issue(
+                            path + ".ruleCode",
+                            "invalid_rule_code_sequence",
+                            "ruleCode must equal the disease-code suffix plus its 1-based three-digit repository position.",
+                        )
+                    )
             if rule_code in rule_codes:
                 errors.append(issue(path + ".ruleCode", "duplicate_rule_code", "ruleCode must be unique."))
             rule_codes.add(rule_code)
         for field in ("ruleContent", "ruleSource", "experience", "sourceRuleContent", "sourceMdFile", "sourceSection"):
             _required_string(rule.get(field), path + "." + field, errors, nonempty=field in ("ruleContent", "sourceRuleContent"))
-        _validate_guides(rule.get("ruleKeywordGuide"), path, errors, keyword_codes)
+        _validate_guides(rule.get("ruleKeywordGuide"), path, errors, keyword_codes, rule_code)
     return rule_codes
 
 
@@ -227,7 +282,9 @@ def validate_certification(value):
     errors = []
     _reject_unknown_fields(standard, FORMAL_ROOT_KEYS, "", errors)
     _validate_meta(standard.get("meta"), errors)
-    rule_codes = _validate_rules(standard.get("ruleRepository"), errors)
+    meta = standard.get("meta")
+    disease_code = meta.get("chronicDiseaseCode") if isinstance(meta, dict) else None
+    rule_codes = _validate_rules(standard.get("ruleRepository"), errors, disease_code)
     references = set()
     _validate_topology(standard.get("logicTopology"), "logicTopology", errors, rule_codes, references)
     for rule_code in sorted(rule_codes - references):
@@ -337,6 +394,84 @@ def finalize_certification(draft_value, meta):
     return standard
 
 
+def ensure_output_not_alias(output, sources):
+    """Reject output paths that are symlinks or aliases of any protected source."""
+    output = Path(output)
+    if output.is_symlink():
+        raise ValueError("Output path must not be a symlink.")
+    output_absolute = Path(os.path.abspath(os.fspath(output)))
+    try:
+        output_resolved = output_absolute.resolve(strict=False)
+    except (OSError, RuntimeError) as exc:
+        raise ValueError("Output path identity could not be verified.") from exc
+    for source in sources:
+        source_absolute = Path(os.path.abspath(os.fspath(source)))
+        if output_absolute == source_absolute:
+            raise ValueError("Output path must differ from every input path.")
+        try:
+            source_resolved = source_absolute.resolve(strict=False)
+        except (OSError, RuntimeError) as exc:
+            raise ValueError("Input path identity could not be verified.") from exc
+        if output_resolved == source_resolved:
+            raise ValueError("Output path must not alias an input path.")
+        try:
+            if output_absolute.exists() and source_absolute.exists() and os.path.samefile(output_absolute, source_absolute):
+                raise ValueError("Output path must not alias an input path.")
+        except OSError as exc:
+            raise ValueError("Output path identity could not be verified.") from exc
+
+
+def _write_all(stream, payload):
+    """Write all bytes even when the underlying stream performs partial writes."""
+    remaining = memoryview(payload)
+    while remaining:
+        written = stream.write(remaining)
+        if written is None:
+            written = len(remaining)
+        if written <= 0:
+            raise OSError("Output write did not make progress.")
+        remaining = remaining[written:]
+
+
+def atomic_write_text(output, text):
+    """Atomically replace a regular destination with durable UTF-8 text."""
+    output = Path(output)
+    if output.is_symlink():
+        raise ValueError("Output path must not be a symlink.")
+    parent = output.parent
+    if not parent.exists() or not parent.is_dir():
+        raise OSError("Output parent directory does not exist.")
+
+    existing_mode = None
+    if output.exists():
+        existing_mode = stat.S_IMODE(output.stat(follow_symlinks=False).st_mode)
+    stage_fd = None
+    stage_path = None
+    try:
+        stage_fd, stage_name = tempfile.mkstemp(
+            prefix=f".{output.name}.",
+            suffix=".tmp",
+            dir=parent,
+        )
+        stage_path = Path(stage_name)
+        os.fchmod(stage_fd, existing_mode if existing_mode is not None else 0o644)
+        with os.fdopen(stage_fd, "wb", closefd=True) as stream:
+            stage_fd = None
+            _write_all(stream, text.encode("utf-8"))
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(stage_path, output)
+        stage_path = None
+    finally:
+        if stage_fd is not None:
+            os.close(stage_fd)
+        if stage_path is not None:
+            try:
+                stage_path.unlink()
+            except FileNotFoundError:
+                pass
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -353,13 +488,14 @@ def main(argv=None):
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0 if result["valid"] else 1
     try:
+        ensure_output_not_alias(args.output, (args.draft, args.meta))
         meta = parse_value(args.meta)
         standard = finalize_certification(args.draft, meta)
     except (ParseError, ValueError) as exc:
         parser.error(str(exc))
     try:
-        args.output.write_text(json.dumps(standard, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    except OSError as exc:
+        atomic_write_text(args.output, json.dumps(standard, ensure_ascii=False, indent=2) + "\n")
+    except (OSError, UnicodeError, ValueError) as exc:
         print(f"output_error: {exc}", file=sys.stderr)
         return 1
     print(args.output)

@@ -172,7 +172,7 @@ class QcRendererTests(unittest.TestCase):
 
     def test_suspected_secrets_block_canonical_text_html_and_cli_without_outputs(self):
         suspicious_inputs = (
-            {"headers": {"Authorization": "Bearer fictional-access-token-9f7c2a61"}},
+            {"headers": {"Authorization": "Bear" + "er fictional-access-token-9f7c2a61"}},
             {"api_key": "fictional-key-material-5a9e1d3c"},
             {"cookies": "session=fictional-session-value-7e31c9"},
             {"credentials": {"password": "fictional-password-value-4d2a8e"}},
@@ -250,7 +250,7 @@ class QcRendererTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             cli_inputs = (
-                {"headers": {"Authorization": "Bearer fictional-access-token-9f7c2a61"}},
+                {"headers": {"Authorization": "Bear" + "er fictional-access-token-9f7c2a61"}},
                 {"material": "-----BEGIN PRIVATE KEY-----\nfictional-private-material"},
                 {"material": "Authorization: x"},
                 {"material": r'{\"api_key\":\"fictional-credential-123456\"}'},

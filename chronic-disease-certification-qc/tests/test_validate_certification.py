@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +28,66 @@ class ValidateCertificationTests(unittest.TestCase):
         result = validator.validate_certification(self.valid)
         self.assertTrue(result["valid"])
         self.assertEqual(result["errors"], [])
+
+    def test_formal_codes_must_match_disease_suffix_and_repository_sequence(self):
+        arbitrary = copy.deepcopy(self.valid)
+        arbitrary["ruleRepository"][0]["ruleCode"] = "anything"
+        arbitrary["logicTopology"]["children"][0]["ruleCode"] = "anything"
+        self.assertIn("invalid_rule_code_format", self.issue_codes(validator.validate_certification(arbitrary)))
+
+        arbitrary_guide = copy.deepcopy(self.valid)
+        arbitrary_guide["ruleRepository"][0]["ruleKeywordGuide"][0]["keywordCode"] = "anything"
+        self.assertIn(
+            "invalid_keyword_code_format",
+            self.issue_codes(validator.validate_certification(arbitrary_guide)),
+        )
+
+        wrong_prefix = copy.deepcopy(self.valid)
+        wrong_prefix["ruleRepository"][0]["ruleCode"] = "99001"
+        wrong_prefix["logicTopology"]["children"][0]["ruleCode"] = "99001"
+        result = validator.validate_certification(wrong_prefix)
+        self.assertIn("invalid_rule_code_sequence", self.issue_codes(result))
+        self.assertIn(
+            "ruleRepository[0].ruleCode",
+            [entry["path"] for entry in result["errors"] if entry["code"] == "invalid_rule_code_sequence"],
+        )
+
+        skipped = copy.deepcopy(self.valid)
+        skipped["ruleRepository"][0]["ruleCode"] = "01002"
+        skipped["logicTopology"]["children"][0]["ruleCode"] = "01002"
+        self.assertIn("invalid_rule_code_sequence", self.issue_codes(validator.validate_certification(skipped)))
+
+    def test_rule_and_guide_codes_must_follow_list_order_and_parent_rule(self):
+        standard = copy.deepcopy(self.valid)
+        second = copy.deepcopy(standard["ruleRepository"][0])
+        second["ruleCode"] = "01002"
+        second["ruleKeywordGuide"][0]["keywordCode"] = "01002001"
+        standard["ruleRepository"].append(second)
+        standard["logicTopology"]["children"].append({"type": "RULE_REF", "ruleCode": "01002"})
+
+        out_of_order = copy.deepcopy(standard)
+        out_of_order["ruleRepository"].reverse()
+        result = validator.validate_certification(out_of_order)
+        self.assertEqual(
+            [entry["path"] for entry in result["errors"] if entry["code"] == "invalid_rule_code_sequence"],
+            ["ruleRepository[0].ruleCode", "ruleRepository[1].ruleCode"],
+        )
+
+        wrong_parent = copy.deepcopy(standard)
+        wrong_parent["ruleRepository"][1]["ruleKeywordGuide"][0]["keywordCode"] = "01001001"
+        result = validator.validate_certification(wrong_parent)
+        self.assertIn("invalid_keyword_code_sequence", self.issue_codes(result))
+        self.assertIn(
+            "ruleRepository[1].ruleKeywordGuide[0].keywordCode",
+            [entry["path"] for entry in result["errors"] if entry["code"] == "invalid_keyword_code_sequence"],
+        )
+
+        skipped_guide = copy.deepcopy(self.valid)
+        skipped_guide["ruleRepository"][0]["ruleKeywordGuide"][0]["keywordCode"] = "01001002"
+        self.assertIn(
+            "invalid_keyword_code_sequence",
+            self.issue_codes(validator.validate_certification(skipped_guide)),
+        )
 
     def test_empty_rule_keyword_guide_has_exact_path(self):
         standard = copy.deepcopy(self.valid)
@@ -151,6 +212,56 @@ class ValidateCertificationTests(unittest.TestCase):
             )
         }
         self.assertTrue(validator.validate_certification(wrapped)["valid"])
+
+    def test_duplicate_json_keys_fail_closed_at_every_decoded_layer(self):
+        canonical = json.dumps(self.valid, ensure_ascii=False)
+        version = self.valid["meta"]["version"]
+        duplicate_meta = canonical.replace(
+            f'"version": "{version}"',
+            f'"version": "{version}", "version": "V2"',
+            1,
+        )
+        duplicate_nested_rule = canonical.replace(
+            '"ruleCode": "01001"',
+            '"ruleCode": "01001", "ruleCode": "01999"',
+            1,
+        )
+        duplicate_outer_wrapper = '{"output": ' + canonical + ', "output": {}}'
+        duplicate_inner_wrapper = json.dumps(
+            {"output": '{"result": ' + canonical + ', "result": {}}'},
+            ensure_ascii=False,
+        )
+        for payload in (
+            duplicate_meta,
+            duplicate_nested_rule,
+            duplicate_outer_wrapper,
+            duplicate_inner_wrapper,
+            "\ufeff" + duplicate_meta,
+        ):
+            with self.subTest(payload=payload[:80]):
+                result = validator.validate_certification(payload)
+                self.assertFalse(result["valid"])
+                self.assertEqual(result["errors"][0]["code"], "duplicate_json_key")
+                self.assertEqual(result["errors"][0]["path"], "$")
+
+    def test_duplicate_json_key_cli_failure_is_controlled(self):
+        canonical = json.dumps(self.valid, ensure_ascii=False)
+        version = self.valid["meta"]["version"]
+        duplicate = canonical.replace(
+            f'"version": "{version}"',
+            f'"version": "{version}", "version": "V2"',
+            1,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            input_path = Path(directory) / "duplicate.json"
+            input_path.write_text(duplicate, encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, str(SCRIPT), "validate", str(input_path)],
+                text=True, capture_output=True, check=False,
+            )
+        self.assertEqual(completed.returncode, 1)
+        self.assertNotIn("Traceback", completed.stderr)
+        self.assertEqual(json.loads(completed.stdout)["errors"][0]["code"], "duplicate_json_key")
 
     def test_finalization_does_not_mutate_draft_or_meta(self):
         draft = copy.deepcopy(self.valid)
@@ -427,6 +538,126 @@ class ValidateCertificationTests(unittest.TestCase):
             self.assertNotEqual(finalize.returncode, 0)
             self.assertTrue(finalize.stderr.startswith("output_error:"))
             self.assertNotIn("Traceback", finalize.stderr)
+
+    def _write_finalize_inputs(self, directory_path):
+        draft = copy.deepcopy(self.valid)
+        draft.pop("meta")
+        rule = draft["ruleRepository"][0]
+        rule["tempRuleId"] = "R001"
+        rule.pop("ruleCode")
+        rule["ruleKeywordGuide"][0].pop("keywordCode")
+        draft["logicTopology"]["children"][0]["ruleCode"] = "R001"
+        draft_path = directory_path / "draft.json"
+        meta_path = directory_path / "meta.json"
+        draft_path.write_text(json.dumps(draft, ensure_ascii=False), encoding="utf-8")
+        meta_path.write_text(json.dumps(self.valid["meta"], ensure_ascii=False), encoding="utf-8")
+        return draft_path, meta_path
+
+    def test_finalize_cli_rejects_output_aliases_without_changing_sources(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            draft_path, meta_path = self._write_finalize_inputs(directory_path)
+            original_draft = draft_path.read_bytes()
+            original_meta = meta_path.read_bytes()
+            aliases = [
+                draft_path,
+                "draft.json",
+                meta_path,
+            ]
+            hardlink = directory_path / "draft-hardlink.json"
+            try:
+                hardlink.hardlink_to(draft_path)
+            except OSError as exc:
+                self.skipTest(f"hard links unsupported: {exc}")
+            aliases.append(hardlink)
+            symlink = directory_path / "draft-symlink.json"
+            try:
+                symlink.symlink_to(draft_path)
+            except OSError as exc:
+                import errno
+                if exc.errno in (errno.EPERM, errno.EACCES, errno.ENOSYS, errno.EOPNOTSUPP):
+                    self.skipTest(f"symlinks unsupported: {exc}")
+                raise
+            aliases.append(symlink)
+
+            for output_argument in aliases:
+                with self.subTest(output_path=output_argument):
+                    completed = subprocess.run(
+                        [
+                            sys.executable, str(SCRIPT), "finalize",
+                            str(draft_path), str(meta_path), str(output_argument),
+                        ],
+                        text=True, capture_output=True, check=False,
+                        cwd=directory_path,
+                    )
+                    self.assertNotEqual(completed.returncode, 0)
+                    self.assertNotIn("Traceback", completed.stderr)
+                    self.assertEqual(draft_path.read_bytes(), original_draft)
+                    self.assertEqual(meta_path.read_bytes(), original_meta)
+
+    def test_finalize_cli_rejects_existing_output_symlink(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            draft_path, meta_path = self._write_finalize_inputs(directory_path)
+            destination = directory_path / "destination.json"
+            destination.write_bytes(b"keep destination")
+            output = directory_path / "output.json"
+            try:
+                output.symlink_to(destination)
+            except OSError as exc:
+                import errno
+                if exc.errno in (errno.EPERM, errno.EACCES, errno.ENOSYS, errno.EOPNOTSUPP):
+                    self.skipTest(f"symlinks unsupported: {exc}")
+                raise
+            completed = subprocess.run(
+                [sys.executable, str(SCRIPT), "finalize", str(draft_path), str(meta_path), str(output)],
+                text=True, capture_output=True, check=False,
+            )
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertNotIn("Traceback", completed.stderr)
+            self.assertTrue(output.is_symlink())
+            self.assertEqual(destination.read_bytes(), b"keep destination")
+
+    def test_atomic_writer_preserves_existing_destination_and_cleans_stage_on_failures(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            output = directory_path / "final.json"
+            output.write_bytes(b"old bytes")
+            output.chmod(0o640)
+            for failure in ("stage", "write", "fsync", "replace"):
+                with self.subTest(failure=failure):
+                    output.write_bytes(b"old bytes")
+                    output.chmod(0o640)
+                    if failure == "stage":
+                        context = patch.object(
+                            validator.tempfile,
+                            "mkstemp",
+                            side_effect=OSError("stage failed"),
+                        )
+                    elif failure == "replace":
+                        context = patch.object(validator.os, "replace", side_effect=OSError("replace failed"))
+                    elif failure == "fsync":
+                        context = patch.object(validator.os, "fsync", side_effect=OSError("fsync failed"))
+                    else:
+                        context = patch.object(validator, "_write_all", side_effect=OSError("write failed"))
+                    with context:
+                        with self.assertRaises(OSError):
+                            validator.atomic_write_text(output, "new bytes\n")
+                    self.assertEqual(output.read_bytes(), b"old bytes")
+                    self.assertEqual(output.stat().st_mode & 0o777, 0o640)
+                    self.assertEqual(list(directory_path.glob(".final.json.*.tmp")), [])
+
+    def test_atomic_writer_sets_new_mode_and_preserves_existing_mode(self):
+        if sys.platform == "win32":
+            self.skipTest("POSIX mode contract")
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            output = directory_path / "final.json"
+            validator.atomic_write_text(output, "first\n")
+            self.assertEqual(output.stat().st_mode & 0o777, 0o644)
+            output.chmod(0o600)
+            validator.atomic_write_text(output, "second\n")
+            self.assertEqual(output.stat().st_mode & 0o777, 0o600)
 
 
 if __name__ == "__main__":

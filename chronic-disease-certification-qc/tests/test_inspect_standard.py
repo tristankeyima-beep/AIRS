@@ -198,6 +198,49 @@ class InspectStandardTests(unittest.TestCase):
         }
         self.assertEqual(inspector.inspect_standard(wrapped)["kind"], "structured_complete")
 
+    def test_duplicate_json_keys_are_structured_incomplete_in_all_decoded_layers(self):
+        canonical = json.dumps(self.valid, ensure_ascii=False)
+        version = self.valid["meta"]["version"]
+        payloads = (
+            canonical.replace(
+                f'"version": "{version}"',
+                f'"version": "{version}", "version": "V2"',
+                1,
+            ),
+            canonical.replace('"ruleCode": "01001"', '"ruleCode": "01001", "ruleCode": "01999"', 1),
+            '{"output": ' + canonical + ', "output": {}}',
+            json.dumps({"output": '{"result": ' + canonical + ', "result": {}}'}, ensure_ascii=False),
+            "\ufeff" + canonical.replace(
+                f'"version": "{version}"',
+                f'"version": "{version}", "version": "V2"',
+                1,
+            ),
+        )
+        for payload in payloads:
+            with self.subTest(payload=payload[:80]):
+                result = inspector.inspect_standard(payload)
+                self.assertEqual(result["kind"], "structured_incomplete")
+                self.assertEqual(result["issues"][0]["code"], "duplicate_json_key")
+
+    def test_duplicate_json_key_cli_failure_is_controlled(self):
+        canonical = json.dumps(self.valid, ensure_ascii=False)
+        version = self.valid["meta"]["version"]
+        duplicate = canonical.replace(
+            f'"version": "{version}"',
+            f'"version": "{version}", "version": "V2"',
+            1,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            input_path = Path(directory) / "duplicate.json"
+            input_path.write_text(duplicate, encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, str(SCRIPT), str(input_path)],
+                text=True, capture_output=True, check=False,
+            )
+        self.assertEqual(completed.returncode, 1)
+        self.assertNotIn("Traceback", completed.stderr)
+        self.assertEqual(json.loads(completed.stdout)["issues"][0]["code"], "duplicate_json_key")
+
     def test_malformed_json_looking_text_returns_validator_issue(self):
         result = inspector.inspect_standard("{not json")
         self.assertEqual(result["kind"], "structured_incomplete")

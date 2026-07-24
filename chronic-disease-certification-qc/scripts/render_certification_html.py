@@ -171,13 +171,18 @@ def main(argv=None):
     parser.add_argument("output", type=Path, help="HTML output file")
     args = parser.parse_args(argv)
     try:
+        validator.ensure_output_not_alias(args.output, (args.input,))
+    except ValueError as exc:
+        print(f"output_error: {exc}", file=sys.stderr)
+        return 1
+    try:
         rendered = render_certification_html(args.input)
     except (OSError, ValueError) as exc:
         print(f"render_error: {exc}", file=sys.stderr)
         return 1
     try:
-        args.output.write_text(rendered.rstrip("\n") + "\n", encoding="utf-8")
-    except (OSError, UnicodeError) as exc:
+        validator.atomic_write_text(args.output, rendered.rstrip("\n") + "\n")
+    except (OSError, UnicodeError, ValueError) as exc:
         print(f"output_error: {exc}", file=sys.stderr)
         return 1
     print(args.output)

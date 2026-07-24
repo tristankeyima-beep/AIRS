@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -286,6 +287,49 @@ class CertificationHtmlTests(unittest.TestCase):
             self.assertTrue(rendered.encode("utf-8"))
             for character in forbidden:
                 self.assertNotIn(character, rendered)
+
+    def test_cli_rejects_input_output_aliases_and_existing_output_symlink(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            source = directory_path / "standard.json"
+            source.write_bytes(FIXTURE.read_bytes())
+            original = source.read_bytes()
+            hardlink = directory_path / "hardlink.html"
+            try:
+                hardlink.hardlink_to(source)
+            except OSError as exc:
+                self.skipTest(f"hard links unsupported: {exc}")
+            symlink = directory_path / "symlink.html"
+            try:
+                symlink.symlink_to(source)
+            except OSError as exc:
+                import errno
+                if exc.errno in (errno.EPERM, errno.EACCES, errno.ENOSYS, errno.EOPNOTSUPP):
+                    self.skipTest(f"symlinks unsupported: {exc}")
+                raise
+            for output in (source, "standard.json", hardlink, symlink):
+                with self.subTest(output=output):
+                    completed = subprocess.run(
+                        [sys.executable, str(SCRIPT), str(source), str(output)],
+                        text=True, capture_output=True, check=False,
+                        cwd=directory_path,
+                    )
+                    self.assertNotEqual(completed.returncode, 0)
+                    self.assertNotIn("Traceback", completed.stderr)
+                    self.assertEqual(source.read_bytes(), original)
+
+    def test_renderer_atomic_output_failure_preserves_destination_and_cleans_stage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            output = directory_path / "rendered.html"
+            output.write_bytes(b"old html")
+            output.chmod(0o640)
+            with patch.object(self.renderer.validator.os, "replace", side_effect=OSError("replace failed")):
+                with self.assertRaises(OSError):
+                    self.renderer.validator.atomic_write_text(output, "new html\n")
+            self.assertEqual(output.read_bytes(), b"old html")
+            self.assertEqual(output.stat().st_mode & 0o777, 0o640)
+            self.assertEqual(list(directory_path.glob(".rendered.html.*.tmp")), [])
 
 
 if __name__ == "__main__":

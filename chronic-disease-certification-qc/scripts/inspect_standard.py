@@ -52,8 +52,10 @@ def _bracketed_chinese_heading(value):
 
 def _decode_json(value):
     try:
-        return json.loads(value)
-    except (json.JSONDecodeError, RecursionError) as exc:
+        return _VALIDATOR.decode_json_text(value)
+    except _VALIDATOR.ParseError as exc:
+        raise _NormalizationError(exc.code, str(exc)) from exc
+    except RecursionError as exc:
         raise _NormalizationError("invalid_json", "Input is not valid JSON.") from exc
 
 
