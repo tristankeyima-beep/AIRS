@@ -51,34 +51,93 @@ def load(name):
 
 
 class _OfflineHtmlInspector(HTMLParser):
-    RESOURCE_TAGS = {"script", "link", "img", "iframe", "object", "embed", "source"}
-    URL_ATTRIBUTES = {"src", "href", "action", "formaction", "poster", "data"}
+    STRICT_RESOURCE_TAGS = {
+        "script",
+        "link",
+        "img",
+        "iframe",
+        "object",
+        "embed",
+        "source",
+    }
+    RESOURCE_ATTRIBUTES = {"src", "poster", "data", "action", "formaction"}
+    RESOURCE_HREF_TAGS = {"link", "image", "use"}
+    FRAGMENT_HREF_TAGS = {"a", "image", "use"}
+    CSS_RESOURCE_RE = re.compile(r"@import\b|url\s*\(", flags=re.IGNORECASE)
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.resource_tags = []
         self.external_urls = []
         self.event_handlers = []
+        self.style_attribute_resources = []
+        self.meta_refreshes = []
         self.style_blocks = []
         self._in_style = False
 
+    @staticmethod
+    def _srcset_candidates(value):
+        return [
+            candidate.strip().split()[0]
+            for candidate in value.split(",")
+            if candidate.strip()
+        ]
+
     def handle_starttag(self, tag, attrs):
         lowered_tag = tag.casefold()
-        if lowered_tag in self.RESOURCE_TAGS:
+        lowered_attrs = [
+            (name.casefold(), value or "") for name, value in attrs
+        ]
+        if lowered_tag in self.STRICT_RESOURCE_TAGS:
             self.resource_tags.append(lowered_tag)
         if lowered_tag == "style":
             self._in_style = True
-        for name, value in attrs:
-            lowered_name = name.casefold()
-            value = value or ""
+        if lowered_tag == "meta" and any(
+            name == "http-equiv" and value.strip().casefold() == "refresh"
+            for name, value in lowered_attrs
+        ):
+            self.meta_refreshes.append(
+                [value for name, value in lowered_attrs if name == "content"]
+            )
+        for lowered_name, value in lowered_attrs:
             if lowered_name.startswith("on"):
                 self.event_handlers.append((lowered_tag, lowered_name))
-            if lowered_name in self.URL_ATTRIBUTES:
-                candidate = value.strip()
-                if candidate.startswith("//") or re.match(
-                    r"^[a-z][a-z0-9+.-]*:", candidate, flags=re.IGNORECASE
+            if lowered_name == "style" and self.CSS_RESOURCE_RE.search(value):
+                self.style_attribute_resources.append((lowered_tag, value))
+            if lowered_name == "srcset":
+                for candidate in self._srcset_candidates(value):
+                    self.external_urls.append(
+                        (lowered_tag, lowered_name, candidate)
+                    )
+                continue
+
+            candidate = value.strip()
+            is_href = lowered_name in {"href", "xlink:href"}
+            is_resource_reference = (
+                lowered_name in self.RESOURCE_ATTRIBUTES
+                or (is_href and lowered_tag in self.RESOURCE_HREF_TAGS)
+            )
+            if is_resource_reference and candidate:
+                if (
+                    is_href
+                    and lowered_tag in self.FRAGMENT_HREF_TAGS
+                    and candidate.startswith("#")
                 ):
-                    self.external_urls.append((lowered_tag, lowered_name, candidate))
+                    continue
+                self.external_urls.append((lowered_tag, lowered_name, candidate))
+            elif (
+                is_href
+                and candidate
+                and (
+                    candidate.startswith("//")
+                    or re.match(
+                        r"^[a-z][a-z0-9+.-]*:",
+                        candidate,
+                        flags=re.IGNORECASE,
+                    )
+                )
+            ):
+                self.external_urls.append((lowered_tag, lowered_name, candidate))
 
     def handle_startendtag(self, tag, attrs):
         self.handle_starttag(tag, attrs)
@@ -100,14 +159,109 @@ def assert_offline_html(testcase, rendered):
     testcase.assertEqual(inspector.resource_tags, [])
     testcase.assertEqual(inspector.external_urls, [])
     testcase.assertEqual(inspector.event_handlers, [])
+    testcase.assertEqual(inspector.style_attribute_resources, [])
+    testcase.assertEqual(inspector.meta_refreshes, [])
     testcase.assertTrue(inspector.style_blocks, "offline HTML must retain inline CSS")
     css = "\n".join(inspector.style_blocks)
-    testcase.assertIsNone(re.search(r"@import\b", css, flags=re.IGNORECASE))
-    testcase.assertIsNone(re.search(r"url\s*\(", css, flags=re.IGNORECASE))
+    testcase.assertIsNone(_OfflineHtmlInspector.CSS_RESOURCE_RE.search(css))
 
 
 def has_single_trailing_newline(value):
     return value.endswith("\n") and not value.endswith("\n\n")
+
+
+class OfflineHtmlInspectorTests(unittest.TestCase):
+    @staticmethod
+    def document(body):
+        return (
+            "<!doctype html><html><head><style>"
+            "body { color: #123; margin: 0; }"
+            "</style></head><body>"
+            f"{body}</body></html>"
+        )
+
+    def assert_rejected(self, body):
+        with self.assertRaises(AssertionError):
+            assert_offline_html(self, self.document(body))
+
+    def test_rejects_inline_style_resource_loading_and_imports(self):
+        for body in (
+            '<div style="background-image: url(assets/pattern.png)">内容</div>',
+            '<div style="@IMPORT \'theme.css\'; color: #123">内容</div>',
+        ):
+            with self.subTest(body=body):
+                self.assert_rejected(body)
+
+    def test_rejects_meta_refresh_even_without_an_absolute_url(self):
+        for refresh in (
+            '<meta http-equiv="refresh" content="0; url=/outside">',
+            '<meta HTTP-EQUIV="Refresh" content="5">',
+            '<meta http-equiv="refresh" http-equiv="content-type" content="0">',
+        ):
+            with self.subTest(refresh=refresh):
+                self.assert_rejected(refresh)
+
+    def test_rejects_svg_external_xlink_root_relative_use_and_image(self):
+        for body in (
+            '<svg><use xlink:href="sprite.svg#check"></use></svg>',
+            '<svg><use href="/icons.svg#check"></use></svg>',
+            '<svg><image href="diagram.svg"></image></svg>',
+        ):
+            with self.subTest(body=body):
+                self.assert_rejected(body)
+
+    def test_rejects_relative_video_audio_track_and_source_resources(self):
+        for body in (
+            '<video src="movie.mp4"></video>',
+            '<audio src="sound.mp3"></audio>',
+            '<video><track src="captions.vtt"></track></video>',
+            '<video><source src="movie.webm"></source></video>',
+        ):
+            with self.subTest(body=body):
+                self.assert_rejected(body)
+
+    def test_rejects_every_srcset_candidate_and_svg_image_resource(self):
+        for body in (
+            '<picture><source srcset="small.png 1x, /large.png 2x"></source></picture>',
+            '<svg><image xlink:href="//cdn.invalid/image.svg"></image></svg>',
+        ):
+            with self.subTest(body=body):
+                self.assert_rejected(body)
+
+    def test_rejects_all_nonempty_resource_schemes(self):
+        for body in (
+            '<video src="data:video/mp4;base64,AAAA"></video>',
+            '<audio src="blob:local-object"></audio>',
+            '<svg><image href="javascript:void(0)"></image></svg>',
+            '<svg><use href="https://cdn.invalid/icons.svg#check"></use></svg>',
+        ):
+            with self.subTest(body=body):
+                self.assert_rejected(body)
+
+    def test_strictly_rejects_executable_and_embedding_elements(self):
+        for body in (
+            "<script>void 0</script>",
+            '<link rel="stylesheet" href="">',
+            '<img alt="empty">',
+            "<iframe></iframe>",
+            "<object></object>",
+            "<embed>",
+        ):
+            with self.subTest(body=body):
+                self.assert_rejected(body)
+
+    def test_allows_safe_inline_css_fragments_and_url_words_in_text(self):
+        rendered = self.document(
+            '<div id="section" style="color: #123; border: 0">'
+            "正文可讨论 http://example.invalid、url(relative.png) 和 meta refresh，"
+            "但这些普通文字不是资源引用。"
+            "</div>"
+            '<svg><defs><path id="check"></path></defs>'
+            '<use href="#check"></use><use xlink:href="#check"></use></svg>'
+            '<a href="#section">页内定位</a>'
+        )
+
+        assert_offline_html(self, rendered)
 
 
 class IntegrationTests(unittest.TestCase):
