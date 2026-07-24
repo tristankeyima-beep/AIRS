@@ -11,8 +11,8 @@
     "auditResultKind": "detailed"
   },
   "capabilities": [
-    {"name": "材料缺失复核", "status": "completed", "reason": "已基于出院记录执行"},
-    {"name": "结构化提取一致性检查", "status": "not_run", "reason": "未提供结构化提取结果"}
+    {"name": "材料与证据质控", "status": "completed", "reason": ""},
+    {"name": "结构化提取项维护检查", "status": "not_run", "reason": "未提供结构化标准"}
   ],
   "originalResult": "不通过",
   "qcConclusion": "不可靠",
@@ -23,57 +23,39 @@
       "category": "材料缺失判断准确性",
       "issueType": "误报缺失",
       "severity": "high",
-      "ruleCode": "R001",
-      "keywordCode": "K001",
-      "modelClaim": "材料未说明长期治疗情况。",
+      "ruleCode": "TMP-R001",
+      "keywordCode": "",
+      "modelClaim": "缺少长期治疗证据",
+      "evidenceStatus": "CONTRADICTED",
       "materialEvidence": [
         {
-          "materialId": "M-001",
-          "name": "出院记录",
-          "page": "第2页",
-          "section": "现病史",
-          "rawText": "患者规律接受长期治疗三年。",
-          "normalizedText": "患者规律接受长期治疗三年",
-          "location": {"type": "section", "value": "第2页·现病史"}
+          "materialId": "M001",
+          "materialName": "出院记录",
+          "page": 1,
+          "section": "治疗经过",
+          "rawText": "患者规律接受长期治疗三年",
+          "normalizedText": "",
+          "location": {"start": 12, "end": 27}
         }
       ],
-      "qcFinding": "原始材料已有明确表述，不能判为材料缺失。",
-      "possibleImpact": "导致本应继续审核的案件被拒绝。",
-      "impactOnFinalResult": "changed",
+      "qcFinding": "材料中已经存在长期治疗证据，缺失判断不成立",
+      "possibleImpact": "可能造成错误拒绝",
+      "impactOnFinalResult": "potentially_changed",
       "riskDirection": "false_rejection",
-      "recommendation": "以该证据重新执行规则 R001。",
+      "recommendation": "修正证据提取后重新计算规则和最终结论",
       "confidence": "high"
     }
   ],
-  "ruleReviews": [
-    {
-      "ruleCode": "R001",
-      "result": "不满足",
-      "modelClaim": "长期治疗材料缺失。",
-      "materialEvidence": [
-        {
-          "materialId": "M-001",
-          "name": "出院记录",
-          "page": "第2页",
-          "section": "现病史",
-          "rawText": "患者规律接受长期治疗三年。",
-          "normalizedText": "患者规律接受长期治疗三年",
-          "location": {"type": "section", "value": "第2页·现病史"}
-        }
-      ],
-      "qcFinding": "证据与原判断矛盾。",
-      "recommendation": "复核并重新执行该规则。"
-    }
-  ],
+  "ruleReviews": [],
   "unperformedChecks": [
     {
-      "name": "结构化提取一致性检查",
-      "reason": "未提供结构化提取结果"
+      "name": "结构化提取项维护检查",
+      "reason": "未提供结构化标准"
     }
   ],
   "rawInput": {
-    "materials": [{"name": "出院记录", "text": "患者规律接受长期治疗三年。"}],
-    "standard": "natural_language",
-    "audit": {"conclusion": "不通过"}
+    "materials": "出院记录：患者规律接受长期治疗三年",
+    "standard": "需有长期治疗证据",
+    "auditResult": {"finalResult": "不通过", "advice": "缺少长期治疗证据"}
   }
 }
