@@ -14,6 +14,27 @@ class SkillContractTests(unittest.TestCase):
         self.assertIsNotNone(section, f"SKILL.md must contain ## {heading}")
         return section.group("body")
 
+    def mode_steps(self, skill_text):
+        mode_1 = self.mode_body(skill_text, "模式 1：生成结构化认定标准")
+        steps = [
+            (int(number), text)
+            for number, text in re.findall(r"(?m)^(\d+)\. (.+)$", mode_1)
+        ]
+        self.assertGreaterEqual(len(steps), 10, "Mode 1 needs a complete imperative workflow")
+        self.assertEqual(
+            [number for number, _ in steps],
+            list(range(1, len(steps) + 1)),
+            "Mode 1 steps must remain consecutively numbered",
+        )
+        return mode_1, dict(steps)
+
+    def assert_step_contains(self, steps, markers):
+        for marker in markers:
+            self.assertTrue(
+                any(marker in step for step in steps.values()),
+                f"Mode 1 must instruct: {marker}",
+            )
+
     def test_skill_metadata_and_ui_contract(self):
         skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
         ui_text = (SKILL_ROOT / "agents" / "openai.yaml").read_text(encoding="utf-8")
@@ -35,8 +56,8 @@ class SkillContractTests(unittest.TestCase):
         self.assertEqual(metadata["name"], "chronic-disease-certification-qc")
 
         skill_body = skill_text[frontmatter_match.end() :]
-        self.assertIn("生成门诊慢特病结构化认定标准", skill_body)
-        self.assertIn("智能审核质控", skill_body)
+        self.assertIn("模式 1：生成结构化认定标准", skill_body)
+        self.assertIn("模式 2：进行智能审核质控", skill_body)
         blocked = ("TO" + "DO", "TB" + "D")
         self.assertFalse(any(term in skill_body.upper() for term in blocked))
 
@@ -51,39 +72,98 @@ class SkillContractTests(unittest.TestCase):
 
     def test_mode_1_requires_source_faithful_draft_and_explicit_approval(self):
         skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
-        mode_1 = self.mode_body(skill_text, "模式 1：生成结构化认定标准")
+        mode_1, steps = self.mode_steps(skill_text)
 
-        required_steps = (
-            "1. 读取 `references/certification-contract.md` 和 `references/structuring-rules.md`。",
-            "2. 清点病种名称、病种编码、来源信息和版本信息。",
-            "3. 缺少合规病种编码时询问用户，不编造编码。",
-            "4. 只将用户提供的认定信息结构化为临时 R001 规则、原子提取项和嵌套逻辑拓扑。",
-            "5. 独立对照来源检查遗漏、添加、阈值、单位、时长、次数、范围、逻辑、冲突和辅助细则误升级。",
-            "6. 对每个阻断性歧义逐项向用户提问，不得猜测。",
-            "7. 无论是否存在歧义，始终展示拟采用的规则、提取项和逻辑，并取得用户明确同意后再继续。",
-            "8. 用户明确同意前，不得生成正式 JSON 或 HTML；用户修订后重复本确认关口。",
-        )
-        positions = []
-        for step in required_steps:
-            self.assertIn(step, mode_1)
-            positions.append(mode_1.index(step))
-        self.assertEqual(positions, sorted(positions), "Mode 1 must be an ordered imperative workflow")
+        self.assertIn("references/certification-contract.md", steps[1])
+        self.assertIn("references/structuring-rules.md", steps[1])
+        self.assertNotIn("references/report-contract.md", steps[1])
+        self.assert_step_contains(steps, ("病种名称", "病种编码", "来源", "版本"))
+        self.assert_step_contains(steps, ("缺少合规病种编码", "询问用户", "不编造编码"))
+        self.assert_step_contains(steps, ("只将用户提供的认定信息", "R001", "原子提取项", "嵌套逻辑"))
+        self.assert_step_contains(steps, ("独立对照来源", "遗漏", "阈值", "单位", "时长", "次数", "范围", "辅助细则"))
+        self.assert_step_contains(steps, ("阻断性歧义", "逐项", "不得猜测"))
+        self.assert_step_contains(steps, ("重新展示", "规则、提取项和逻辑", "用户明确同意后"))
+        self.assertIn("不得生成正式 JSON", mode_1)
         self.assertNotIn("references/report-contract.md", mode_1)
 
     def test_mode_1_formalization_is_script_owned_and_html_derives_from_json(self):
         skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
-        mode_1 = self.mode_body(skill_text, "模式 1：生成结构化认定标准")
-
-        required_steps = (
-            "9. 仅在用户明确同意后，将草案 JSON 与 meta JSON 交给 `scripts/validate_certification.py finalize <草案> <meta> <正式JSON>`；由脚本而非模型分配正式编码。",
-            "10. 运行 `scripts/validate_certification.py validate <正式JSON>`；通过后运行 `scripts/render_certification_html.py <正式JSON> <HTML>`，重新读取两份文件并确认业务 HTML 完全由正式 JSON 推导。",
-            "11. 交付 `<病种>-certification_list-<版本>.json` 和 `<病种>-认定标准可视化-<版本>.html`。",
+        _, steps = self.mode_steps(skill_text)
+        formal_step = next(
+            number for number, step in steps.items() if "finalize" in step
         )
-        positions = []
-        for step in required_steps:
-            self.assertIn(step, mode_1)
-            positions.append(mode_1.index(step))
-        self.assertEqual(positions, sorted(positions))
+        validation_step = next(
+            number
+            for number, step in steps.items()
+            if "validate_certification.py validate" in step
+        )
+        delivery_step = next(
+            number for number, step in steps.items() if "certification_list" in step
+        )
+        self.assertIn("草案 JSON", steps[formal_step])
+        self.assertIn("meta JSON", steps[formal_step])
+        self.assertIn("用户明确同意后", steps[formal_step])
+        self.assertIn("脚本而非模型", steps[formal_step])
+        self.assertIn("render_certification_html.py", steps[validation_step])
+        self.assertIn("重新读取", steps[validation_step])
+        self.assertIn("完全由正式 JSON 推导", steps[validation_step])
+        self.assertLess(formal_step, validation_step)
+        self.assertLess(validation_step, delivery_step)
+        self.assertIn("认定标准可视化", steps[delivery_step])
+
+    def test_unresolved_ambiguity_ends_at_pending_proposal_even_with_approval(self):
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        mode_1, steps = self.mode_steps(skill_text)
+        rules = (SKILL_ROOT / "references" / "structuring-rules.md").read_text(encoding="utf-8")
+
+        for text in (mode_1, rules):
+            self.assertIn("用户明确同意不能代替阻断性歧义的解决", text)
+            self.assertIn("用户说不知道、无法决定", text)
+            self.assertIn("待确认提案", text)
+            self.assertIn("阻断性歧义未解决", text)
+            self.assertIn("不得生成正式 JSON", text)
+            self.assertIn("重新展示", text)
+            self.assertIn("用户明确同意后", text)
+
+        pending_step = next(
+            number for number, step in steps.items() if "待确认提案" in step
+        )
+        formal_step = next(
+            number for number, step in steps.items() if "finalize" in step
+        )
+        self.assertLess(pending_step, formal_step)
+
+    def test_skill_routes_generation_qc_and_combined_requests_in_order(self):
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        mode_1, steps = self.mode_steps(skill_text)
+        mode_2 = self.mode_body(skill_text, "模式 2：进行智能审核质控")
+
+        self.assertIn("生成、结构化、维护或可视化", mode_1)
+        self.assertIn("智能审核的质控或复核", mode_2)
+        combined = re.search(r"(?ms)^## 组合请求处理[ \t]*$\n(?P<body>.*?)(?=^## |\Z)", skill_text)
+        self.assertIsNotNone(combined, "Skill must define combined-request routing")
+        combined_body = combined.group("body")
+        required_markers = ("先完成模式 1", "阻断性歧义", "用户明确同意后", "finalize", "validate", "使用确认后的标准", "再进入模式 2", "输入清单确认")
+        for marker in required_markers:
+            self.assertIn(marker, combined_body)
+        self.assertLess(combined_body.index("先完成模式 1"), combined_body.index("再进入模式 2"))
+        self.assertTrue(any("可视化" in step for step in steps.values()))
+
+    def test_generation_date_version_fallback_is_recorded_in_two_destinations(self):
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        _, steps = self.mode_steps(skill_text)
+        rules = (SKILL_ROOT / "references" / "structuring-rules.md").read_text(encoding="utf-8")
+
+        for text in (skill_text, rules):
+            self.assertIn("VYYYYMMDD", text)
+            self.assertIn("生成日期，不是政策发布日期", text)
+            self.assertIn("meta.description", text)
+            self.assertIn("交付摘要", text)
+        delivery_step = next(
+            step for step in steps.values() if "certification_list" in step
+        )
+        self.assertIn("meta.description", delivery_step)
+        self.assertIn("交付摘要", delivery_step)
 
     def test_structuring_rules_lock_source_fidelity_atomic_guides_and_versions(self):
         rules_path = SKILL_ROOT / "references" / "structuring-rules.md"
@@ -127,7 +207,13 @@ class SkillContractTests(unittest.TestCase):
             "<病种>-certification_list-<版本>.json",
             "<病种>-认定标准可视化-<版本>.html",
             "不得用含糊表述掩盖歧义",
-            "始终在生成正式文件前取得用户明确同意后",
+            "重新展示拟采用的规则、提取项和逻辑",
+            "用户明确同意不能代替阻断性歧义的解决",
+            "用户说不知道、无法决定",
+            "待确认提案",
+            "阻断性歧义未解决",
+            "meta.description",
+            "交付摘要",
         )
         for wording in required_safety_wording:
             self.assertIn(wording, rules)

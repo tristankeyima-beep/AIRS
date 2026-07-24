@@ -5,9 +5,9 @@ description: 生成门诊慢特病结构化认定标准 JSON 与业务可视化 
 
 # 门诊慢特病认定标准与审核质控
 
-先识别用户是在生成门诊慢特病结构化认定标准还是进行智能审核质控。
-
 ## 模式 1：生成结构化认定标准
+
+适用于认定标准的生成、结构化、维护或可视化。
 
 1. 读取 `references/certification-contract.md` 和 `references/structuring-rules.md`。
 2. 清点病种名称、病种编码、来源信息和版本信息。
@@ -15,15 +15,20 @@ description: 生成门诊慢特病结构化认定标准 JSON 与业务可视化 
 4. 只将用户提供的认定信息结构化为临时 R001 规则、原子提取项和嵌套逻辑拓扑。
 5. 独立对照来源检查遗漏、添加、阈值、单位、时长、次数、范围、逻辑、冲突和辅助细则误升级。
 6. 对每个阻断性歧义逐项向用户提问，不得猜测。
-7. 无论是否存在歧义，始终展示拟采用的规则、提取项和逻辑，并取得用户明确同意后再继续。
-8. 用户明确同意前，不得生成正式 JSON 或 HTML；用户修订后重复本确认关口。
-9. 仅在用户明确同意后，将草案 JSON 与 meta JSON 交给 `scripts/validate_certification.py finalize <草案> <meta> <正式JSON>`；由脚本而非模型分配正式编码。
-10. 运行 `scripts/validate_certification.py validate <正式JSON>`；通过后运行 `scripts/render_certification_html.py <正式JSON> <HTML>`，重新读取两份文件并确认业务 HTML 完全由正式 JSON 推导。
-11. 交付 `<病种>-certification_list-<版本>.json` 和 `<病种>-认定标准可视化-<版本>.html`。
+7. 若用户说不知道、无法决定，或仍有任何阻断性歧义未解决，停止在明确标记的“待确认提案”；用户明确同意不能代替阻断性歧义的解决，不得生成正式 JSON 或 HTML。
+8. 全部阻断性歧义解决后，始终重新展示拟采用的规则、提取项和逻辑，并取得用户明确同意后再继续；用户修订后重复本确认关口。
+9. 用户明确同意前，不得生成正式 JSON 或 HTML。
+10. 仅在用户明确同意后，将草案 JSON 与 meta JSON 交给 `scripts/validate_certification.py finalize <草案> <meta> <正式JSON>`；由脚本而非模型分配正式编码。
+11. 运行 `scripts/validate_certification.py validate <正式JSON>`；通过后运行 `scripts/render_certification_html.py <正式JSON> <HTML>`，重新读取两份文件并确认业务 HTML 完全由正式 JSON 推导。
+12. 交付 `<病种>-certification_list-<版本>.json` 和 `<病种>-认定标准可视化-<版本>.html`。若用户和来源都没有版本而采用 VYYYYMMDD，在 meta.description 和交付摘要中明确记录“生成日期，不是政策发布日期”。
 
-## 进行审核质控
+## 模式 2：进行智能审核质控
 
-读取 `references/input-adapters.md`、`references/qc-rubric.md` 和 `references/report-contract.md`，再执行质控流程。
+适用于智能审核的质控或复核。读取 `references/input-adapters.md`、`references/qc-rubric.md` 和 `references/report-contract.md`，再执行质控流程。
+
+## 组合请求处理
+
+同时要求认定标准处理和智能审核质控时，先完成模式 1：解决全部阻断性歧义、重新展示并取得用户明确同意后，再运行 finalize 和 validate，得到确认后的标准。然后使用确认后的标准再进入模式 2；模式 2 仍须执行其自身的输入清单确认关口。
 
 ## 通用约束
 
