@@ -12,15 +12,16 @@ description: 生成门诊慢特病结构化认定标准 JSON 与业务可视化 
 1. 读取 `references/certification-contract.md` 和 `references/structuring-rules.md`。
 2. 清点病种名称、病种编码、来源信息和版本信息。
 3. 缺少合规病种编码时询问用户，不编造编码。
-4. 只将用户提供的认定信息结构化为临时 R001 规则、原子提取项和嵌套逻辑拓扑。
-5. 独立对照来源检查遗漏、添加、阈值、单位、时长、次数、范围、逻辑、冲突和辅助细则误升级。
-6. 对每个阻断性歧义逐项向用户提问，不得猜测。
-7. 若用户说不知道、无法决定，或仍有任何阻断性歧义未解决，停止在明确标记的“待确认提案”；用户明确同意不能代替阻断性歧义的解决，不得生成正式 JSON 或 HTML。
-8. 全部阻断性歧义解决后，始终重新展示拟采用的规则、提取项和逻辑，并取得用户明确同意后再继续；用户修订后重复本确认关口。
-9. 用户明确同意前，不得生成正式 JSON 或 HTML。
-10. 仅在用户明确同意后，将草案 JSON 与 meta JSON 交给 `scripts/validate_certification.py finalize <草案> <meta> <正式JSON>`；由脚本而非模型分配正式编码。
-11. 运行 `scripts/validate_certification.py validate <正式JSON>`；通过后运行 `scripts/render_certification_html.py <正式JSON> <HTML>`，重新读取两份文件并确认业务 HTML 完全由正式 JSON 推导。
-12. 交付 `<病种>-certification_list-<版本>.json` 和 `<病种>-认定标准可视化-<版本>.html`。若用户和来源都没有版本而采用 VYYYYMMDD，在 meta.description 和交付摘要中明确记录“生成日期，不是政策发布日期”。
+4. 若用户和来源都没有版本而采用 VYYYYMMDD，在草案确认前将“生成日期，不是政策发布日期”写入 meta.description。
+5. 只将用户提供的认定信息结构化为临时 R001 规则、原子提取项和嵌套逻辑拓扑。
+6. 独立对照来源检查遗漏、添加、阈值、单位、时长、次数、范围、逻辑、冲突和辅助细则误升级。
+7. 对每个阻断性歧义逐项向用户提问，不得猜测。
+8. 若用户说不知道、无法决定，或仍有任何阻断性歧义未解决，停止在明确标记的“待确认提案”；用户明确同意不能代替阻断性歧义的解决，不得生成正式 JSON 或 HTML。
+9. 全部阻断性歧义解决后，始终重新展示拟采用的规则、提取项和逻辑，并取得用户明确同意后再继续；用户修订后重复本确认关口。
+10. 用户明确同意前，不得生成正式 JSON 或 HTML。
+11. 仅在用户明确同意后，将草案 JSON 与 meta JSON 交给 `scripts/validate_certification.py finalize <草案> <meta> <正式JSON>`；由脚本而非模型分配正式编码。
+12. 运行 `scripts/validate_certification.py validate <正式JSON>`；通过后运行 `scripts/render_certification_html.py <正式JSON> <HTML>`，重新读取两份文件并确认业务 HTML 完全由正式 JSON 推导。
+13. 交付 `<病种>-certification_list-<版本>.json` 和 `<病种>-认定标准可视化-<版本>.html`。若采用 VYYYYMMDD，在交付摘要中复述“生成日期，不是政策发布日期”并核验该说明已存在于正式 JSON；验证和渲染后不得修改正式 JSON 或 HTML。
 
 ## 模式 2：进行智能审核质控
 

@@ -35,6 +35,11 @@ class SkillContractTests(unittest.TestCase):
                 f"Mode 1 must instruct: {marker}",
             )
 
+    def step_number(self, steps, marker):
+        matches = [number for number, step in steps.items() if marker in step]
+        self.assertEqual(len(matches), 1, f"Mode 1 needs one step containing: {marker}")
+        return matches[0]
+
     def test_skill_metadata_and_ui_contract(self):
         skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
         ui_text = (SKILL_ROOT / "agents" / "openai.yaml").read_text(encoding="utf-8")
@@ -89,17 +94,14 @@ class SkillContractTests(unittest.TestCase):
     def test_mode_1_formalization_is_script_owned_and_html_derives_from_json(self):
         skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
         _, steps = self.mode_steps(skill_text)
-        formal_step = next(
-            number for number, step in steps.items() if "finalize" in step
-        )
-        validation_step = next(
-            number
-            for number, step in steps.items()
-            if "validate_certification.py validate" in step
-        )
-        delivery_step = next(
-            number for number, step in steps.items() if "certification_list" in step
-        )
+        inventory_step = self.step_number(steps, "清点病种名称")
+        targeted_questions_step = self.step_number(steps, "逐项向用户提问")
+        pending_step = self.step_number(steps, "待确认提案")
+        approval_step = self.step_number(steps, "重新展示")
+        fallback_metadata_step = self.step_number(steps, "草案确认前")
+        formal_step = self.step_number(steps, "finalize")
+        validation_step = self.step_number(steps, "validate_certification.py validate")
+        delivery_step = self.step_number(steps, "certification_list")
         self.assertIn("草案 JSON", steps[formal_step])
         self.assertIn("meta JSON", steps[formal_step])
         self.assertIn("用户明确同意后", steps[formal_step])
@@ -107,6 +109,18 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("render_certification_html.py", steps[validation_step])
         self.assertIn("重新读取", steps[validation_step])
         self.assertIn("完全由正式 JSON 推导", steps[validation_step])
+        self.assertIn("meta.description", steps[fallback_metadata_step])
+        self.assertIn("生成日期，不是政策发布日期", steps[fallback_metadata_step])
+        self.assertIn("交付摘要", steps[delivery_step])
+        self.assertIn("生成日期，不是政策发布日期", steps[delivery_step])
+        self.assertIn("核验", steps[delivery_step])
+        self.assertNotIn("meta.description", steps[delivery_step])
+        self.assertLess(targeted_questions_step, pending_step)
+        self.assertLess(pending_step, approval_step)
+        self.assertLess(inventory_step, fallback_metadata_step)
+        self.assertLess(fallback_metadata_step, targeted_questions_step)
+        self.assertLess(approval_step, formal_step)
+        self.assertLess(fallback_metadata_step, formal_step)
         self.assertLess(formal_step, validation_step)
         self.assertLess(validation_step, delivery_step)
         self.assertIn("认定标准可视化", steps[delivery_step])
@@ -128,9 +142,7 @@ class SkillContractTests(unittest.TestCase):
         pending_step = next(
             number for number, step in steps.items() if "待确认提案" in step
         )
-        formal_step = next(
-            number for number, step in steps.items() if "finalize" in step
-        )
+        formal_step = self.step_number(steps, "finalize")
         self.assertLess(pending_step, formal_step)
 
     def test_skill_routes_generation_qc_and_combined_requests_in_order(self):
@@ -146,7 +158,9 @@ class SkillContractTests(unittest.TestCase):
         required_markers = ("先完成模式 1", "阻断性歧义", "用户明确同意后", "finalize", "validate", "使用确认后的标准", "再进入模式 2", "输入清单确认")
         for marker in required_markers:
             self.assertIn(marker, combined_body)
-        self.assertLess(combined_body.index("先完成模式 1"), combined_body.index("再进入模式 2"))
+        combined_order = ("先完成模式 1", "用户明确同意后", "finalize", "validate", "再进入模式 2")
+        indexes = [combined_body.index(marker) for marker in combined_order]
+        self.assertEqual(indexes, sorted(indexes))
         self.assertTrue(any("可视化" in step for step in steps.values()))
 
     def test_generation_date_version_fallback_is_recorded_in_two_destinations(self):
@@ -159,11 +173,15 @@ class SkillContractTests(unittest.TestCase):
             self.assertIn("生成日期，不是政策发布日期", text)
             self.assertIn("meta.description", text)
             self.assertIn("交付摘要", text)
-        delivery_step = next(
-            step for step in steps.values() if "certification_list" in step
-        )
-        self.assertIn("meta.description", delivery_step)
+        self.assertIn("草案确认前", rules)
+        self.assertIn("验证和渲染后", rules)
+        metadata_step = steps[self.step_number(steps, "草案确认前")]
+        delivery_step = steps[self.step_number(steps, "certification_list")]
+        self.assertIn("meta.description", metadata_step)
+        self.assertNotIn("meta.description", delivery_step)
         self.assertIn("交付摘要", delivery_step)
+        self.assertIn("核验", delivery_step)
+        self.assertLess(self.step_number(steps, "草案确认前"), self.step_number(steps, "finalize"))
 
     def test_structuring_rules_lock_source_fidelity_atomic_guides_and_versions(self):
         rules_path = SKILL_ROOT / "references" / "structuring-rules.md"
