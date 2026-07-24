@@ -67,42 +67,51 @@ def _validated_root(root):
     return candidate.resolve()
 
 
+def _walk_error(error):
+    raise ScanError("cannot traverse root") from error
+
+
 def scan(root: Path, forbidden_terms):
     """Return ordered, actionable matches beneath ``root`` without following links."""
     root_path = _validated_root(root)
     patterns = _patterns(forbidden_terms)
     matches = []
 
-    for directory, directory_names, file_names in os.walk(root_path, followlinks=False):
-        directory_path = Path(directory)
-        directory_names[:] = sorted(
-            name
-            for name in directory_names
-            if name not in _IGNORED_NAMES
-            and not (directory_path / name).is_symlink()
-        )
-        for file_name in sorted(file_names):
-            if file_name in _IGNORED_NAMES:
-                continue
-            path = directory_path / file_name
-            if path.is_symlink() or path.suffix.lower() not in TEXT_SUFFIXES:
-                continue
-            try:
-                text = path.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            relative_path = path.relative_to(root_path).as_posix()
-            for term, pattern in patterns:
-                for occurrence in pattern.finditer(text):
-                    line, column = _match_location(text, occurrence.start())
-                    matches.append(
-                        {
-                            "path": relative_path,
-                            "term": term,
-                            "line": line,
-                            "column": column,
-                        }
-                    )
+    try:
+        for directory, directory_names, file_names in os.walk(
+            root_path, followlinks=False, onerror=_walk_error
+        ):
+            directory_path = Path(directory)
+            directory_names[:] = sorted(
+                name
+                for name in directory_names
+                if name not in _IGNORED_NAMES
+                and not (directory_path / name).is_symlink()
+            )
+            for file_name in sorted(file_names):
+                if file_name in _IGNORED_NAMES:
+                    continue
+                path = directory_path / file_name
+                if path.is_symlink() or path.suffix.lower() not in TEXT_SUFFIXES:
+                    continue
+                try:
+                    text = path.read_text(encoding="utf-8", errors="replace")
+                except OSError as error:
+                    raise ScanError("cannot read supported file") from error
+                relative_path = path.relative_to(root_path).as_posix()
+                for term, pattern in patterns:
+                    for occurrence in pattern.finditer(text):
+                        line, column = _match_location(text, occurrence.start())
+                        matches.append(
+                            {
+                                "path": relative_path,
+                                "term": term,
+                                "line": line,
+                                "column": column,
+                            }
+                        )
+    except OSError as error:
+        raise ScanError("cannot traverse root") from error
     matches.sort(
         key=lambda match: (
             match["path"],

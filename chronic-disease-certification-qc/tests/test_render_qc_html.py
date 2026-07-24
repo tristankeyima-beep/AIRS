@@ -170,6 +170,56 @@ class QcRendererTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "confirmedByUser"):
                 render(report)
 
+    def test_suspected_secrets_block_canonical_text_html_and_cli_without_outputs(self):
+        suspicious_inputs = (
+            {"headers": {"Authorization": "Bearer fictional-access-token-9f7c2a61"}},
+            {"api_key": "fictional-key-material-5a9e1d3c"},
+            {"cookies": "session=fictional-session-value-7e31c9"},
+            {"credentials": {"password": "fictional-password-value-4d2a8e"}},
+            {"privateSystemPrompt": "internal configuration only"},
+            {"SERVICE_TOKEN": "fictional-environment-token-8b4f2d"},
+            {"environment": "SERVICE_TOKEN=fictional-environment-token-8b4f2d"},
+        )
+        for raw_input in suspicious_inputs:
+            with self.subTest(raw_input=raw_input):
+                report = self.bound_report()
+                report["rawInput"] = raw_input
+                self.rebind_attestations(report)
+                with self.assertRaisesRegex(ValueError, "suspected credential or secret") as raised:
+                    self.renderer.validate_qc_report(report)
+                self.assertNotIn("fictional", str(raised.exception))
+                for render in (self.renderer.render_qc_text, self.renderer.render_qc_html):
+                    with self.assertRaisesRegex(ValueError, "suspected credential or secret"):
+                        render(report)
+
+        ordinary = self.bound_report()
+        self.renderer.validate_qc_report(ordinary)
+        redacted = self.bound_report()
+        redacted["rawInput"]["api_key"] = "<redacted>"
+        self.rebind_attestations(redacted)
+        self.renderer.validate_qc_report(redacted)
+
+        with tempfile.TemporaryDirectory() as directory:
+            report = self.bound_report()
+            secret = "Bearer fictional-access-token-9f7c2a61"
+            report["rawInput"] = {"headers": {"Authorization": secret}}
+            self.rebind_attestations(report)
+            source = Path(directory) / "source.json"
+            html_output = Path(directory) / "report.html"
+            text_output = Path(directory) / "report.txt"
+            source.write_text(json.dumps(report, ensure_ascii=False), encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, str(SCRIPT), str(source), str(html_output), "--text-output", str(text_output)],
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(completed.returncode, 1)
+            self.assertIn("suspected credential or secret", completed.stderr)
+            self.assertNotIn(secret, completed.stderr)
+            self.assertNotIn("Traceback", completed.stderr)
+            self.assertFalse(html_output.exists())
+            self.assertFalse(text_output.exists())
+
     def test_validation_rejects_missing_wrong_enum_subfields_cycles_and_depth(self):
         missing = copy.deepcopy(self.report); missing.pop("case")
         wrong = copy.deepcopy(self.report); wrong["issues"] = {}

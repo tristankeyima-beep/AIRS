@@ -41,6 +41,28 @@ ISSUE_CAPABILITY_BY_CATEGORY = {name: name for name in CATEGORIES}
 SECTION_CATEGORIES = (("材料缺失复核", "材料缺失判断准确性"), ("证据准确性", "证据提取准确性"), ("过度推理", "过度推理"), ("条件一致性", "审核条件与结论一致性"), ("规则维护质量", "规则维护质量"))
 RISK_LABELS = {"false_approval": "错误放行风险", "false_rejection": "错误拒绝风险", "both": "错误放行与错误拒绝风险", "none": "未发现明显风险"}
 IMPACT_LABELS = {"changed": "已改变最终结论", "potentially_changed": "可能改变最终结论", "unchanged": "未改变最终结论", "unknown": "最终影响暂无法判断"}
+_SENSITIVE_VALUE_RE = re.compile(
+    r"\b(?:authorization\s*[:=]\s*)?bearer\s+[A-Za-z0-9._~+/=-]{12,}"
+    r"|\b(?:cookie|session(?:id)?)\s*[:=]\s*[A-Za-z0-9._~+/=-]{8,}",
+    re.IGNORECASE,
+)
+_SENSITIVE_ASSIGNMENT_RE = re.compile(
+    r"\b(?:[A-Z][A-Z0-9_]*_)?(?:api[_-]?key|access[_-]?token|token|secret|password|cookie|session(?:_?id)?)"
+    r"\s*[:=]\s*(?P<value>[^\s,;]+)",
+    re.IGNORECASE,
+)
+_PLACEHOLDER_MARKERS = (
+    "redact",
+    "placeholder",
+    "example",
+    "dummy",
+    "sample",
+    "test",
+    "fake",
+    "not-a-secret",
+    "your_",
+    "your-",
+)
 
 
 def _error(path, message):
@@ -83,6 +105,68 @@ def _json_safe(value, path="root", depth=0, ancestors=None):
             copied[key] = _json_safe(item, f"{path}.{key}", depth + 1, ancestors | {identity})
         return copied
     _error(path, f"unsupported non-JSON value {type(value).__name__}")
+
+
+def _sensitive_key_name(key):
+    compact = re.sub(r"[^a-z0-9]", "", key.casefold())
+    if compact in {"authorization", "cookie", "cookies", "session", "sessionid", "password", "secret"}:
+        return True
+    if compact in {
+        "apikey",
+        "accesstoken",
+        "refreshtoken",
+        "systemprompt",
+        "systemconfig",
+        "privatesystemprompt",
+        "privatesystemconfig",
+    }:
+        return True
+    if compact.endswith(("apikey", "token", "secret", "password", "cookie", "session")):
+        return True
+    return compact.startswith("privatesystem") and ("prompt" in compact or "config" in compact)
+
+
+def _placeholder_secret(value):
+    if not isinstance(value, str):
+        return False
+    normalized = value.strip().casefold()
+    return (
+        not normalized
+        or normalized in {"***", "...", "none", "null"}
+        or (normalized.startswith("<") and normalized.endswith(">"))
+        or (normalized.startswith("{{") and normalized.endswith("}}"))
+        or any(marker in normalized for marker in _PLACEHOLDER_MARKERS)
+    )
+
+
+def _contains_suspected_secret(value, sensitive_context=False):
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_is_sensitive = _sensitive_key_name(key)
+            if _SENSITIVE_VALUE_RE.search(key):
+                return True
+            if key_is_sensitive and isinstance(item, str) and not _placeholder_secret(item):
+                return True
+            if _contains_suspected_secret(item, sensitive_context or key_is_sensitive):
+                return True
+        return False
+    if isinstance(value, list):
+        return any(_contains_suspected_secret(item, sensitive_context) for item in value)
+    if not isinstance(value, str):
+        return False
+    if _SENSITIVE_VALUE_RE.search(value):
+        return True
+    if any(
+        not _placeholder_secret(match.group("value"))
+        for match in _SENSITIVE_ASSIGNMENT_RE.finditer(value)
+    ):
+        return True
+    return sensitive_context and not _placeholder_secret(value)
+
+
+def _reject_suspected_secrets(value):
+    if _contains_suspected_secret(value):
+        raise ValueError("qc_report_unsafe_input: suspected credential or secret in report input")
 
 
 def _reject_duplicate_pairs(pairs):
@@ -506,6 +590,7 @@ def _validate_report(report):
 def validate_qc_report(source):
     """Return a normalized deep copy, or raise a stable ValueError without mutation."""
     report = _json_safe(_load_source(source))
+    _reject_suspected_secrets(report)
     try:
         json.dumps(report, ensure_ascii=False, allow_nan=False)
     except (TypeError, ValueError) as exc:

@@ -1,10 +1,13 @@
 import importlib.util
+import io
 import json
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -72,19 +75,50 @@ class ContentScannerTests(unittest.TestCase):
                 [{"path": "sample.md", "term": "执行指令", "line": 1, "column": 3}],
             )
 
-    def test_ignores_binary_suffixes_and_skips_symlinks_and_caches(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
+    def test_ignores_binary_suffixes_and_skips_caches_and_valid_external_symlinks(self):
+        with tempfile.TemporaryDirectory() as temp_dir, tempfile.TemporaryDirectory() as external_dir:
             root = Path(temp_dir)
             (root / "image.png").write_bytes(b"VendorX")
             cache = root / "__pycache__"
             cache.mkdir()
             (cache / "cached.py").write_text("VendorX", encoding="utf-8")
-            target = root / "target.md"
-            target.write_text("VendorX", encoding="utf-8")
-            (root / "linked.md").symlink_to(target)
-            target.unlink()
+            external_file = Path(external_dir) / "external.md"
+            external_file.write_text("VendorX", encoding="utf-8")
+            external_tree = Path(external_dir) / "nested"
+            external_tree.mkdir()
+            (external_tree / "external.txt").write_text("VendorX", encoding="utf-8")
+            (root / "linked.md").symlink_to(external_file)
+            (root / "linked-directory").symlink_to(external_tree, target_is_directory=True)
 
             self.assertEqual(self.scan(root, ["vendorx"]), [])
+            root_link = Path(external_dir) / "root-link"
+            root_link.symlink_to(root, target_is_directory=True)
+            with self.assertRaisesRegex(module.ScanError, "root must not be a symlink"):
+                self.scan(root_link, ["vendorx"])
+
+    def test_fails_closed_for_file_read_and_directory_walk_errors(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "sample.md").write_text("safe text", encoding="utf-8")
+            with mock.patch.object(Path, "read_text", side_effect=OSError("read blocked")):
+                with self.assertRaisesRegex(module.ScanError, "cannot read supported file"):
+                    self.scan(root, ["vendorx"])
+
+            def failed_walk(path, *, followlinks, onerror):
+                onerror(OSError("walk blocked"))
+                return ()
+
+            with mock.patch.object(module.os, "walk", side_effect=failed_walk):
+                with self.assertRaisesRegex(module.ScanError, "cannot traverse root"):
+                    self.scan(root, ["vendorx"])
+
+    def test_cli_returns_exit_two_without_traceback_for_scanner_errors(self):
+        stream = io.StringIO()
+        with mock.patch.object(module, "scan", side_effect=module.ScanError("blocked")):
+            with redirect_stderr(stream):
+                self.assertEqual(module.main(["--root", ".", "--forbid", "vendorx"]), 2)
+        self.assertIn("error: blocked", stream.getvalue())
+        self.assertNotIn("Traceback", stream.getvalue())
 
     def test_invalid_utf8_text_is_scanned_without_crashing(self):
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -433,6 +433,25 @@ class SkillContractTests(unittest.TestCase):
         ):
             self.assertIn(marker, safety)
 
+    def test_secret_bearing_mode_2_input_fails_closed_and_requires_reconfirmation(self):
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        safety = self.mode_body(skill_text, "安全")
+        contract = (SKILL_ROOT / "references" / "report-contract.md").read_text(encoding="utf-8")
+
+        for marker in (
+            "rawInput",
+            "疑似凭据",
+            "不得生成",
+            "规范对象",
+            "文本",
+            "HTML",
+            "移除或替换",
+            "重新清点",
+            "重新计算",
+            "重新明确确认",
+        ):
+            self.assertIn(marker, safety + contract)
+
 
 if __name__ == "__main__":
     unittest.main()

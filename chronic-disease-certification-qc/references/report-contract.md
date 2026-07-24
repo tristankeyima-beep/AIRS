@@ -18,6 +18,7 @@
 - `ruleReviews` 每项必须含 `ruleCode`、`result`、`modelClaim`、`evidenceStatus`、`materialEvidence`、`qcFinding`、`recommendation`，结果和证据状态采用量规枚举。
 - `unperformedChecks` 每项必须含 `name`、`reason`；若提供 `status`，其值只能为 `not_run`。名称必须唯一，并与 `capabilities` 中所有且仅有的 `not_run` 名称及原因完全一致；`completed`、`partial` 不得出现在此列表。
 - `rawInput` 可为任意 JSON 值，但不能含循环、重复键、元组等非 JSON 容器、非 JSON 值、超深结构或非字符串对象键。JSON 字符串和文件输入也会拒绝每层的重复键。校验返回的规范对象保留有效原始 JSON 字符串（包括控制字符和孤立代理项）；仅渲染时做显示安全化。
+- 渲染器必须深层扫描 rawInput、原始材料和相关报告输入的字典键/值、列表及字符串；若发现疑似凭据或秘密（Authorization/Bearer、API key/token、Cookie/session、password/secret、私有系统提示或配置、秘密环境变量形式），必须 fail-closed，且错误不得回显秘密值。此时不得生成正式规范对象、文本或 HTML，CLI 也不得留下任何新输出文件；提示用户先移除或替换敏感内容，然后重新清点、重新计算 inventory/rawInput 摘要并重新明确确认。
 
 文本部分按如下顺序：质控结论、输入与检查范围、影响最终结论的问题、材料缺失复核、证据准确性、过度推理、条件一致性、规则维护质量、逐规则复核、建议、未执行检查、原始输入。每一空集合均须显示明确空状态。所有动态文本使用单行 JSON 字符串表示；控制字符及所有 `splitlines` 分隔符均转义，原始输入使用安全 JSON 序列化，不能形成额外报告标题或字段。
 
