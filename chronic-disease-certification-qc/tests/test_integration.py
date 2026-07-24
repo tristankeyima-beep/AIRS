@@ -15,6 +15,30 @@ SCRIPTS = ROOT / "scripts"
 FIXTURES = ROOT / "tests" / "fixtures"
 SKILL = ROOT / "SKILL.md"
 STRUCTURING_RULES = ROOT / "references" / "structuring-rules.md"
+BRAIN_CLINICAL_SOURCE = (
+    "临床出现相应的脑部神经系统症状及体征，二级及以上医疗机构诊断为脑梗死（脑栓塞），"
+    "住院治疗后仍遗有神经症状及体征需继续治疗的。"
+)
+BRAIN_IMAGING_SOURCE = (
+    "影像学检查提示脑梗死（脑栓塞）灶或颅内、颅外血管中重度狭窄。"
+)
+BRAIN_SOURCE = (
+    "逻辑：且\n"
+    "\n"
+    "认定标准：\n"
+    "临床出现相应的脑部神经系统症状及体征，二级及以上医疗机构诊断为脑梗死（脑栓塞），"
+    "住院治疗后仍遗有神经症状及体征需继续治疗的。\n"
+    "影像学检查提示脑梗死（脑栓塞）灶或颅内、颅外血管中重度狭窄。\n"
+)
+BRAIN_CLINICAL_GUIDES = [
+    "临床是否出现相应的脑部神经系统症状及体征",
+    "是否由二级及以上医疗机构诊断为脑梗死（脑栓塞）",
+    "住院治疗后是否仍遗有神经症状及体征需继续治疗",
+]
+BRAIN_IMAGING_GUIDES = [
+    "影像学检查是否提示脑梗死（脑栓塞）灶",
+    "影像学检查是否提示颅内、颅外血管中重度狭窄",
+]
 
 
 def load(name):
@@ -166,6 +190,7 @@ class IntegrationTests(unittest.TestCase):
     def test_brain_source_finalizes_validates_and_renders_without_semantic_loss(self):
         source_path = FIXTURES / "brain-infarction-standard.txt"
         source_text = source_path.read_text(encoding="utf-8")
+        self.assertEqual(source_text, BRAIN_SOURCE)
         self.assertEqual(
             self.inspector.inspect_standard(source_path)["kind"], "natural_language"
         )
@@ -198,28 +223,26 @@ class IntegrationTests(unittest.TestCase):
         self.assertEqual(references, ["10001", "10002"])
         self.assertEqual(references, [rule["ruleCode"] for rule in formal["ruleRepository"]])
 
-        imaging = formal["ruleRepository"][1]
+        clinical = formal["ruleRepository"][0]
+        self.assertEqual(clinical["ruleContent"], BRAIN_CLINICAL_SOURCE)
+        self.assertEqual(clinical["sourceRuleContent"], BRAIN_CLINICAL_SOURCE)
         self.assertEqual(
-            imaging["sourceRuleContent"],
-            "影像学检查提示脑梗死（脑栓塞）灶或颅内、颅外血管中重度狭窄。",
+            [guide["keywordContent"] for guide in clinical["ruleKeywordGuide"]],
+            BRAIN_CLINICAL_GUIDES,
         )
+        imaging = formal["ruleRepository"][1]
+        self.assertEqual(imaging["ruleContent"], BRAIN_IMAGING_SOURCE)
+        self.assertEqual(imaging["sourceRuleContent"], BRAIN_IMAGING_SOURCE)
         self.assertIn("或", imaging["ruleContent"])
         self.assertEqual(
             [guide["keywordContent"] for guide in imaging["ruleKeywordGuide"]],
-            [
-                "影像学检查是否提示脑梗死（脑栓塞）灶",
-                "影像学检查是否提示颅内、颅外血管中重度狭窄",
-            ],
+            BRAIN_IMAGING_GUIDES,
         )
 
         validation = self.validator.validate_certification(formal)
         self.assertTrue(validation["valid"], validation["errors"])
         rendered = self.certification_renderer.render_certification_html(formal)
-        for literal in [
-            line
-            for line in source_text.splitlines()
-            if line and not line.startswith(("逻辑：", "认定标准："))
-        ]:
+        for literal in (BRAIN_CLINICAL_SOURCE, BRAIN_IMAGING_SOURCE):
             self.assertIn(literal, rendered)
         for rule in formal["ruleRepository"]:
             for guide in rule["ruleKeywordGuide"]:
