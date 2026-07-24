@@ -196,6 +196,12 @@ class QcRendererTests(unittest.TestCase):
             {"material": "-----BEGIN EC PRIVATE KEY-----\nfictional-private-material"},
             {"material": "-----BEGIN OPENSSH PRIVATE KEY-----\nfictional-private-material"},
             {"material": "-----BEGIN PGP PRIVATE KEY BLOCK-----\nfictional-private-material"},
+            {"material": '{"api_key":"fictional-credential-123456"}'},
+            {"material": '"api_key": "fictional-credential-123456"'},
+            {"material": "'password': 'fictional-credential-123456'"},
+            {"material": "Authorization: x"},
+            {"material": "'authorization' = 'Basic x'"},
+            {"material": '"Authorization": "Digest x"'},
         )
         for raw_input in suspicious_inputs:
             with self.subTest(raw_input=raw_input):
@@ -226,11 +232,22 @@ class QcRendererTests(unittest.TestCase):
                 redacted["rawInput"]["api_key"] = placeholder
                 self.rebind_attestations(redacted)
                 self.renderer.validate_qc_report(redacted)
+        for literal in (
+            '{"api_key":"<redacted>"}',
+            "'password': '{{placeholder}}'",
+            "Authorization: [redacted]",
+        ):
+            with self.subTest(literal=literal):
+                redacted = self.bound_report()
+                redacted["rawInput"]["literal"] = literal
+                self.rebind_attestations(redacted)
+                self.renderer.validate_qc_report(redacted)
 
         with tempfile.TemporaryDirectory() as directory:
             cli_inputs = (
                 {"headers": {"Authorization": "Bearer fictional-access-token-9f7c2a61"}},
                 {"material": "-----BEGIN PRIVATE KEY-----\nfictional-private-material"},
+                {"material": "Authorization: x"},
             )
             for index, raw_input in enumerate(cli_inputs):
                 with self.subTest(cli=raw_input):

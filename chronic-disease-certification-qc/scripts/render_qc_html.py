@@ -46,11 +46,8 @@ _SENSITIVE_VALUE_RE = re.compile(
     r"|\b(?:cookie|session(?:id)?)\s*[:=]\s*[A-Za-z0-9._~+/=-]{8,}",
     re.IGNORECASE,
 )
-_SENSITIVE_ASSIGNMENT_RE = re.compile(
-    r"\b(?:[A-Z][A-Z0-9_]*_)?(?:aws[_-]?secret[_-]?access[_-]?key|client[_-]?secret|private[_-]?key|auth[_-]?token|"
-    r"api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|cookie|session(?:_?id)?)"
-    r"\s*[:=]\s*(?P<value>[^\s,;]+)",
-    re.IGNORECASE,
+_INLINE_ASSIGNMENT_KEY_RE = re.compile(
+    r"""(?<![A-Za-z0-9_-])(?P<key>"[A-Za-z][A-Za-z0-9_-]*"|'[A-Za-z][A-Za-z0-9_-]*'|[A-Za-z][A-Za-z0-9_-]*)(?![A-Za-z0-9_-])\s*[:=]"""
 )
 _PRIVATE_KEY_BLOCK_RE = re.compile(
     r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY(?: BLOCK)?-----",
@@ -150,6 +147,31 @@ def _placeholder_secret(value):
     return normalized in _PLACEHOLDER_VALUES
 
 
+def _inline_assignment_value(tail):
+    tail = tail.lstrip()
+    if not tail:
+        return ""
+    if tail[0] in {"'", '"'}:
+        closing = tail.find(tail[0], 1)
+        return tail[1:] if closing < 0 else tail[1:closing]
+    end = len(tail)
+    for delimiter in (",", "}", "\r", "\n"):
+        position = tail.find(delimiter)
+        if position >= 0:
+            end = min(end, position)
+    return tail[:end].strip()
+
+
+def _has_sensitive_inline_assignment(value):
+    for match in _INLINE_ASSIGNMENT_KEY_RE.finditer(value):
+        key = match.group("key").strip("'\"")
+        if _sensitive_key_name(key) and not _placeholder_secret(
+            _inline_assignment_value(value[match.end() :])
+        ):
+            return True
+    return False
+
+
 def _contains_suspected_secret(value, sensitive_context=False):
     if isinstance(value, dict):
         for key, item in value.items():
@@ -171,10 +193,7 @@ def _contains_suspected_secret(value, sensitive_context=False):
         return True
     if _SENSITIVE_VALUE_RE.search(value):
         return True
-    if any(
-        not _placeholder_secret(match.group("value"))
-        for match in _SENSITIVE_ASSIGNMENT_RE.finditer(value)
-    ):
+    if _has_sensitive_inline_assignment(value):
         return True
     return sensitive_context and not _placeholder_secret(value)
 
