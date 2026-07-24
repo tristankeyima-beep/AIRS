@@ -52,6 +52,10 @@ _SENSITIVE_ASSIGNMENT_RE = re.compile(
     r"\s*[:=]\s*(?P<value>[^\s,;]+)",
     re.IGNORECASE,
 )
+_PRIVATE_KEY_BLOCK_RE = re.compile(
+    r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY(?: BLOCK)?-----",
+    re.IGNORECASE,
+)
 _PLACEHOLDER_VALUES = {
     "",
     "null",
@@ -60,8 +64,12 @@ _PLACEHOLDER_VALUES = {
     "...",
     "redacted",
     "[redacted]",
+    "<redacted>",
+    "{{redacted}}",
     "placeholder",
     "[placeholder]",
+    "<placeholder>",
+    "{{placeholder}}",
 }
 
 
@@ -139,11 +147,7 @@ def _placeholder_secret(value):
     if not isinstance(value, str):
         return False
     normalized = value.strip().casefold()
-    return (
-        normalized in _PLACEHOLDER_VALUES
-        or (len(normalized) >= 3 and normalized.startswith("<") and normalized.endswith(">"))
-        or (len(normalized) >= 5 and normalized.startswith("{{") and normalized.endswith("}}"))
-    )
+    return normalized in _PLACEHOLDER_VALUES
 
 
 def _contains_suspected_secret(value, sensitive_context=False):
@@ -163,6 +167,8 @@ def _contains_suspected_secret(value, sensitive_context=False):
         return any(_contains_suspected_secret(item, sensitive_context) for item in value)
     if not isinstance(value, str):
         return False
+    if _PRIVATE_KEY_BLOCK_RE.search(value):
+        return True
     if _SENSITIVE_VALUE_RE.search(value):
         return True
     if any(
