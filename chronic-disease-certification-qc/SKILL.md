@@ -7,9 +7,19 @@ description: 生成门诊慢特病结构化认定标准 JSON 与业务可视化 
 
 先识别用户是在生成门诊慢特病结构化认定标准还是进行智能审核质控。
 
-## 生成认定标准
+## 模式 1：生成结构化认定标准
 
-读取 `references/certification-contract.md`、`references/structuring-rules.md` 和 `references/report-contract.md`，再执行标准生成流程。
+1. 读取 `references/certification-contract.md` 和 `references/structuring-rules.md`。
+2. 清点病种名称、病种编码、来源信息和版本信息。
+3. 缺少合规病种编码时询问用户，不编造编码。
+4. 只将用户提供的认定信息结构化为临时 R001 规则、原子提取项和嵌套逻辑拓扑。
+5. 独立对照来源检查遗漏、添加、阈值、单位、时长、次数、范围、逻辑、冲突和辅助细则误升级。
+6. 对每个阻断性歧义逐项向用户提问，不得猜测。
+7. 无论是否存在歧义，始终展示拟采用的规则、提取项和逻辑，并取得用户明确同意后再继续。
+8. 用户明确同意前，不得生成正式 JSON 或 HTML；用户修订后重复本确认关口。
+9. 仅在用户明确同意后，将草案 JSON 与 meta JSON 交给 `scripts/validate_certification.py finalize <草案> <meta> <正式JSON>`；由脚本而非模型分配正式编码。
+10. 运行 `scripts/validate_certification.py validate <正式JSON>`；通过后运行 `scripts/render_certification_html.py <正式JSON> <HTML>`，重新读取两份文件并确认业务 HTML 完全由正式 JSON 推导。
+11. 交付 `<病种>-certification_list-<版本>.json` 和 `<病种>-认定标准可视化-<版本>.html`。
 
 ## 进行审核质控
 
