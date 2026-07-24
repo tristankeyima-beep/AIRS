@@ -279,6 +279,32 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("清点之后", skill_text)
         self.assertIn("结论-only", skill_text)
 
+    def test_qc_references_lock_rule_maintenance_taxonomy_risk_label_and_interpretation_paths(self):
+        skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        adapters = (SKILL_ROOT / "references" / "input-adapters.md").read_text(encoding="utf-8")
+        rubric = (SKILL_ROOT / "references" / "qc-rubric.md").read_text(encoding="utf-8")
+        contract = (SKILL_ROOT / "references" / "report-contract.md").read_text(encoding="utf-8")
+        renderer = (SKILL_ROOT / "scripts" / "render_qc_html.py").read_text(encoding="utf-8")
+
+        for marker in (
+            "缺少提取项", "规则编码", "枚举", "来源字段", "逻辑引用", "重复编码",
+            "非原子", "肯定证据", "反向证据", "无法判断边界", "规则与提取项不一致",
+            "重复", "矛盾", "歧义", "来源要求的事实", "来源外条件", "AND/OR", "嵌套",
+            "认定路径", "辅助细则升级",
+        ):
+            self.assertIn(marker, rubric)
+        for text in (rubric, contract, renderer):
+            self.assertIn("未发现明显风险", text)
+            self.assertNotIn("未发现直接风险", text)
+        self.assertIn("interpretationPaths", skill)
+        for text in (adapters, rubric, contract, renderer):
+            self.assertIn("interpretationPaths", text)
+            self.assertIn("pathId", text)
+            self.assertIn("ruleResults", text)
+            self.assertIn("finalResult", text)
+        for marker in ("至少 2", "不得全部相同", "qcConclusion", "无法确定", "人工确认"):
+            self.assertIn(marker, adapters + rubric + contract)
+
     def test_generation_date_version_fallback_is_recorded_in_two_destinations(self):
         skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
         _, steps = self.mode_steps(skill_text)

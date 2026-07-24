@@ -96,6 +96,70 @@ class QcRendererTests(unittest.TestCase):
             report = copy.deepcopy(self.report); report["issues"][0]["impactOnFinalResult"] = impact; report["issues"][0]["severity"] = "medium"
             with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
 
+    def test_outcome_changing_interpretation_paths_are_validated_rendered_and_safe(self):
+        report = copy.deepcopy(self.report)
+        report["qcConclusion"] = "无法确定"
+        report["recommendedAction"] = "请人工确认自然语言标准的解释路径"
+        report["inputScope"]["interpretationPaths"] = [
+            {
+                "pathId": "P-满足",
+                "interpretation": "按路径 A，现有材料满足条件",
+                "ruleResults": [{"ruleCode": "TMP-R001", "result": "满足"}],
+                "finalResult": "满足",
+            },
+            {
+                "pathId": "P-不满足",
+                "interpretation": "按路径 B，条件不满足",
+                "ruleResults": [{"ruleCode": "TMP-R001", "result": "不满足"}],
+                "finalResult": "不满足",
+            },
+        ]
+        normalized = self.renderer.validate_qc_report(report)
+        self.assertEqual(normalized["inputScope"]["interpretationPaths"], report["inputScope"]["interpretationPaths"])
+        text = self.renderer.render_qc_text(report)
+        rendered = self.renderer.render_qc_html(report)
+        for value in ("解释路径", "P-满足", "P-不满足", "按路径 A", "按路径 B", "TMP-R001", "满足", "不满足"):
+            self.assertIn(value, text)
+            self.assertIn(value, rendered)
+
+        attack = '\n# 注入标题 <img src=x onerror="alert(1)">'
+        report["inputScope"]["interpretationPaths"][0]["interpretation"] = attack
+        text = self.renderer.render_qc_text(report)
+        rendered = self.renderer.render_qc_html(report)
+        self.assertEqual(sum(line == "# 注入标题" for line in text.splitlines()), 0)
+        self.assertIn("\\n# 注入标题", text)
+        self.assertIn("&lt;img src=x", rendered)
+        self.assertNotIn("<img src=x", rendered)
+
+    def test_interpretation_paths_reject_invalid_shape_and_outcome_invariants(self):
+        paths = [
+            {"pathId": "P1", "interpretation": "解释 1", "ruleResults": [{"ruleCode": "TMP-R001", "result": "满足"}], "finalResult": "满足"},
+            {"pathId": "P2", "interpretation": "解释 2", "ruleResults": [{"ruleCode": "TMP-R001", "result": "不满足"}], "finalResult": "不满足"},
+        ]
+        for mutate in (
+            lambda value: value.pop(),
+            lambda value: value.__setitem__(1, {**value[1], "pathId": "P1"}),
+            lambda value: value[0].__setitem__("ruleResults", [{"ruleCode": "TMP-R001", "result": "满足"}, {"ruleCode": "TMP-R001", "result": "不满足"}]),
+            lambda value: value[1].__setitem__("finalResult", "满足"),
+        ):
+            report = copy.deepcopy(self.report)
+            report["qcConclusion"] = "无法确定"
+            report["recommendedAction"] = "请人工确认自然语言标准的解释路径"
+            report["inputScope"]["interpretationPaths"] = copy.deepcopy(paths)
+            mutate(report["inputScope"]["interpretationPaths"])
+            with self.assertRaisesRegex(ValueError, "interpretationPaths"):
+                self.renderer.validate_qc_report(report)
+        report = copy.deepcopy(self.report)
+        report["recommendedAction"] = "请人工确认自然语言标准的解释路径"
+        report["inputScope"]["interpretationPaths"] = copy.deepcopy(paths)
+        with self.assertRaisesRegex(ValueError, "qcConclusion"):
+            self.renderer.validate_qc_report(report)
+        report = copy.deepcopy(self.report)
+        report["qcConclusion"] = "无法确定"
+        report["inputScope"]["interpretationPaths"] = copy.deepcopy(paths)
+        with self.assertRaisesRegex(ValueError, "recommendedAction"):
+            self.renderer.validate_qc_report(report)
+
     def test_capability_and_unperformed_checks_are_a_single_source(self):
         report = copy.deepcopy(self.report); report["capabilities"].append(copy.deepcopy(report["capabilities"][0]))
         with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
@@ -137,6 +201,8 @@ class QcRendererTests(unittest.TestCase):
             with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
 
     def test_approved_issue_codes_and_plan_evidence_shape_are_enforced(self):
+        self.assertEqual(self.renderer.RISK_LABELS["none"], "未发现明显风险")
+        self.assertNotIn("未发现直接风险", self.renderer.RISK_LABELS.values())
         for impact in ("changed", "potentially_changed", "unchanged", "unknown"):
             report = copy.deepcopy(self.report); report["issues"][0]["impactOnFinalResult"] = impact
             self.renderer.validate_qc_report(report)

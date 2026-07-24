@@ -170,6 +170,50 @@ def _validate_evidence_state(status, evidence, path):
         _error(path, "requires empty materialEvidence")
 
 
+def _validate_interpretation_paths(input_scope, qc_conclusion, recommended_action):
+    """Validate outcome-changing natural-language interpretation alternatives."""
+    if "interpretationPaths" not in input_scope:
+        return
+    paths = input_scope["interpretationPaths"]
+    if not isinstance(paths, list) or len(paths) < 2:
+        _error("inputScope.interpretationPaths", "must be an array with at least 2 paths")
+    path_ids, final_results = set(), []
+    for index, path in enumerate(paths):
+        point = f"inputScope.interpretationPaths[{index}]"
+        required = {"pathId", "interpretation", "ruleResults", "finalResult"}
+        _object(path, point, required)
+        extra = set(path) - required
+        if extra:
+            _error(point, f"unexpected field {sorted(extra)[0]}")
+        _text(path["pathId"], f"{point}.pathId")
+        _text(path["interpretation"], f"{point}.interpretation")
+        if path["pathId"] in path_ids:
+            _error(f"{point}.pathId", "must be unique")
+        path_ids.add(path["pathId"])
+        if not isinstance(path["ruleResults"], list):
+            _error(f"{point}.ruleResults", "must be an array")
+        rule_codes = set()
+        for rule_index, rule_result in enumerate(path["ruleResults"]):
+            rule_point = f"{point}.ruleResults[{rule_index}]"
+            _object(rule_result, rule_point, {"ruleCode", "result"})
+            extra = set(rule_result) - {"ruleCode", "result"}
+            if extra:
+                _error(rule_point, f"unexpected field {sorted(extra)[0]}")
+            _text(rule_result["ruleCode"], f"{rule_point}.ruleCode")
+            _enum(rule_result["result"], f"{rule_point}.result", RULE_RESULTS)
+            if rule_result["ruleCode"] in rule_codes:
+                _error(f"{rule_point}.ruleCode", "must be unique within the interpretation path")
+            rule_codes.add(rule_result["ruleCode"])
+        _enum(path["finalResult"], f"{point}.finalResult", RULE_RESULTS)
+        final_results.append(path["finalResult"])
+    if len(set(final_results)) == 1:
+        _error("inputScope.interpretationPaths", "finalResult values must not all be identical")
+    if qc_conclusion != "无法确定":
+        _error("qcConclusion", "must be 无法确定 when interpretationPaths has different final results")
+    if "人工确认" not in recommended_action:
+        _error("recommendedAction", "must recommend 人工确认 when interpretationPaths has different final results")
+
+
 def _validate_report(report):
     if not isinstance(report, dict):
         _error("root", "must be an object")
@@ -205,6 +249,7 @@ def _validate_report(report):
         capabilities_by_name[capability["name"]] = capability
     _text(report["originalResult"], "originalResult")
     _enum(report["qcConclusion"], "qcConclusion", RELIABILITY); _enum(report["riskDirection"], "riskDirection", ROOT_RISKS); _text(report["recommendedAction"], "recommendedAction")
+    _validate_interpretation_paths(report["inputScope"], report["qcConclusion"], report["recommendedAction"])
     material_sources = _material_sources(report["rawInput"])
     if not isinstance(report["issues"], list): _error("issues", "must be an array")
     issue_fields = {"category", "issueType", "severity", "ruleCode", "keywordCode", "modelClaim", "evidenceStatus", "materialEvidence", "qcFinding", "possibleImpact", "impactOnFinalResult", "riskDirection", "recommendation", "confidence"}
@@ -276,11 +321,33 @@ def _issue_text(issue):
         _text_scalar(issue["severity"]), _text_scalar(issue["issueType"]), _text_scalar(issue["ruleCode"]), _text_scalar(issue["keywordCode"]), _text_scalar(issue["evidenceStatus"]), _text_scalar(RISK_LABELS[issue["riskDirection"]]), _text_scalar(IMPACT_LABELS[issue["impactOnFinalResult"]]), _text_scalar(issue["confidence"]), _text_scalar(issue["modelClaim"]), _evidence_text(issue["materialEvidence"]), _text_scalar(issue["qcFinding"]), _text_scalar(issue["possibleImpact"]), _text_scalar(issue["recommendation"]))
 
 
+def _interpretation_paths_text(paths):
+    lines = ["解释路径："]
+    for path in paths:
+        results = "；".join(
+            "规则：{}；结果：{}".format(
+                _text_scalar(item["ruleCode"]), _text_scalar(item["result"])
+            )
+            for item in path["ruleResults"]
+        ) or "无逐规则结果"
+        lines.append(
+            "- 路径：{}；解释：{}；最终结果：{}；{}".format(
+                _text_scalar(path["pathId"]),
+                _text_scalar(path["interpretation"]),
+                _text_scalar(path["finalResult"]),
+                results,
+            )
+        )
+    return lines
+
+
 def render_qc_text(source):
     report = validate_qc_report(source)
     issue_groups = {category: [item for item in report["issues"] if item["category"] == category] for _, category in SECTION_CATEGORIES}
     changed = [item for item in report["issues"] if item["impactOnFinalResult"] in {"changed", "potentially_changed"}]
     lines = ["# 质控结论", f"结论：{_text_scalar(report['qcConclusion'])}", f"风险方向：{_text_scalar(report['riskDirection'])}", f"原审核结论：{_text_scalar(report['originalResult'])}", f"问题数量：{len(report['issues'])}", "", "# 输入与检查范围", "案例：{}／{}／{}".format(_text_scalar(report["case"]["patientName"]), _text_scalar(report["case"]["diseaseName"]), _text_scalar(report["case"]["auditId"])), "材料：{}".format(_text_scalar("、".join(report["inputScope"]["materials"]) or "无")), f"标准格式：{_text_scalar(report['inputScope']['standardKind'])}", f"审核结果类型：{_text_scalar(report['inputScope']['auditResultKind'])}"]
+    if "interpretationPaths" in report["inputScope"]:
+        lines += _interpretation_paths_text(report["inputScope"]["interpretationPaths"])
     if report["capabilities"]:
         lines += ["- 名称：{}；状态：{}；原因：{}".format(_text_scalar(item["name"]), _text_scalar(item["status"]), _text_scalar(item["reason"])) for item in report["capabilities"]]
     else: lines.append("无能力检查记录")
@@ -321,6 +388,24 @@ def _issue_html(issue):
     return f'<article class="issue {esc(issue["severity"])}"><h3>{esc(issue["issueType"])} <span class="muted">· {esc(issue["category"])}</span></h3>' + ''.join(f'<span class="tag">{esc(key)}：{esc(value)}</span>' for key, value in tags) + f'<dl><dt>模型主张</dt><dd>{esc(issue["modelClaim"])}</dd><dt>实际材料或标准证据</dt><dd>{_evidence_html(issue["materialEvidence"])}</dd><dt>为何错误或存在问题</dt><dd>{esc(issue["qcFinding"])}</dd><dt>可能影响</dt><dd>{esc(issue["possibleImpact"])}</dd><dt>建议</dt><dd>{esc(issue["recommendation"])}</dd></dl></article>'
 
 
+def _interpretation_paths_html(paths):
+    cards = []
+    for path in paths:
+        results = ''.join(
+            '<li>规则：{}；结果：{}</li>'.format(
+                esc(item["ruleCode"]), esc(item["result"])
+            )
+            for item in path["ruleResults"]
+        ) or '<li>无逐规则结果</li>'
+        cards.append(
+            '<article class="evidence"><h4>路径 {}</h4><dl><dt>解释</dt><dd>{}</dd>'
+            '<dt>最终结果</dt><dd>{}</dd></dl><p class="label">逐规则结果</p><ul>{}</ul></article>'.format(
+                esc(path["pathId"]), esc(path["interpretation"]), esc(path["finalResult"]), results
+            )
+        )
+    return '<h3>解释路径</h3>' + ''.join(cards)
+
+
 def _template_parts():
     try: template = TEMPLATE.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc: raise ValueError(f"qc_report_template: {exc}") from None
@@ -334,6 +419,8 @@ def render_qc_html(source):
     changed = [item for item in report["issues"] if item["impactOnFinalResult"] in {"changed", "potentially_changed"}]
     section = lambda heading, content: f'<section class="panel" aria-labelledby="{esc(heading)}"><h2 id="{esc(heading)}">{esc(heading)}</h2>{content}</section>'
     scope = f'<div class="grid"><div class="field"><b>案例</b>{esc(report["case"]["patientName"])}／{esc(report["case"]["diseaseName"])}／{esc(report["case"]["auditId"])} </div><div class="field"><b>材料</b>{esc("、".join(report["inputScope"]["materials"]) or "无")}</div><div class="field"><b>标准格式</b>{esc(report["inputScope"]["standardKind"])}</div><div class="field"><b>审核结果类型</b>{esc(report["inputScope"]["auditResultKind"])}</div></div>'
+    if "interpretationPaths" in report["inputScope"]:
+        scope += _interpretation_paths_html(report["inputScope"]["interpretationPaths"])
     capabilities = ''.join(f'<div class="field"><b>{esc(item["name"])}</b><span class="status {"not-run" if item["status"] == "not_run" else ""}">{esc(item["status"])}</span><br>{esc(item["reason"])}</div>' for item in report["capabilities"]) or '<p class="empty">无能力检查记录</p>'
     body = '<header class="page-header"><div class="header-inner"><p class="eyebrow">门诊慢特病 · 审核质控</p><h1>智能审核质控报告</h1><p class="lede">案例 ' + esc(report["case"]["auditId"]) + ' · 由同一规范对象生成文本与本报告</p></div></header><main id="qc-report-main">'
     body += section("质控结论", f'<div class="grid"><div class="field"><b>质控结论</b>{esc(report["qcConclusion"])}</div><div class="field"><b>风险方向</b>{esc(report["riskDirection"])}</div><div class="field"><b>原审核结论</b>{esc(report["originalResult"])}</div><div class="field"><b>问题数量</b>{len(report["issues"])}</div></div>')
