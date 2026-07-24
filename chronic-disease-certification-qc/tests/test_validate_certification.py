@@ -119,6 +119,30 @@ class ValidateCertificationTests(unittest.TestCase):
         self.assertEqual(result["errors"][0]["path"], "$")
         self.assertEqual(result["errors"][0]["code"], "input_decode_error")
 
+    def test_partial_formal_root_is_not_unwrapped(self):
+        partial = {"meta": {}, "data": "认定标准：需明确诊断"}
+        result = validator.validate_certification(partial)
+        self.assertFalse(result["valid"])
+        self.assertEqual(result["standard"], partial)
+        self.assertEqual(result["errors"][0]["path"], "data")
+        self.assertEqual(result["errors"][0]["code"], "unknown_field")
+
+    def test_bom_prefixed_path_is_valid_in_library_and_cli(self):
+        with tempfile.TemporaryDirectory() as directory:
+            input_path = Path(directory) / "bom.json"
+            bom_json = "\ufeff" + json.dumps(self.valid, ensure_ascii=False)
+            input_path.write_bytes(bom_json.encode("utf-8"))
+            self.assertTrue(validator.validate_certification(bom_json)["valid"])
+            self.assertTrue(validator.validate_certification(input_path)["valid"])
+            command = subprocess.run(
+                [sys.executable, str(SCRIPT), "validate", str(input_path)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(command.returncode, 0)
+        self.assertTrue(json.loads(command.stdout)["valid"])
+
     def test_finalization_does_not_mutate_draft_or_meta(self):
         draft = copy.deepcopy(self.valid)
         draft.pop("meta")

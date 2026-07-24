@@ -4,6 +4,7 @@
 import argparse
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 
@@ -16,6 +17,7 @@ _VALIDATOR_SPEC.loader.exec_module(_VALIDATOR)
 _WRAPPER_KEYS = _VALIDATOR.WRAPPER_KEYS
 _FORMAL_ROOT_KEYS = _VALIDATOR.FORMAL_ROOT_KEYS
 _MAX_WRAPPER_DEPTH = _VALIDATOR.MAX_WRAPPER_DEPTH
+_BRACKET_HEADING_RE = re.compile(r"^\s*\[[^\]\r\n]*[\u4e00-\u9fff][^\]\r\n]*\]\s*\r?\n")
 
 
 class _NormalizationError(ValueError):
@@ -39,6 +41,15 @@ def _json_looking(value):
     return isinstance(value, str) and value.lstrip().startswith(("{", "["))
 
 
+def _strip_bom(value):
+    return value.removeprefix("\ufeff")
+
+
+def _bracketed_chinese_heading(value):
+    """Recognize a common Markdown heading without stealing JSON arrays."""
+    return isinstance(value, str) and bool(_BRACKET_HEADING_RE.match(value))
+
+
 def _decode_json(value):
     try:
         return json.loads(value)
@@ -52,7 +63,7 @@ def _unwrap(value):
     depth = 0
     while True:
         if isinstance(value, dict):
-            if _FORMAL_ROOT_KEYS.issubset(value):
+            if _FORMAL_ROOT_KEYS.intersection(value):
                 return "structured", value
             wrapper_key = next((key for key in _WRAPPER_KEYS if key in value), None)
             if wrapper_key is None:
@@ -69,8 +80,11 @@ def _unwrap(value):
             value = value[wrapper_key]
             continue
         if isinstance(value, str):
+            value = _strip_bom(value)
             if _blank_string(value):
                 return "absent", None
+            if _bracketed_chinese_heading(value):
+                return "natural_language", value
             # A wrapper may hold an object JSON string or a JSON-string-encoded
             # natural-language standard. Ordinary text is never decoded.
             if value.lstrip().startswith(("{", "[", '"')):
@@ -88,7 +102,7 @@ def _unwrap(value):
 def _normalize(value):
     if isinstance(value, Path):
         try:
-            value = value.read_text(encoding="utf-8")
+            value = value.read_text(encoding="utf-8-sig")
         except UnicodeDecodeError as exc:
             raise _NormalizationError("input_decode_error", "Input must be UTF-8 JSON.") from exc
         except OSError as exc:
@@ -96,6 +110,9 @@ def _normalize(value):
     if value is None or _blank_string(value):
         return "absent", None
     if isinstance(value, str):
+        value = _strip_bom(value)
+        if _bracketed_chinese_heading(value):
+            return "natural_language", value
         if not _json_looking(value):
             return "natural_language", value
         return _unwrap(_decode_json(value))

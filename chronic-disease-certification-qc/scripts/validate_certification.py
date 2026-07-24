@@ -40,12 +40,13 @@ def parse_value(value):
     """Load a Path, JSON string, object, or compatible nested wrapper."""
     if isinstance(value, Path):
         try:
-            value = value.read_text(encoding="utf-8")
+            value = value.read_text(encoding="utf-8-sig")
         except UnicodeDecodeError as exc:
             raise ParseError("input_decode_error", "Input must be UTF-8 JSON.") from exc
         except OSError as exc:
             raise ParseError("input_read_error", str(exc)) from exc
     if isinstance(value, str):
+        value = value.removeprefix("\ufeff")
         try:
             value = json.loads(value)
         except json.JSONDecodeError as exc:
@@ -58,7 +59,7 @@ def parse_value(value):
     while True:
         if not isinstance(value, dict):
             raise ParseError("invalid_root", "Wrapped certification standard must be an object.")
-        if FORMAL_ROOT_KEYS.issubset(value):
+        if FORMAL_ROOT_KEYS.intersection(value):
             return value
         wrapper_key = next((key for key in WRAPPER_KEYS if key in value), None)
         if wrapper_key is None:

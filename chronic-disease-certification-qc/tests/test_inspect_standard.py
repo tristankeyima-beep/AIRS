@@ -2,6 +2,8 @@ import copy
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -76,6 +78,27 @@ class InspectStandardTests(unittest.TestCase):
         self.assertEqual(result["kind"], "natural_language")
         self.assertEqual(result["issues"], [])
 
+    def test_bracketed_chinese_heading_is_natural_language_but_arrays_are_structured(self):
+        heading = "[认定标准]\n需明确诊断"
+        with tempfile.TemporaryDirectory() as directory:
+            heading_path = Path(directory) / "heading.txt"
+            heading_path.write_text(heading, encoding="utf-8")
+            for input_value in (heading, heading_path):
+                with self.subTest(input_value=repr(input_value)):
+                    self.assertEqual(inspector.inspect_standard(input_value)["kind"], "natural_language")
+        valid_array = inspector.inspect_standard("[1]\n")
+        malformed_array = inspector.inspect_standard("[not json")
+        self.assertEqual(valid_array["kind"], "structured_incomplete")
+        self.assertEqual(valid_array["issues"][0]["code"], "invalid_root")
+        self.assertEqual(malformed_array["kind"], "structured_incomplete")
+        self.assertEqual(malformed_array["issues"][0]["code"], "invalid_json")
+
+    def test_partial_formal_root_is_not_unwrapped_as_natural_language(self):
+        result = inspector.inspect_standard({"meta": {}, "data": "认定标准：需明确诊断"})
+        self.assertEqual(result["kind"], "structured_incomplete")
+        self.assertEqual(result["issues"][0]["path"], "data")
+        self.assertEqual(result["issues"][0]["code"], "unknown_field")
+
     def test_canonical_fixture_is_complete_and_executable(self):
         result = inspector.inspect_standard(self.valid)
         self.assertEqual(result["kind"], "structured_complete")
@@ -146,6 +169,22 @@ class InspectStandardTests(unittest.TestCase):
             result = inspector.inspect_standard(incomplete_path)
         self.assertEqual(result["kind"], "structured_incomplete")
         self.assertEqual(result["issues"][0]["path"], "ruleRepository[0].ruleKeywordGuide")
+
+    def test_bom_prefixed_path_is_complete_in_library_and_cli(self):
+        with tempfile.TemporaryDirectory() as directory:
+            input_path = Path(directory) / "bom.json"
+            bom_json = "\ufeff" + json.dumps(self.valid, ensure_ascii=False)
+            input_path.write_bytes(bom_json.encode("utf-8"))
+            self.assertEqual(inspector.inspect_standard(bom_json)["kind"], "structured_complete")
+            self.assertEqual(inspector.inspect_standard(input_path)["kind"], "structured_complete")
+            command = subprocess.run(
+                [sys.executable, str(SCRIPT), str(input_path)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(command.returncode, 0)
+        self.assertEqual(json.loads(command.stdout)["kind"], "structured_complete")
 
     def test_malformed_json_looking_text_returns_validator_issue(self):
         result = inspector.inspect_standard("{not json")
