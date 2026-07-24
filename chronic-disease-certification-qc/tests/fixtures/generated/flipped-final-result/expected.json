@@ -6,7 +6,7 @@
   "expectedQcConclusion": "不可靠",
   "expectedRisk": "错误拒绝风险",
   "mustFindText": [
-    "已明确诊断为测试病种"
+    "明确诊断为测试病种"
   ],
   "mustNotReport": [
     "材料不支持诊断"

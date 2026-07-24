@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import copy
 import json
 import os
 import re
@@ -7,13 +8,84 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
-GENERATED = ROOT / "fixtures" / "generated"
+FIXTURES = ROOT / "fixtures"
+GENERATED = FIXTURES / "generated"
 CASE_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 CASE_FILES = {
     "materials.txt",
     "standard.txt",
     "audit-result.json",
     "expected.json",
+}
+
+
+def _expected(conclusion, risk, issues, must_find, must_not, *, invariant=False):
+    return {
+        "expectedQcConclusion": conclusion,
+        "expectedRisk": risk,
+        "expectedIssues": list(issues),
+        "mustFindText": list(must_find),
+        "mustNotReport": list(must_not),
+        "mutationKind": "invariance" if invariant else "defect",
+        "expectedInvariant": invariant,
+    }
+
+
+def _correct_expected(must_find):
+    return _expected(
+        "可靠",
+        "未发现明显风险",
+        [],
+        must_find,
+        ["证据不足"],
+        invariant=True,
+    )
+
+
+# Every generated case starts from one of these self-consistent bases. A base may
+# correctly pass or correctly reject; "correct" means its inputs and result agree.
+BASE_CORRECT = {
+    "diagnosis": {
+        "materials": ["诊断证明：明确诊断为测试病种。"],
+        "standard": "认定标准：已明确诊断为测试病种。",
+        "audit": {
+            "finalResult": "通过",
+            "advice": "明确诊断条件满足",
+        },
+        "expected": _correct_expected(["明确诊断为测试病种"]),
+    },
+    "treatment": {
+        "materials": ["治疗记录：患者已经接受长期治疗三年。"],
+        "standard": "认定标准：患者已经接受长期治疗。",
+        "audit": {
+            "finalResult": "通过",
+            "advice": "长期治疗条件满足",
+        },
+        "expected": _correct_expected(["患者已经接受长期治疗三年"]),
+    },
+    "logic-and-rejection": {
+        "materials": ["检查记录：条件A已满足。"],
+        "standard": "逻辑：且\n认定标准：条件A满足；条件B满足。",
+        "audit": {
+            "finalResult": "不通过",
+            "advice": "条件B缺失，因此不通过",
+        },
+        "expected": _correct_expected(["条件A已满足"]),
+    },
+    "compound": {
+        "materials": [
+            "诊断证明：已明确诊断为测试病种。",
+            "治疗记录：患者需继续治疗。",
+        ],
+        "standard": "认定标准：已明确诊断为测试病种，且需继续治疗。",
+        "audit": {
+            "finalResult": "通过",
+            "advice": "诊断与继续治疗条件均满足",
+        },
+        "expected": _correct_expected(
+            ["诊断证明：已明确诊断为测试病种", "治疗记录：患者需继续治疗"]
+        ),
+    },
 }
 
 
@@ -46,198 +118,249 @@ def reorder_materials(materials):
     return list(reversed(list(materials)))
 
 
-def _expected(conclusion, risk, issues, must_find, must_not, *, invariant=False):
-    return {
-        "expectedQcConclusion": conclusion,
-        "expectedRisk": risk,
-        "expectedIssues": issues,
-        "mustFindText": must_find,
-        "mustNotReport": must_not,
-        "mutationKind": "invariance" if invariant else "defect",
-        "expectedInvariant": invariant,
-    }
+def _derive(base, base_name, expected):
+    case = copy.deepcopy(base)
+    case["baseCase"] = base_name
+    case["expected"] = expected
+    return case
 
 
-def mutation_cases():
-    diagnosis = "出院诊断：明确诊断为测试病种。"
-    treatment = "治疗经过：已经接受长期治疗三年。"
-    reordered = reorder_materials(
-        [
-            "诊断证明：已明确诊断为测试病种。",
-            "治疗记录：患者需继续治疗。",
-        ]
+def delete_key_evidence(base):
+    case = _derive(
+        base,
+        "diagnosis",
+        _expected(
+            "不可靠",
+            "错误放行风险",
+            ["关键证据缺失"],
+            ["本次仅登记随访日期"],
+            ["材料中已有明确诊断"],
+        ),
     )
+    case["materials"] = ["门诊记录：本次仅登记随访日期。"]
+    return case
+
+
+def negate_diagnosis(base):
+    case = _derive(
+        base,
+        "diagnosis",
+        _expected(
+            "不可靠",
+            "错误放行风险",
+            ["证据含义提取错误"],
+            ["明确排除为测试病种"],
+            ["材料支持明确诊断"],
+        ),
+    )
+    case["materials"][0] = negate_claim(case["materials"][0])
+    return case
+
+
+def weaken_to_suspected(base):
+    case = _derive(
+        base,
+        "diagnosis",
+        _expected(
+            "不可靠",
+            "错误放行风险",
+            ["过度推理"],
+            ["疑似测试病种"],
+            ["已经明确确诊"],
+        ),
+    )
+    case["materials"][0] = weaken_claim(case["materials"][0])
+    return case
+
+
+def weaken_treatment(base):
+    case = _derive(
+        base,
+        "treatment",
+        _expected(
+            "不可靠",
+            "错误放行风险",
+            ["过度推理"],
+            ["建议评估是否需要长期治疗"],
+            ["长期治疗事实已明确"],
+        ),
+    )
+    case["materials"][0] = weaken_claim(case["materials"][0])
+    return case
+
+
+def flip_final(base):
+    case = _derive(
+        base,
+        "diagnosis",
+        _expected(
+            "不可靠",
+            "错误拒绝风险",
+            ["最终结论翻转错误"],
+            ["明确诊断为测试病种"],
+            ["材料不支持诊断"],
+        ),
+    )
+    case["audit"]["finalResult"] = flip_final_result(case["audit"]["finalResult"])
+    return case
+
+
+def and_to_or(base):
+    case = _derive(
+        base,
+        "logic-and-rejection",
+        _expected(
+            "不可靠",
+            "错误拒绝风险",
+            ["OR 逻辑计算错误"],
+            ["条件A已满足"],
+            ["条件A也缺失"],
+        ),
+    )
+    case["standard"] = case["standard"].replace("逻辑：且", "逻辑：或", 1)
+    return case
+
+
+def claim_missing_while_retaining_evidence(base):
+    case = _derive(
+        base,
+        "treatment",
+        _expected(
+            "不可靠",
+            "错误拒绝风险",
+            ["误报缺失"],
+            ["患者已经接受长期治疗三年"],
+            ["材料确实没有治疗记录"],
+        ),
+    )
+    case["audit"] = {
+        "finalResult": "不通过",
+        "advice": "缺少长期治疗证据",
+    }
+    return case
+
+
+def contradict_reason_and_result(base):
+    case = _derive(
+        base,
+        "diagnosis",
+        _expected(
+            "存在重大疑点",
+            "暂时无法判断",
+            ["审核理由与最终结论矛盾"],
+            ["明确诊断为测试病种"],
+            ["审核理由确认条件满足"],
+        ),
+    )
+    case["audit"]["advice"] = "明确诊断条件不满足"
+    return case
+
+
+def reorder_case_materials(base):
+    case = _derive(
+        base,
+        "compound",
+        _expected(
+            base["expected"]["expectedQcConclusion"],
+            base["expected"]["expectedRisk"],
+            base["expected"]["expectedIssues"],
+            ["治疗记录：患者需继续治疗", "诊断证明：已明确诊断为测试病种"],
+            ["材料顺序改变导致结论变化"],
+            invariant=True,
+        ),
+    )
+    case["materials"] = reorder_materials(case["materials"])
+    return case
+
+
+def add_unrelated_material(base):
+    case = _derive(
+        base,
+        "diagnosis",
+        _expected(
+            base["expected"]["expectedQcConclusion"],
+            base["expected"]["expectedRisk"],
+            base["expected"]["expectedIssues"],
+            ["挂号记录：就诊序号为001", "明确诊断为测试病种"],
+            ["无关材料改变审核结论"],
+            invariant=True,
+        ),
+    )
+    case["materials"].insert(0, "挂号记录：就诊序号为001。")
+    return case
+
+
+def build_cases():
     return {
-        "and-to-or": {
-            "materials": "检查记录：条件A已满足。",
-            "standard": "逻辑：或\n认定标准：条件A满足；条件B满足。",
-            "audit": {
-                "finalResult": "不通过",
-                "advice": "条件B缺失，因此全部条件不满足",
-            },
-            "expected": _expected(
-                "不可靠",
-                "错误拒绝风险",
-                ["OR 逻辑计算错误"],
-                ["条件A已满足"],
-                ["条件A也缺失"],
-            ),
-        },
-        "deleted-key-evidence": {
-            "materials": "门诊记录：本次仅登记随访日期。",
-            "standard": "认定标准：已明确诊断为测试病种。",
-            "audit": {
-                "finalResult": "通过",
-                "advice": "材料明确诊断为测试病种",
-            },
-            "expected": _expected(
-                "不可靠",
-                "错误放行风险",
-                ["关键证据缺失"],
-                ["本次仅登记随访日期"],
-                ["材料中已有明确诊断"],
-            ),
-        },
-        "false-missing-with-evidence": {
-            "materials": "治疗记录：患者规律接受长期治疗三年。",
-            "standard": "认定标准：患者已规律接受长期治疗。",
-            "audit": {
-                "finalResult": "不通过",
-                "advice": "缺少长期治疗证据",
-            },
-            "expected": _expected(
-                "不可靠",
-                "错误拒绝风险",
-                ["误报缺失"],
-                ["患者规律接受长期治疗三年"],
-                ["材料确实没有治疗记录"],
-            ),
-        },
-        "flipped-final-result": {
-            "materials": "诊断证明：已明确诊断为测试病种。",
-            "standard": "认定标准：已明确诊断为测试病种。",
-            "audit": {
-                "finalResult": flip_final_result("通过"),
-                "advice": "明确诊断条件满足",
-            },
-            "expected": _expected(
-                "不可靠",
-                "错误拒绝风险",
-                ["最终结论翻转错误"],
-                ["已明确诊断为测试病种"],
-                ["材料不支持诊断"],
-            ),
-        },
-        "negated-diagnosis": {
-            "materials": negate_claim(diagnosis),
-            "standard": "认定标准：已明确诊断为测试病种。",
-            "audit": {
-                "finalResult": "通过",
-                "advice": "材料明确诊断为测试病种",
-            },
-            "expected": _expected(
-                "不可靠",
-                "错误放行风险",
-                ["证据含义提取错误"],
-                ["明确排除为测试病种"],
-                ["材料支持明确诊断"],
-            ),
-        },
-        "reason-result-contradiction": {
-            "materials": "诊断证明：未明确诊断为测试病种。",
-            "standard": "认定标准：已明确诊断为测试病种。",
-            "audit": {
-                "finalResult": "通过",
-                "advice": "明确诊断条件不满足",
-            },
-            "expected": _expected(
-                "存在重大疑点",
-                "暂时无法判断",
-                ["审核理由与最终结论矛盾"],
-                ["未明确诊断为测试病种"],
-                ["审核理由确认条件满足"],
-            ),
-        },
-        "reordered-materials": {
-            "materials": "\n".join(reordered),
-            "standard": "认定标准：已明确诊断为测试病种，且需继续治疗。",
-            "audit": {
-                "finalResult": "通过",
-                "advice": "诊断与继续治疗条件均满足",
-            },
-            "expected": _expected(
-                "可靠",
-                "未发现明显风险",
-                [],
-                ["治疗记录：患者需继续治疗", "诊断证明：已明确诊断为测试病种"],
-                ["材料顺序改变导致结论变化"],
-                invariant=True,
-            ),
-        },
-        "unrelated-material-added": {
-            "materials": "挂号记录：就诊序号为001。\n诊断证明：已明确诊断为测试病种。",
-            "standard": "认定标准：已明确诊断为测试病种。",
-            "audit": {
-                "finalResult": "通过",
-                "advice": "明确诊断条件满足",
-            },
-            "expected": _expected(
-                "可靠",
-                "未发现明显风险",
-                [],
-                ["挂号记录：就诊序号为001", "已明确诊断为测试病种"],
-                ["无关材料改变审核结论"],
-                invariant=True,
-            ),
-        },
-        "weakened-diagnosis": {
-            "materials": weaken_claim(diagnosis),
-            "standard": "认定标准：已明确诊断为测试病种。",
-            "audit": {
-                "finalResult": "通过",
-                "advice": "材料明确诊断为测试病种",
-            },
-            "expected": _expected(
-                "不可靠",
-                "错误放行风险",
-                ["过度推理"],
-                ["疑似测试病种"],
-                ["已经明确确诊"],
-            ),
-        },
-        "weakened-treatment": {
-            "materials": weaken_claim(treatment),
-            "standard": "认定标准：患者已经接受长期治疗。",
-            "audit": {
-                "finalResult": "通过",
-                "advice": "患者已经接受长期治疗",
-            },
-            "expected": _expected(
-                "不可靠",
-                "错误放行风险",
-                ["过度推理"],
-                ["建议评估是否需要长期治疗"],
-                ["长期治疗事实已明确"],
-            ),
-        },
+        "and-to-or": and_to_or(BASE_CORRECT["logic-and-rejection"]),
+        "deleted-key-evidence": delete_key_evidence(BASE_CORRECT["diagnosis"]),
+        "false-missing-with-evidence": claim_missing_while_retaining_evidence(
+            BASE_CORRECT["treatment"]
+        ),
+        "flipped-final-result": flip_final(BASE_CORRECT["diagnosis"]),
+        "negated-diagnosis": negate_diagnosis(BASE_CORRECT["diagnosis"]),
+        "reason-result-contradiction": contradict_reason_and_result(
+            BASE_CORRECT["diagnosis"]
+        ),
+        "reordered-materials": reorder_case_materials(BASE_CORRECT["compound"]),
+        "unrelated-material-added": add_unrelated_material(BASE_CORRECT["diagnosis"]),
+        "weakened-diagnosis": weaken_to_suspected(BASE_CORRECT["diagnosis"]),
+        "weakened-treatment": weaken_treatment(BASE_CORRECT["treatment"]),
     }
 
 
-def _validate_generated_root(root):
-    root = Path(root)
-    if root.name != "generated" or root.parent.name != "fixtures":
-        raise ValueError("生成目录必须是 fixtures/generated")
-    if root.is_symlink() or root.parent.is_symlink():
-        raise ValueError("生成目录及其父目录不能是符号链接")
-    root.parent.mkdir(parents=True, exist_ok=True)
-    if root.parent.is_symlink():
-        raise ValueError("生成目录父目录不能是符号链接")
-    if root.exists() and not root.is_dir():
+def _absolute_lexical(path):
+    return Path(os.path.abspath(os.fspath(path)))
+
+
+def _reject_symlink_components(path, boundary):
+    path = _absolute_lexical(path)
+    boundary = _absolute_lexical(boundary)
+    if path != boundary and boundary not in path.parents:
+        raise ValueError("待检查路径必须位于安全边界内")
+    current = boundary
+    if current.is_symlink():
+        raise ValueError(f"路径组件不能是符号链接：{current}")
+    relative_parts = () if path == boundary else path.relative_to(boundary).parts
+    for part in relative_parts:
+        current /= part
+        if current.is_symlink():
+            raise ValueError(f"路径组件不能是符号链接：{current}")
+
+
+def _validate_output_root(output_root, trusted_base):
+    output_root = _absolute_lexical(output_root)
+    trusted_base = _absolute_lexical(trusted_base)
+    if output_root.name != "generated":
+        raise ValueError("输出目录名必须是 generated")
+    if output_root == trusted_base or trusted_base not in output_root.parents:
+        raise ValueError("输出目录必须位于可信目录内")
+
+    boundary = trusted_base.parent
+    if not boundary.exists() or not boundary.is_dir():
+        raise ValueError("可信目录的父目录必须是已存在的普通目录")
+    _reject_symlink_components(trusted_base, boundary)
+    _reject_symlink_components(output_root, boundary)
+    trusted_base.mkdir(exist_ok=True)
+    _reject_symlink_components(trusted_base, boundary)
+    _reject_symlink_components(output_root, boundary)
+
+    trusted_resolved = trusted_base.resolve(strict=True)
+    output_resolved = output_root.resolve(strict=False)
+    if output_resolved == trusted_resolved or trusted_resolved not in output_resolved.parents:
+        raise ValueError("解析后的输出目录必须位于可信目录内")
+    if output_root.exists() and not output_root.is_dir():
         raise ValueError("生成目录必须是普通目录")
-    root.mkdir(exist_ok=True)
-    if root.is_symlink() or not root.is_dir():
+
+    output_root.parent.mkdir(parents=True, exist_ok=True)
+    _reject_symlink_components(output_root, boundary)
+    output_root.mkdir(exist_ok=True)
+    _reject_symlink_components(output_root, boundary)
+    if not output_root.is_dir():
         raise ValueError("生成目录必须是普通目录")
-    return root
+    if trusted_resolved not in output_root.resolve(strict=True).parents:
+        raise ValueError("解析后的输出目录必须位于可信目录内")
+    return output_root
 
 
 def _single_newline(text):
@@ -280,11 +403,12 @@ def _write_case(root, name, case):
     if case_dir.is_symlink():
         raise ValueError(f"拒绝写入符号链接案例目录：{name}")
     case_dir.mkdir(exist_ok=True)
-    if case_dir.is_symlink() or not case_dir.is_dir():
-        raise ValueError(f"案例路径不是普通目录：{name}")
+    _reject_symlink_components(case_dir, root)
+    if not case_dir.is_dir() or root.resolve(strict=True) not in case_dir.resolve(strict=True).parents:
+        raise ValueError(f"案例路径不是生成目录下的普通目录：{name}")
 
     payloads = {
-        "materials.txt": _single_newline(case["materials"]),
+        "materials.txt": _single_newline("\n".join(case["materials"])),
         "standard.txt": _single_newline(case["standard"]),
         "audit-result.json": _json_text(case["audit"]),
         "expected.json": _json_text(case["expected"]),
@@ -295,16 +419,24 @@ def _write_case(root, name, case):
         _atomic_write(case_dir / filename, payloads[filename])
 
 
-def build_mutation_fixtures(generated_root=None):
-    root = _validate_generated_root(GENERATED if generated_root is None else generated_root)
-    cases = mutation_cases()
-    for name in sorted(cases):
-        _write_case(root, name, cases[name])
+def generate(output_root=None, trusted_base=None):
+    trusted = FIXTURES if trusted_base is None else Path(trusted_base)
+    output = GENERATED if output_root is None else Path(output_root)
+    root = _validate_output_root(output, trusted)
+    for name, case in sorted(build_cases().items()):
+        _write_case(root, name, case)
     return root
 
 
+def build_mutation_fixtures(generated_root=None):
+    if generated_root is None:
+        return generate()
+    root = Path(generated_root)
+    return generate(output_root=root, trusted_base=root.parent)
+
+
 def main():
-    build_mutation_fixtures()
+    generate()
 
 
 if __name__ == "__main__":

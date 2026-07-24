@@ -6,7 +6,7 @@
   "expectedQcConclusion": "存在重大疑点",
   "expectedRisk": "暂时无法判断",
   "mustFindText": [
-    "未明确诊断为测试病种"
+    "明确诊断为测试病种"
   ],
   "mustNotReport": [
     "审核理由确认条件满足"
