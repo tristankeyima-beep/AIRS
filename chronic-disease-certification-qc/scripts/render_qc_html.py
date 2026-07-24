@@ -47,22 +47,22 @@ _SENSITIVE_VALUE_RE = re.compile(
     re.IGNORECASE,
 )
 _SENSITIVE_ASSIGNMENT_RE = re.compile(
-    r"\b(?:[A-Z][A-Z0-9_]*_)?(?:api[_-]?key|access[_-]?token|token|secret|password|cookie|session(?:_?id)?)"
+    r"\b(?:[A-Z][A-Z0-9_]*_)?(?:aws[_-]?secret[_-]?access[_-]?key|client[_-]?secret|private[_-]?key|auth[_-]?token|"
+    r"api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|cookie|session(?:_?id)?)"
     r"\s*[:=]\s*(?P<value>[^\s,;]+)",
     re.IGNORECASE,
 )
-_PLACEHOLDER_MARKERS = (
-    "redact",
+_PLACEHOLDER_VALUES = {
+    "",
+    "null",
+    "none",
+    "***",
+    "...",
+    "redacted",
+    "[redacted]",
     "placeholder",
-    "example",
-    "dummy",
-    "sample",
-    "test",
-    "fake",
-    "not-a-secret",
-    "your_",
-    "your-",
-)
+    "[placeholder]",
+}
 
 
 def _error(path, message):
@@ -109,21 +109,30 @@ def _json_safe(value, path="root", depth=0, ancestors=None):
 
 def _sensitive_key_name(key):
     compact = re.sub(r"[^a-z0-9]", "", key.casefold())
-    if compact in {"authorization", "cookie", "cookies", "session", "sessionid", "password", "secret"}:
-        return True
     if compact in {
+        "authorization",
+        "cookie",
+        "cookies",
+        "sessionid",
+        "jsessionid",
+        "authsession",
+        "loginsession",
+        "password",
+        "secret",
         "apikey",
         "accesstoken",
         "refreshtoken",
+        "authtoken",
+        "clientsecret",
+        "privatekey",
+        "awssecretaccesskey",
         "systemprompt",
         "systemconfig",
         "privatesystemprompt",
         "privatesystemconfig",
     }:
         return True
-    if compact.endswith(("apikey", "token", "secret", "password", "cookie", "session")):
-        return True
-    return compact.startswith("privatesystem") and ("prompt" in compact or "config" in compact)
+    return compact.endswith(("apikey", "token", "secret", "password", "privatekey"))
 
 
 def _placeholder_secret(value):
@@ -131,11 +140,9 @@ def _placeholder_secret(value):
         return False
     normalized = value.strip().casefold()
     return (
-        not normalized
-        or normalized in {"***", "...", "none", "null"}
-        or (normalized.startswith("<") and normalized.endswith(">"))
-        or (normalized.startswith("{{") and normalized.endswith("}}"))
-        or any(marker in normalized for marker in _PLACEHOLDER_MARKERS)
+        normalized in _PLACEHOLDER_VALUES
+        or (len(normalized) >= 3 and normalized.startswith("<") and normalized.endswith(">"))
+        or (len(normalized) >= 5 and normalized.startswith("{{") and normalized.endswith("}}"))
     )
 
 
@@ -145,8 +152,10 @@ def _contains_suspected_secret(value, sensitive_context=False):
             key_is_sensitive = _sensitive_key_name(key)
             if _SENSITIVE_VALUE_RE.search(key):
                 return True
-            if key_is_sensitive and isinstance(item, str) and not _placeholder_secret(item):
-                return True
+            if key_is_sensitive:
+                if item is not None and not _placeholder_secret(item):
+                    return True
+                continue
             if _contains_suspected_secret(item, sensitive_context or key_is_sensitive):
                 return True
         return False

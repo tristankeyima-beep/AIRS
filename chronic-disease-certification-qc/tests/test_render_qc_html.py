@@ -179,6 +179,16 @@ class QcRendererTests(unittest.TestCase):
             {"privateSystemPrompt": "internal configuration only"},
             {"SERVICE_TOKEN": "fictional-environment-token-8b4f2d"},
             {"environment": "SERVICE_TOKEN=fictional-environment-token-8b4f2d"},
+            {"api_key": "prod-test-credential-123456"},
+            {"api_key": "prod-sample-credential-123456"},
+            {"password": 123456},
+            {"secret": True},
+            {"token": {"value": "fictional-token-value-1"}},
+            {"AUTH_TOKEN": ["fictional-token-value-2"]},
+            {"environment": "AWS_SECRET_ACCESS_KEY=fictional-access-key-3"},
+            {"environment": "CLIENT_SECRET=fictional-client-secret-4"},
+            {"environment": "PRIVATE_KEY=fictional-private-key-5"},
+            {"environment": "AUTH_TOKEN=fictional-auth-token-6"},
         )
         for raw_input in suspicious_inputs:
             with self.subTest(raw_input=raw_input):
@@ -193,7 +203,12 @@ class QcRendererTests(unittest.TestCase):
                         render(report)
 
         ordinary = self.bound_report()
+        ordinary["rawInput"]["dialysis_session"] = "第3次透析治疗"
+        ordinary["rawInput"]["treatment_session"] = "门诊治疗第2次"
+        self.rebind_attestations(ordinary)
         self.renderer.validate_qc_report(ordinary)
+        self.renderer.render_qc_text(ordinary)
+        self.renderer.render_qc_html(ordinary)
         redacted = self.bound_report()
         redacted["rawInput"]["api_key"] = "<redacted>"
         self.rebind_attestations(redacted)
