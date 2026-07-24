@@ -2,6 +2,7 @@ import copy
 import importlib.util
 import json
 from pathlib import Path
+import tempfile
 import unittest
 
 
@@ -95,6 +96,69 @@ class ValidateCertificationTests(unittest.TestCase):
         self.assertIn("invalid_json", self.issue_codes(malformed))
         wrapped = validator.validate_certification({"output": {"result": self.valid}})
         self.assertTrue(wrapped["valid"])
+
+    def test_wrapped_json_string_is_parsed(self):
+        result = validator.validate_certification({"output": json.dumps(self.valid, ensure_ascii=False)})
+        self.assertTrue(result["valid"])
+
+    def test_non_utf8_path_returns_a_validation_issue(self):
+        with tempfile.TemporaryDirectory() as directory:
+            input_path = Path(directory) / "invalid.json"
+            input_path.write_bytes(b"\xff\xfe")
+            result = validator.validate_certification(input_path)
+        self.assertFalse(result["valid"])
+        self.assertEqual(result["errors"][0]["path"], "$")
+        self.assertEqual(result["errors"][0]["code"], "input_decode_error")
+
+    def test_finalization_does_not_mutate_draft_or_meta(self):
+        draft = copy.deepcopy(self.valid)
+        draft.pop("meta")
+        rule = draft["ruleRepository"][0]
+        rule["tempRuleId"] = "R001"
+        rule.pop("ruleCode")
+        rule["ruleKeywordGuide"][0].pop("keywordCode")
+        draft["logicTopology"]["children"][0]["ruleCode"] = "R001"
+        meta = copy.deepcopy(self.valid["meta"])
+        original_draft, original_meta = copy.deepcopy(draft), copy.deepcopy(meta)
+        validator.finalize_certification(draft, meta)
+        self.assertEqual(draft, original_draft)
+        self.assertEqual(meta, original_meta)
+
+    def test_finalization_rejects_unknown_temporary_topology_reference(self):
+        draft = copy.deepcopy(self.valid)
+        draft.pop("meta")
+        rule = draft["ruleRepository"][0]
+        rule["tempRuleId"] = "R001"
+        rule.pop("ruleCode")
+        rule["ruleKeywordGuide"][0].pop("keywordCode")
+        draft["logicTopology"]["children"][0]["ruleCode"] = "R999"
+        with self.assertRaisesRegex(ValueError, "Unknown temp rule reference: R999"):
+            validator.finalize_certification(draft, self.valid["meta"])
+
+    def test_duplicate_keyword_codes_across_rules_are_rejected(self):
+        standard = copy.deepcopy(self.valid)
+        second_rule = copy.deepcopy(standard["ruleRepository"][0])
+        second_rule["ruleCode"] = "01002"
+        standard["ruleRepository"].append(second_rule)
+        standard["logicTopology"]["children"].append({"type": "RULE_REF", "ruleCode": "01002"})
+        self.assertIn("duplicate_keyword_code", self.issue_codes(validator.validate_certification(standard)))
+
+    def test_duplicate_rule_reference_is_rejected(self):
+        standard = copy.deepcopy(self.valid)
+        standard["logicTopology"]["children"].append({"type": "RULE_REF", "ruleCode": "01001"})
+        self.assertIn("duplicate_rule_reference", self.issue_codes(validator.validate_certification(standard)))
+
+    def test_finalization_rejects_duplicate_temporary_rule_ids(self):
+        draft = copy.deepcopy(self.valid)
+        draft.pop("meta")
+        first_rule = draft["ruleRepository"][0]
+        first_rule["tempRuleId"] = "R001"
+        first_rule.pop("ruleCode")
+        first_rule["ruleKeywordGuide"][0].pop("keywordCode")
+        second_rule = copy.deepcopy(first_rule)
+        draft["ruleRepository"].append(second_rule)
+        with self.assertRaisesRegex(ValueError, "tempRuleId must be unique"):
+            validator.finalize_certification(draft, self.valid["meta"])
 
 
 if __name__ == "__main__":

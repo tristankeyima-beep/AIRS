@@ -31,6 +31,8 @@ def parse_value(value):
     if isinstance(value, Path):
         try:
             value = value.read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            raise ParseError("input_decode_error", "Input must be UTF-8 JSON.") from exc
         except OSError as exc:
             raise ParseError("input_read_error", str(exc)) from exc
     if isinstance(value, str):
@@ -46,6 +48,11 @@ def parse_value(value):
         if wrapper_key is None:
             break
         value = value[wrapper_key]
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError as exc:
+                raise ParseError("invalid_json", "Input is not valid JSON.") from exc
     if not isinstance(value, dict):
         raise ParseError("invalid_root", "Wrapped certification standard must be an object.")
     return value

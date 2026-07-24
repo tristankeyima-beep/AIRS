@@ -12,6 +12,8 @@
 
 输入兼容层可以从 `certification_list`、`output`、`result`、`data` 任意层级的嵌套包装中取出该对象。包装仅用于输入兼容；正式输出绝不保留包装。
 
+所有输入和输出均为 UTF-8 编码的 JSON。`finalize` CLI 将正式标准以漂亮格式（缩进）的 UTF-8 JSON 写入指定输出文件，并严格以一个换行符结尾。
+
 ## Metadata
 
 `meta` 必须包含以下非空字符串：
