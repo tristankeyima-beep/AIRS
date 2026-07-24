@@ -1,0 +1,4 @@
+interface:
+  display_name: "门诊慢特病认定标准与审核质控"
+  short_description: "生成门诊慢特病结构化认定标准，并复核患者材料与智能审核结果质量"
+  default_prompt: "使用 $chronic-disease-certification-qc 生成门诊慢特病结构化认定标准，或复核患者材料与智能审核结果。"
