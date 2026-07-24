@@ -202,6 +202,9 @@ class QcRendererTests(unittest.TestCase):
             {"material": "Authorization: x"},
             {"material": "'authorization' = 'Basic x'"},
             {"material": '"Authorization": "Digest x"'},
+            {"material": r'{\"api_key\":\"fictional-credential-123456\"}'},
+            {"material": r'{\\\"api_key\\\":\\\"fictional-credential-123456\\\"}'},
+            {"material": r'{\u0022Authorization\u0022:\u0022Basic x\u0022}'},
         )
         for raw_input in suspicious_inputs:
             with self.subTest(raw_input=raw_input):
@@ -236,6 +239,8 @@ class QcRendererTests(unittest.TestCase):
             '{"api_key":"<redacted>"}',
             "'password': '{{placeholder}}'",
             "Authorization: [redacted]",
+            r'{\"api_key\":\"<redacted>\"}',
+            r'{\u0022Authorization\u0022:\u0022[redacted]\u0022}',
         ):
             with self.subTest(literal=literal):
                 redacted = self.bound_report()
@@ -248,6 +253,7 @@ class QcRendererTests(unittest.TestCase):
                 {"headers": {"Authorization": "Bearer fictional-access-token-9f7c2a61"}},
                 {"material": "-----BEGIN PRIVATE KEY-----\nfictional-private-material"},
                 {"material": "Authorization: x"},
+                {"material": r'{\"api_key\":\"fictional-credential-123456\"}'},
             )
             for index, raw_input in enumerate(cli_inputs):
                 with self.subTest(cli=raw_input):

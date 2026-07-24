@@ -140,10 +140,26 @@ def _sensitive_key_name(key):
     return compact.endswith(("apikey", "token", "secret", "password", "privatekey"))
 
 
+def _detection_normalize(value):
+    """Fold only serialized quote escapes for detection; never mutate report data."""
+    normalized = value
+    for _ in range(4):
+        folded = (
+            normalized.replace(r"\u0022", '"')
+            .replace(r"\u0027", "'")
+            .replace(r'\"', '"')
+            .replace(r"\'", "'")
+        )
+        if folded == normalized:
+            break
+        normalized = folded
+    return normalized
+
+
 def _placeholder_secret(value):
     if not isinstance(value, str):
         return False
-    normalized = value.strip().casefold()
+    normalized = _detection_normalize(value).strip().casefold()
     return normalized in _PLACEHOLDER_VALUES
 
 
@@ -189,13 +205,14 @@ def _contains_suspected_secret(value, sensitive_context=False):
         return any(_contains_suspected_secret(item, sensitive_context) for item in value)
     if not isinstance(value, str):
         return False
-    if _PRIVATE_KEY_BLOCK_RE.search(value):
+    detection_value = _detection_normalize(value)
+    if _PRIVATE_KEY_BLOCK_RE.search(detection_value):
         return True
-    if _SENSITIVE_VALUE_RE.search(value):
+    if _SENSITIVE_VALUE_RE.search(detection_value):
         return True
-    if _has_sensitive_inline_assignment(value):
+    if _has_sensitive_inline_assignment(detection_value):
         return True
-    return sensitive_context and not _placeholder_secret(value)
+    return sensitive_context and not _placeholder_secret(detection_value)
 
 
 def _reject_suspected_secrets(value):
