@@ -160,6 +160,21 @@ class QcRendererTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "recommendedAction"):
             self.renderer.validate_qc_report(report)
 
+    def test_interpretation_paths_are_limited_to_natural_language_standards(self):
+        paths = [
+            {"pathId": "P1", "interpretation": "解释 1", "ruleResults": [{"ruleCode": "TMP-R001", "result": "满足"}], "finalResult": "满足"},
+            {"pathId": "P2", "interpretation": "解释 2", "ruleResults": [{"ruleCode": "TMP-R001", "result": "不满足"}], "finalResult": "不满足"},
+        ]
+        report = copy.deepcopy(self.report)
+        report.update({"qcConclusion": "无法确定", "recommendedAction": "请人工确认自然语言标准的解释路径"})
+        report["inputScope"]["interpretationPaths"] = paths
+        self.renderer.validate_qc_report(report)
+        for standard_kind in ("structured_complete", "structured_incomplete", "absent"):
+            report = copy.deepcopy(report)
+            report["inputScope"]["standardKind"] = standard_kind
+            with self.assertRaisesRegex(ValueError, "inputScope.standardKind"):
+                self.renderer.validate_qc_report(report)
+
     def test_capability_and_unperformed_checks_are_a_single_source(self):
         report = copy.deepcopy(self.report); report["capabilities"].append(copy.deepcopy(report["capabilities"][0]))
         with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)

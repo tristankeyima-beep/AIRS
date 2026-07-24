@@ -177,6 +177,8 @@ def _validate_interpretation_paths(input_scope, qc_conclusion, recommended_actio
     paths = input_scope["interpretationPaths"]
     if not isinstance(paths, list) or len(paths) < 2:
         _error("inputScope.interpretationPaths", "must be an array with at least 2 paths")
+    if input_scope["standardKind"] != "natural_language":
+        _error("inputScope.standardKind", "must be natural_language when interpretationPaths is present")
     path_ids, final_results = set(), []
     for index, path in enumerate(paths):
         point = f"inputScope.interpretationPaths[{index}]"
