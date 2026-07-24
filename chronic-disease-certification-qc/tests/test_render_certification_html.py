@@ -119,6 +119,52 @@ class CertificationHtmlTests(unittest.TestCase):
         self.assertEqual(self.standard, original)
         self.assertEqual(wrapped, {"output": {"result": payload}})
 
+    def test_literal_template_markers_in_title_and_business_values_render_as_text(self):
+        standard = copy.deepcopy(self.standard)
+        standard["meta"]["chronicDiseaseName"] = "病种 {{BODY}} {{TITLE}}"
+        standard["meta"]["description"] = "说明 {{TITLE}} {{BODY}}"
+        standard["ruleRepository"][0].update({
+            "ruleContent": "条件 {{TITLE}}", "ruleSource": "依据 {{BODY}}",
+            "experience": "经验 {{TITLE}}", "sourceRuleContent": "原文 {{BODY}}",
+            "sourceMdFile": "来源 {{TITLE}}", "sourceSection": "章节 {{BODY}}",
+        })
+        standard["ruleRepository"][0]["ruleKeywordGuide"][0].update({
+            "keywordContent": "指引 {{TITLE}} {{BODY}}", "enumOptions": ["选项 {{BODY}}", "选项 {{TITLE}}"],
+        })
+
+        html = self.renderer.render_certification_html(standard)
+
+        for expected in ("病种 {{BODY}} {{TITLE}}", "说明 {{TITLE}} {{BODY}}", "条件 {{TITLE}}", "依据 {{BODY}}",
+                         "经验 {{TITLE}}", "原文 {{BODY}}", "来源 {{TITLE}}", "章节 {{BODY}}", "指引 {{TITLE}} {{BODY}}",
+                         "选项 {{BODY}}", "选项 {{TITLE}}"):
+            self.assertIn(expected, html)
+        self.assertEqual(html.count("<main id=\"document-main\">") , 1)
+
+    def test_rejects_malformed_template_before_business_values_are_concatenated(self):
+        original_template = self.renderer.TEMPLATE
+        with tempfile.TemporaryDirectory() as directory:
+            malformed = Path(directory) / "malformed.html"
+            malformed.write_text("<html>{{TITLE}}{{TITLE}}{{BODY}}</html>", encoding="utf-8")
+            self.renderer.TEMPLATE = malformed
+            try:
+                with self.assertRaisesRegex(ValueError, "exactly one"):
+                    self.renderer.render_certification_html(self.standard)
+            finally:
+                self.renderer.TEMPLATE = original_template
+
+    def test_lone_surrogates_are_normalized_to_utf8_safe_replacement_characters(self):
+        standard = copy.deepcopy(self.standard)
+        standard["meta"]["chronicDiseaseName"] = "病种\ud800"
+        standard["ruleRepository"][0]["ruleContent"] = "条件\udcff"
+        standard["ruleRepository"][0]["ruleKeywordGuide"][0]["enumOptions"] = ["选项\ud800"]
+
+        html = self.renderer.render_certification_html(standard)
+
+        self.assertIn("\ufffd", html)
+        self.assertNotIn("\ud800", html)
+        self.assertNotIn("\udcff", html)
+        self.assertIsInstance(html.encode("utf-8"), bytes)
+
     def test_template_and_document_meet_accessibility_responsive_print_and_dark_mode_contract(self):
         html = self.renderer.render_certification_html(self.standard)
         template = TEMPLATE.read_text(encoding="utf-8")
@@ -163,6 +209,22 @@ class CertificationHtmlTests(unittest.TestCase):
             self.assertNotEqual(failed_input.returncode, 0)
             self.assertIn("render_error:", failed_input.stderr)
             self.assertNotIn("Traceback", failed_input.stderr)
+
+    def test_cli_normalizes_escaped_lone_surrogates_without_traceback(self):
+        standard = copy.deepcopy(self.standard)
+        standard["meta"]["description"] = "输入含孤立代理项\ud800"
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "surrogate.json"
+            output = Path(directory) / "surrogate.html"
+            source.write_text(json.dumps(standard, ensure_ascii=True), encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, str(SCRIPT), str(source), str(output)],
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertNotIn("Traceback", completed.stderr)
+            self.assertIn("\ufffd", output.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

@@ -16,11 +16,33 @@ _VALIDATOR_SPEC = importlib.util.spec_from_file_location(
 )
 validator = importlib.util.module_from_spec(_VALIDATOR_SPEC)
 _VALIDATOR_SPEC.loader.exec_module(validator)
+_TITLE_PLACEHOLDER = "{{TITLE}}"
+_BODY_PLACEHOLDER = "{{BODY}}"
+
+
+def _normalize_text(value):
+    """Replace lone UTF-16 surrogate code points before creating HTML text."""
+    text = "" if value is None else str(value)
+    return "".join("\ufffd" if 0xD800 <= ord(character) <= 0xDFFF else character for character in text)
 
 
 def esc(value):
     """Escape any business value for HTML text or quoted attribute contexts."""
-    return html.escape("" if value is None else str(value), quote=True)
+    return html.escape(_normalize_text(value), quote=True)
+
+
+def load_template_segments():
+    """Validate the pristine template once and split it around its two markers."""
+    template = TEMPLATE.read_text(encoding="utf-8")
+    if template.count(_TITLE_PLACEHOLDER) != 1 or template.count(_BODY_PLACEHOLDER) != 1:
+        raise ValueError("Template must contain exactly one {{TITLE}} and one {{BODY}} placeholder.")
+    title_index = template.index(_TITLE_PLACEHOLDER)
+    body_index = template.index(_BODY_PLACEHOLDER)
+    if title_index >= body_index:
+        raise ValueError("Template {{TITLE}} placeholder must appear before {{BODY}}.")
+    before_title, after_title = template.split(_TITLE_PLACEHOLDER, 1)
+    between_title_and_body, after_body = after_title.split(_BODY_PLACEHOLDER, 1)
+    return before_title, between_title_and_body, after_body
 
 
 def render_meta(meta):
@@ -127,11 +149,8 @@ def render_certification_html(source):
         f"<pre>{raw_json}</pre></details></section>"
         "</main>"
     )
-    template = TEMPLATE.read_text(encoding="utf-8")
-    rendered = template.replace("{{TITLE}}", esc(meta["chronicDiseaseName"])).replace("{{BODY}}", body)
-    if "{{TITLE}}" in rendered or "{{BODY}}" in rendered:
-        raise ValueError("Template placeholders could not be fully rendered.")
-    return rendered
+    before_title, between_title_and_body, after_body = load_template_segments()
+    return before_title + esc(meta["chronicDiseaseName"]) + between_title_and_body + body + after_body
 
 
 def main(argv=None):
@@ -146,7 +165,7 @@ def main(argv=None):
         return 1
     try:
         args.output.write_text(rendered.rstrip("\n") + "\n", encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeError) as exc:
         print(f"output_error: {exc}", file=sys.stderr)
         return 1
     print(args.output)
