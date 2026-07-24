@@ -33,6 +33,6 @@
 
 兼容结构化标准包装字段 `certification_list`、`output`、`result`、`data`，其值可以继续包装对象或 JSON 字符串。审核输出也可为自然语言、表格、过程明细或仅一个结论。
 
-仅有简要结果、最终结论或结论-only 时，比较阶段只能核对最终结论及其可见主张；“证据提取准确性”和“规则条件/逐规则检查”必须标为 `not_run` 并写明“未提供原审核证据或规则过程”，不得根据结论反推过程、提取值或缺失项目。
+仅有简要结果的 `brief` 可依据其中可见的缺失或推理主张开展材料缺失/过度推理质控，但没有逐证据提取或规则过程：“证据提取准确性”和“审核条件与结论一致性/逐规则检查”必须标为 `not_run`，证据提取原因严格为“未提供原审核证据或规则过程”，且不得有 `ruleReviews`。`conclusion_only` 更保守：材料缺失、证据提取、过度推理均为 `not_run`，审核条件与结论一致性仅可为部分完成或未执行，且没有 `ruleReviews`；不得根据结论反推过程、提取值或缺失项目。
 
 `auditResultKind` 只能是 `detailed`、`brief`、`conclusion_only`：`detailed` 的 inventory 必须标明有审核过程，后两者必须标明没有。标准种类只能是 `structured_complete`、`structured_incomplete`、`natural_language`、`absent`。

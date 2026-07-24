@@ -246,6 +246,49 @@ class QcRendererTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "riskDirection"):
             self.renderer.validate_qc_report(invalid)
 
+    def test_brief_and_conclusion_only_use_distinct_capability_matrices(self):
+        brief = copy.deepcopy(self.report)
+        brief["inputScope"]["auditResultKind"] = "brief"
+        brief["inputScope"]["inventory"].update({"auditResultKind": "brief", "hasAuditProcess": False})
+        brief["inputScope"]["confirmation"]["inventorySha256"] = self.renderer.compute_inventory_sha256(brief["inputScope"]["inventory"])
+        brief["capabilities"][1] = {"name": "证据提取准确性", "status": "not_run", "reason": "未提供原审核证据或规则过程"}
+        brief["capabilities"][3] = {"name": "审核条件与结论一致性", "status": "not_run", "reason": "未提供原审核证据或规则过程"}
+        brief["unperformedChecks"] = [
+            {"name": "证据提取准确性", "reason": "未提供原审核证据或规则过程"},
+            {"name": "审核条件与结论一致性", "reason": "未提供原审核证据或规则过程"},
+        ]
+        self.renderer.validate_qc_report(brief)
+        invalid = copy.deepcopy(brief); invalid["capabilities"][1] = {"name": "证据提取准确性", "status": "completed", "reason": ""}; invalid["unperformedChecks"] = [item for item in invalid["unperformedChecks"] if item["name"] != "证据提取准确性"]
+        with self.assertRaisesRegex(ValueError, "证据提取准确性"):
+            self.renderer.validate_qc_report(invalid)
+        invalid = copy.deepcopy(brief); invalid["capabilities"][3] = {"name": "审核条件与结论一致性", "status": "partial", "reason": "虚构规则过程"}; invalid["unperformedChecks"] = [item for item in invalid["unperformedChecks"] if item["name"] != "审核条件与结论一致性"]
+        with self.assertRaisesRegex(ValueError, "审核条件与结论一致性"):
+            self.renderer.validate_qc_report(invalid)
+        invalid = copy.deepcopy(brief); invalid["ruleReviews"] = [{"ruleCode": "TMP-R001", "result": "无法判断", "modelClaim": "无", "evidenceStatus": "NOT_FOUND", "materialEvidence": [], "qcFinding": "无过程", "recommendation": "补充"}]
+        with self.assertRaisesRegex(ValueError, "ruleReviews"):
+            self.renderer.validate_qc_report(invalid)
+        conclusion_only = copy.deepcopy(brief); conclusion_only["inputScope"]["auditResultKind"] = "conclusion_only"; conclusion_only["inputScope"]["inventory"]["auditResultKind"] = "conclusion_only"
+        conclusion_only["capabilities"][0] = {"name": "材料缺失判断准确性", "status": "not_run", "reason": "仅提供最终结论"}
+        conclusion_only["capabilities"][2] = {"name": "过度推理", "status": "not_run", "reason": "仅提供最终结论"}
+        conclusion_only["capabilities"][3] = {"name": "审核条件与结论一致性", "status": "partial", "reason": "仅可核对结论中的可见条件"}
+        conclusion_only["unperformedChecks"] = [
+            {"name": "材料缺失判断准确性", "reason": "仅提供最终结论"},
+            {"name": "证据提取准确性", "reason": "未提供原审核证据或规则过程"},
+            {"name": "过度推理", "reason": "仅提供最终结论"},
+        ]
+        conclusion_only["inputScope"]["confirmation"]["inventorySha256"] = self.renderer.compute_inventory_sha256(conclusion_only["inputScope"]["inventory"])
+        self.renderer.validate_qc_report(conclusion_only)
+        invalid = copy.deepcopy(conclusion_only); invalid["capabilities"][0] = {"name": "材料缺失判断准确性", "status": "completed", "reason": ""}; invalid["unperformedChecks"] = [item for item in invalid["unperformedChecks"] if item["name"] != "材料缺失判断准确性"]
+        with self.assertRaisesRegex(ValueError, "材料缺失判断准确性"):
+            self.renderer.validate_qc_report(invalid)
+
+    def test_outcome_changing_issue_cannot_use_none_risk(self):
+        report = copy.deepcopy(self.report)
+        report["issues"][0]["riskDirection"] = "none"
+        report["riskDirection"] = "暂时无法判断"
+        with self.assertRaisesRegex(ValueError, r"issues\[0\].riskDirection"):
+            self.renderer.validate_qc_report(report)
+
     def test_capability_and_unperformed_checks_are_a_single_source(self):
         report = copy.deepcopy(self.report); report["capabilities"].append(copy.deepcopy(report["capabilities"][0]))
         with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)

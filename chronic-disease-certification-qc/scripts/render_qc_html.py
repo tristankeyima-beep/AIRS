@@ -312,7 +312,7 @@ def _validate_capability_matrix(capabilities, input_scope, rule_reviews):
     if set(by_name) != CANONICAL_CAPABILITIES or len(by_name) != len(capabilities):
         _error("capabilities", "must contain each of the five canonical capability names exactly once")
     kind, audit_kind = input_scope["standardKind"], input_scope["auditResultKind"]
-    if audit_kind in {"brief", "conclusion_only"}:
+    if audit_kind == "conclusion_only":
         for name in ("材料缺失判断准确性", "证据提取准确性", "过度推理"):
             capability = by_name[name]
             if capability["status"] != "not_run":
@@ -324,6 +324,14 @@ def _validate_capability_matrix(capabilities, input_scope, rule_reviews):
             _error("capabilities.审核条件与结论一致性", "must be not_run without a usable standard")
         if kind != "absent" and condition["status"] not in {"partial", "not_run"}:
             _error("capabilities.审核条件与结论一致性", "may only be partial or not_run for brief/conclusion_only")
+        if rule_reviews:
+            _error("ruleReviews", "must be empty for brief or conclusion_only audit result")
+    if audit_kind == "brief":
+        evidence = by_name["证据提取准确性"]
+        if evidence["status"] != "not_run" or evidence["reason"] != "未提供原审核证据或规则过程":
+            _error("capabilities.证据提取准确性", "must be not_run with reason 未提供原审核证据或规则过程 for brief")
+        if by_name["审核条件与结论一致性"]["status"] != "not_run":
+            _error("capabilities.审核条件与结论一致性", "must be not_run without detailed rule process")
         if rule_reviews:
             _error("ruleReviews", "must be empty for brief or conclusion_only audit result")
     if kind == "absent":
@@ -348,6 +356,9 @@ def _validate_outcome_risk(report):
         return
     if report["qcConclusion"] in {"可靠", "基本可靠"}:
         _error("qcConclusion", "cannot be reliable when an issue changes or may change the final result")
+    for index, issue in enumerate(changing):
+        if issue["riskDirection"] == "none":
+            _error(f"issues[{index}].riskDirection", "cannot be none when final result changes or may change")
     directions = {item["riskDirection"] for item in changing}
     if directions == {"false_approval"}:
         expected = "错误放行风险"

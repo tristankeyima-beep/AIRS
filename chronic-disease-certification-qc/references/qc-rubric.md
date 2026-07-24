@@ -11,6 +11,7 @@
 - 规则复核只可为“满足”“不满足”“无法判断”“不适用”。`changed` 与 `potentially_changed` 必须为 `high`；`high` 表示可能改变最终结果，`medium` 影响规则/可执行性/解释，`low` 不直接影响最终结果。
 - 问题影响代码严格为 `changed`、`potentially_changed`、`unchanged`、`unknown`；问题风险代码严格为 `false_approval`、`false_rejection`、`both`、`none`。交付时分别渲染为“错误放行风险”“错误拒绝风险”“双向风险”“未发现明显风险”；`none` 的业务文字必须是“未发现明显风险”，不得使用其他或含混的风险文案。
 - `both` 的清晰业务渲染固定为“错误放行与错误拒绝风险”。当任一问题改变或可能改变结论时，不得给出“可靠”或“基本可靠”；全为错误放行/错误拒绝方向时根风险必须相应一致，`both` 或混合方向时根风险为“暂时无法判断”。
+- 改变或可能改变结论的问题不得标为 `none`，只能标为 `false_approval`、`false_rejection` 或 `both`；`none` 只用于不改变结论的问题。
 
 ## 五个质控维度
 
