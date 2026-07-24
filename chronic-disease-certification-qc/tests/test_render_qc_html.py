@@ -117,6 +117,18 @@ class QcRendererTests(unittest.TestCase):
         report = copy.deepcopy(self.report); report["rawInput"]["materials"].append(copy.deepcopy(report["rawInput"]["materials"][0]))
         with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
 
+    def test_duplicate_structured_material_ids_are_rejected_without_evidence(self):
+        report = copy.deepcopy(self.report)
+        report["issues"] = []; report["ruleReviews"] = []
+        report["rawInput"]["materials"].append(copy.deepcopy(report["rawInput"]["materials"][0]))
+        with self.assertRaisesRegex(ValueError, "materialId must be unique"):
+            self.renderer.validate_qc_report(report)
+        report = copy.deepcopy(self.report)
+        report["issues"] = []; report["ruleReviews"] = []
+        report["rawInput"]["materials"].append({"materialId": "M001", "materialName": "不含正文"})
+        with self.assertRaisesRegex(ValueError, "materialId must be unique"):
+            self.renderer.validate_qc_report(report)
+
     def test_capability_reason_is_empty_only_when_completed(self):
         report = copy.deepcopy(self.report)
         self.renderer.validate_qc_report(report)

@@ -156,10 +156,10 @@ def _material_sources(raw_input):
         return {}
     sources = {}
     for item in raw_input["materials"]:
-        if isinstance(item, dict) and isinstance(item.get("materialId"), str) and isinstance(item.get("content"), str):
+        if isinstance(item, dict) and isinstance(item.get("materialId"), str):
             if item["materialId"] in sources:
                 _error("rawInput.materials", "materialId must be unique")
-            sources[item["materialId"]] = item["content"]
+            sources[item["materialId"]] = item["content"] if isinstance(item.get("content"), str) else None
     return sources
 
 
@@ -205,6 +205,7 @@ def _validate_report(report):
         capabilities_by_name[capability["name"]] = capability
     _text(report["originalResult"], "originalResult")
     _enum(report["qcConclusion"], "qcConclusion", RELIABILITY); _enum(report["riskDirection"], "riskDirection", ROOT_RISKS); _text(report["recommendedAction"], "recommendedAction")
+    material_sources = _material_sources(report["rawInput"])
     if not isinstance(report["issues"], list): _error("issues", "must be an array")
     issue_fields = {"category", "issueType", "severity", "ruleCode", "keywordCode", "modelClaim", "evidenceStatus", "materialEvidence", "qcFinding", "possibleImpact", "impactOnFinalResult", "riskDirection", "recommendation", "confidence"}
     for index, issue in enumerate(report["issues"]):
@@ -216,7 +217,7 @@ def _validate_report(report):
         _enum(issue["severity"], f"{point}.severity", SEVERITIES); _enum(issue["confidence"], f"{point}.confidence", CONFIDENCES); _enum(issue["impactOnFinalResult"], f"{point}.impactOnFinalResult", IMPACTS); _enum(issue["riskDirection"], f"{point}.riskDirection", ISSUE_RISKS); _enum(issue["evidenceStatus"], f"{point}.evidenceStatus", EVIDENCE_STATES)
         if issue["impactOnFinalResult"] in {"changed", "potentially_changed"} and issue["severity"] != "high": _error(f"{point}.severity", "must be high when final result may change")
         _validate_evidence_state(issue["evidenceStatus"], issue["materialEvidence"], f"{point}.materialEvidence")
-        _evidence(issue["materialEvidence"], f"{point}.materialEvidence", _material_sources(report["rawInput"]))
+        _evidence(issue["materialEvidence"], f"{point}.materialEvidence", material_sources)
     if not isinstance(report["ruleReviews"], list): _error("ruleReviews", "must be an array")
     review_fields = {"ruleCode", "result", "modelClaim", "evidenceStatus", "materialEvidence", "qcFinding", "recommendation"}
     for index, review in enumerate(report["ruleReviews"]):
@@ -224,7 +225,7 @@ def _validate_report(report):
         for field in ("ruleCode", "modelClaim", "qcFinding", "recommendation"): _text(review[field], f"{point}.{field}")
         _enum(review["result"], f"{point}.result", RULE_RESULTS); _enum(review["evidenceStatus"], f"{point}.evidenceStatus", EVIDENCE_STATES)
         _validate_evidence_state(review["evidenceStatus"], review["materialEvidence"], f"{point}.materialEvidence")
-        _evidence(review["materialEvidence"], f"{point}.materialEvidence", _material_sources(report["rawInput"]))
+        _evidence(review["materialEvidence"], f"{point}.materialEvidence", material_sources)
     if not isinstance(report["unperformedChecks"], list): _error("unperformedChecks", "must be an array")
     unperformed_by_name = {}
     for index, check in enumerate(report["unperformedChecks"]):
