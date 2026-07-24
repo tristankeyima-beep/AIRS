@@ -143,6 +143,15 @@ class ValidateCertificationTests(unittest.TestCase):
         self.assertEqual(command.returncode, 0)
         self.assertTrue(json.loads(command.stdout)["valid"])
 
+    def test_nested_wrapper_bom_json_is_valid(self):
+        wrapped = {
+            "output": json.dumps(
+                {"result": "\ufeff" + json.dumps(self.valid, ensure_ascii=False)},
+                ensure_ascii=False,
+            )
+        }
+        self.assertTrue(validator.validate_certification(wrapped)["valid"])
+
     def test_finalization_does_not_mutate_draft_or_meta(self):
         draft = copy.deepcopy(self.valid)
         draft.pop("meta")

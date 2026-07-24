@@ -83,11 +83,22 @@ def _unwrap(value):
             value = _strip_bom(value)
             if _blank_string(value):
                 return "absent", None
-            if _bracketed_chinese_heading(value):
-                return "natural_language", value
             # A wrapper may hold an object JSON string or a JSON-string-encoded
             # natural-language standard. Ordinary text is never decoded.
-            if value.lstrip().startswith(("{", "[", '"')):
+            if value.lstrip().startswith("["):
+                try:
+                    value = _decode_json(value)
+                except _NormalizationError:
+                    if _bracketed_chinese_heading(value):
+                        return "natural_language", value
+                    raise
+                if depth >= _MAX_WRAPPER_DEPTH:
+                    raise _NormalizationError(
+                        "wrapper_depth_exceeded", "Wrapper nesting exceeds the supported depth."
+                    )
+                depth += 1
+                continue
+            if value.lstrip().startswith(("{", '"')):
                 value = _decode_json(value)
                 if depth >= _MAX_WRAPPER_DEPTH:
                     raise _NormalizationError(
@@ -111,8 +122,13 @@ def _normalize(value):
         return "absent", None
     if isinstance(value, str):
         value = _strip_bom(value)
-        if _bracketed_chinese_heading(value):
-            return "natural_language", value
+        if value.lstrip().startswith("["):
+            try:
+                return _unwrap(_decode_json(value))
+            except _NormalizationError:
+                if _bracketed_chinese_heading(value):
+                    return "natural_language", value
+                raise
         if not _json_looking(value):
             return "natural_language", value
         return _unwrap(_decode_json(value))

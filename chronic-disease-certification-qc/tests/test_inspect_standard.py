@@ -87,9 +87,12 @@ class InspectStandardTests(unittest.TestCase):
                 with self.subTest(input_value=repr(input_value)):
                     self.assertEqual(inspector.inspect_standard(input_value)["kind"], "natural_language")
         valid_array = inspector.inspect_standard("[1]\n")
+        chinese_string_array = inspector.inspect_standard('["认定标准"]\n')
         malformed_array = inspector.inspect_standard("[not json")
         self.assertEqual(valid_array["kind"], "structured_incomplete")
         self.assertEqual(valid_array["issues"][0]["code"], "invalid_root")
+        self.assertEqual(chinese_string_array["kind"], "structured_incomplete")
+        self.assertEqual(chinese_string_array["issues"][0]["code"], "invalid_root")
         self.assertEqual(malformed_array["kind"], "structured_incomplete")
         self.assertEqual(malformed_array["issues"][0]["code"], "invalid_json")
 
@@ -185,6 +188,15 @@ class InspectStandardTests(unittest.TestCase):
             )
         self.assertEqual(command.returncode, 0)
         self.assertEqual(json.loads(command.stdout)["kind"], "structured_complete")
+
+    def test_nested_wrapper_bom_json_is_complete(self):
+        wrapped = {
+            "output": json.dumps(
+                {"result": "\ufeff" + json.dumps(self.valid, ensure_ascii=False)},
+                ensure_ascii=False,
+            )
+        }
+        self.assertEqual(inspector.inspect_standard(wrapped)["kind"], "structured_complete")
 
     def test_malformed_json_looking_text_returns_validator_issue(self):
         result = inspector.inspect_standard("{not json")

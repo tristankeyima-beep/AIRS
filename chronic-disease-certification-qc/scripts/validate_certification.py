@@ -72,6 +72,7 @@ def parse_value(value):
         wrapper_depth += 1
         value = value[wrapper_key]
         if isinstance(value, str):
+            value = value.removeprefix("\ufeff")
             try:
                 value = json.loads(value)
             except json.JSONDecodeError as exc:
