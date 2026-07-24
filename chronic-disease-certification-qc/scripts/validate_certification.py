@@ -53,7 +53,7 @@ def parse_value(value):
     if not isinstance(value, dict):
         raise ParseError("invalid_root", "Certification standard root must be an object.")
 
-    seen_wrappers = set()
+    seen_wrappers = []
     wrapper_depth = 0
     while True:
         if not isinstance(value, dict):
@@ -63,12 +63,11 @@ def parse_value(value):
         wrapper_key = next((key for key in WRAPPER_KEYS if key in value), None)
         if wrapper_key is None:
             return value
-        value_id = id(value)
-        if value_id in seen_wrappers:
+        if any(value is seen_wrapper for seen_wrapper in seen_wrappers):
             raise ParseError("wrapper_cycle", "Wrapper nesting contains a cycle.")
         if wrapper_depth >= MAX_WRAPPER_DEPTH:
             raise ParseError("wrapper_depth_exceeded", "Wrapper nesting exceeds the supported depth.")
-        seen_wrappers.add(value_id)
+        seen_wrappers.append(value)
         wrapper_depth += 1
         value = value[wrapper_key]
         if isinstance(value, str):
@@ -238,6 +237,26 @@ def validate_certification(value):
     return {"valid": not errors, "errors": errors, "warnings": [], "standard": standard}
 
 
+def _guard_topology(root):
+    """Reject cyclic or over-deep topology before any recursive copying occurs."""
+    stack = [(root, 0, frozenset())]
+    while stack:
+        node, depth, ancestors = stack.pop()
+        if depth > MAX_TOPOLOGY_DEPTH:
+            raise ValueError("Topology exceeds the supported depth")
+        if not isinstance(node, dict):
+            continue
+        node_id = id(node)
+        if node_id in ancestors:
+            raise ValueError("Topology must not contain a cycle")
+        if node.get("type") == "GROUP":
+            children = node.get("children")
+            if isinstance(children, list):
+                child_ancestors = ancestors | {node_id}
+                for child in reversed(children):
+                    stack.append((child, depth + 1, child_ancestors))
+
+
 def _rewrite_topology(root, rule_codes):
     stack = [(root, 0, frozenset())]
     while stack:
@@ -264,8 +283,14 @@ def _rewrite_topology(root, rule_codes):
 
 def finalize_certification(draft_value, meta):
     """Turn temporary R001-style draft identifiers into deterministic formal codes."""
-    draft = copy.deepcopy(parse_value(draft_value))
-    output_meta = copy.deepcopy(meta)
+    draft_input = parse_value(draft_value)
+    if isinstance(draft_input, dict):
+        _guard_topology(draft_input.get("logicTopology"))
+    try:
+        draft = copy.deepcopy(draft_input)
+        output_meta = copy.deepcopy(meta)
+    except RecursionError as exc:
+        raise ValueError("Draft or meta is too deeply nested") from exc
     if not isinstance(output_meta, dict):
         raise ValueError("meta must be an object")
     disease_code = output_meta.get("chronicDiseaseCode")

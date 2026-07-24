@@ -103,6 +103,13 @@ class ValidateCertificationTests(unittest.TestCase):
         result = validator.validate_certification({"output": json.dumps(self.valid, ensure_ascii=False)})
         self.assertTrue(result["valid"])
 
+    def test_multiple_nested_json_string_wrappers_are_parsed(self):
+        wrapped = self.valid
+        for wrapper_key in reversed(validator.WRAPPER_KEYS):
+            wrapped = {wrapper_key: json.dumps(wrapped, ensure_ascii=False)}
+        result = validator.validate_certification(wrapped)
+        self.assertTrue(result["valid"])
+
     def test_non_utf8_path_returns_a_validation_issue(self):
         with tempfile.TemporaryDirectory() as directory:
             input_path = Path(directory) / "invalid.json"
@@ -255,6 +262,22 @@ class ValidateCertificationTests(unittest.TestCase):
         rule["ruleKeywordGuide"][0].pop("keywordCode")
         node = draft["logicTopology"]
         for _ in range(validator.MAX_TOPOLOGY_DEPTH + 1):
+            child = {"type": "GROUP", "operator": "AND", "children": []}
+            node["children"] = [child]
+            node = child
+        node["children"] = [{"type": "RULE_REF", "ruleCode": "R001"}]
+        with self.assertRaisesRegex(ValueError, "Topology exceeds the supported depth"):
+            validator.finalize_certification(draft, self.valid["meta"])
+
+    def test_finalization_rejects_topology_beyond_python_recursion_limit(self):
+        draft = copy.deepcopy(self.valid)
+        draft.pop("meta")
+        rule = draft["ruleRepository"][0]
+        rule["tempRuleId"] = "R001"
+        rule.pop("ruleCode")
+        rule["ruleKeywordGuide"][0].pop("keywordCode")
+        node = draft["logicTopology"]
+        for _ in range(1200):
             child = {"type": "GROUP", "operator": "AND", "children": []}
             node["children"] = [child]
             node = child
