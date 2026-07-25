@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
 import argparse
+import errno
 import html
 import json
 import os
 import re
+import stat
 import sys
 import tempfile
 from pathlib import Path
@@ -124,7 +126,9 @@ def load_catalog(path):
 
     try:
         catalog = json.loads(text, object_pairs_hook=_reject_duplicate_pairs)
-    except (json.JSONDecodeError, RecursionError):
+    except CatalogError:
+        raise
+    except (json.JSONDecodeError, RecursionError, ValueError):
         raise CatalogError("catalog_json_error") from None
 
     _validate_root_contract(catalog)
@@ -422,6 +426,55 @@ def _source_path_tuple(source_paths):
         raise CatalogError("output_source_paths_error") from None
 
 
+def _destination_mode(destination):
+    try:
+        destination_stat = destination.stat(follow_symlinks=False)
+    except FileNotFoundError:
+        return 0o644
+    except OSError:
+        raise CatalogError("output_path_check_error") from None
+    if not stat.S_ISREG(destination_stat.st_mode):
+        raise CatalogError("output_not_regular")
+    return stat.S_IMODE(destination_stat.st_mode)
+
+
+def _directory_fsync_is_unsupported(error):
+    unsupported = {
+        errno.EINVAL,
+        getattr(errno, "ENOSYS", -1),
+        getattr(errno, "ENOTSUP", -1),
+        getattr(errno, "EOPNOTSUPP", -1),
+    }
+    if error.errno in unsupported:
+        return True
+    return os.name == "nt" and error.errno in {errno.EACCES, errno.EPERM}
+
+
+def _fsync_directory(directory):
+    flags = os.O_RDONLY
+    flags |= getattr(os, "O_DIRECTORY", 0)
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    descriptor = None
+    try:
+        try:
+            descriptor = os.open(directory, flags)
+        except OSError as error:
+            if _directory_fsync_is_unsupported(error):
+                return
+            raise CatalogError("output_directory_sync_error") from None
+        try:
+            os.fsync(descriptor)
+        except OSError as error:
+            if not _directory_fsync_is_unsupported(error):
+                raise CatalogError("output_directory_sync_error") from None
+    finally:
+        if descriptor is not None:
+            try:
+                os.close(descriptor)
+            except OSError:
+                raise CatalogError("output_directory_sync_error") from None
+
+
 def write_text_atomically(destination, text, source_paths=()):
     try:
         destination = Path(destination)
@@ -443,6 +496,7 @@ def write_text_atomically(destination, text, source_paths=()):
         if _same_path_or_alias(destination, source):
             raise CatalogError("output_input_alias_forbidden")
 
+    target_mode = _destination_mode(destination)
     normalized = text.replace("\r\n", "\n").replace("\r", "\n")
     normalized = normalized.rstrip("\n") + "\n"
     file_descriptor = None
@@ -456,6 +510,10 @@ def write_text_atomically(destination, text, source_paths=()):
             dir=parent,
         )
         temporary = Path(temporary_name)
+        if hasattr(os, "fchmod"):
+            os.fchmod(file_descriptor, 0o600)
+        else:
+            os.chmod(temporary, 0o600)
         handle = os.fdopen(
             file_descriptor,
             "w",
@@ -467,9 +525,12 @@ def write_text_atomically(destination, text, source_paths=()):
             handle.write(normalized)
             handle.flush()
             os.fsync(handle.fileno())
-        os.chmod(temporary, 0o644)
         os.replace(temporary, destination)
         temporary = None
+        os.chmod(destination, target_mode)
+        _fsync_directory(parent)
+    except CatalogError as error:
+        operation_error = error
     except (OSError, UnicodeError, TypeError, ValueError):
         operation_error = CatalogError("output_write_error")
     finally:
@@ -483,10 +544,10 @@ def write_text_atomically(destination, text, source_paths=()):
                 temporary.unlink(missing_ok=True)
             except OSError:
                 cleanup_error = True
-    if operation_error is not None:
-        raise operation_error from None
     if cleanup_error:
         raise CatalogError("output_cleanup_error")
+    if operation_error is not None:
+        raise operation_error from None
 
 
 def _parse_args(argv=None):
@@ -510,14 +571,7 @@ def main(argv=None):
             rendered,
             source_paths=(args.catalog,),
         )
-    except (
-        CatalogError,
-        OSError,
-        UnicodeError,
-        TypeError,
-        ValueError,
-        RecursionError,
-    ):
+    except CatalogError:
         print("catalog_error", file=sys.stderr)
         return 1
     print("catalog_built")

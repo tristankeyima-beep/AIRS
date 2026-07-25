@@ -1,4 +1,5 @@
 import errno
+import io
 import importlib.util
 import hashlib
 import json
@@ -9,7 +10,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from copy import deepcopy
+from html.parser import HTMLParser
 from pathlib import Path
 from unittest import mock
 
@@ -332,6 +335,53 @@ def parse_file_bundle(content):
             raise AssertionError("bundle file names must be unique and bodies non-empty")
         files[name] = body
     return files
+
+
+class AcceptanceArticleParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.articles = []
+        self._current = None
+        self._article_depth = 0
+
+    def handle_starttag(self, tag, attrs):
+        attributes = [(name, value or "") for name, value in attrs]
+        classes = dict(attributes).get("class", "").split()
+        is_case = tag == "article" and "acceptance-case" in classes
+        if is_case and self._current is None:
+            self._current = {"text": [], "attributes": []}
+            self._article_depth = 1
+        elif tag == "article" and self._current is not None:
+            self._article_depth += 1
+        if self._current is not None:
+            self._current["attributes"].extend(
+                value
+                for pair in attributes
+                for value in pair
+            )
+
+    def handle_endtag(self, tag):
+        if tag != "article" or self._current is None:
+            return
+        self._article_depth -= 1
+        if self._article_depth == 0:
+            self.articles.append(self._current)
+            self._current = None
+
+    def handle_data(self, data):
+        if self._current is not None:
+            self._current["text"].append(data)
+
+
+def assert_static_acceptance_articles(testcase, rendered, cases):
+    parser = AcceptanceArticleParser()
+    parser.feed(rendered)
+    parser.close()
+    testcase.assertEqual(len(parser.articles), len(cases))
+    for article, case in zip(parser.articles, cases):
+        own_content = "\n".join(article["text"] + article["attributes"])
+        for field in ("id", "title", "mode", "priority"):
+            testcase.assertIn(case[field], own_content)
 
 
 def load_builder_module():
@@ -1205,6 +1255,30 @@ class AcceptanceCatalogTests(unittest.TestCase):
             str(caught.exception),
         )
 
+    def test_json_decoder_value_error_is_controlled_in_library_and_cli(self):
+        integer_limit = sys.get_int_max_str_digits()
+        if integer_limit == 0:
+            self.skipTest("Python integer digit limit is disabled")
+        sensitive_digits = "7" * (integer_limit + 100)
+        path = self.temp_path / "private-oversized-integer.json"
+        path.write_text(
+            '{"value":' + sensitive_digits + "}",
+            encoding="utf-8",
+        )
+
+        with self.assertRaises(BUILDER_MODULE.CatalogError) as caught:
+            BUILDER_MODULE.load_catalog(path)
+
+        self.assertEqual(str(caught.exception), "catalog_json_error")
+        self.assertNotIn(sensitive_digits[:100], str(caught.exception))
+        result = self.run_cli(path, output=self.temp_path / "output.html")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(result.stderr.strip(), "catalog_error")
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertNotIn(sensitive_digits[:100], result.stderr)
+        self.assertNotIn(path.name, result.stderr)
+
     def test_deeply_nested_json_is_a_controlled_error_without_echo(self):
         path = self.temp_path / "catalog.json"
         nested = (
@@ -1431,13 +1505,7 @@ class AcceptanceCatalogTests(unittest.TestCase):
 
         self.assertIn(catalog["title"], rendered)
         self.assertIn("共 40 条", rendered)
-        self.assertEqual(rendered.count('class="acceptance-case"'), 40)
-        for case in catalog["cases"]:
-            with self.subTest(case=case["id"]):
-                self.assertIn(case["id"], rendered)
-                self.assertIn(case["title"], rendered)
-                self.assertIn(case["mode"], rendered)
-                self.assertIn(case["priority"], rendered)
+        assert_static_acceptance_articles(self, rendered, catalog["cases"])
         match = re.search(
             r'<script id="catalog-data" type="application/json">(.*?)</script>',
             rendered,
@@ -1449,6 +1517,21 @@ class AcceptanceCatalogTests(unittest.TestCase):
             'JSON.parse(document.getElementById("catalog-data").textContent)',
             rendered,
         )
+
+    def test_static_article_contract_rejects_an_empty_case_article(self):
+        catalog = BUILDER_MODULE.load_catalog(CATALOG)
+        rendered = BUILDER_MODULE.render_acceptance_html(catalog)
+        mutated = re.sub(
+            r'<article class="acceptance-case">.*?</article>',
+            '<article class="acceptance-case"></article>',
+            rendered,
+            count=1,
+            flags=re.DOTALL,
+        )
+        self.assertNotEqual(mutated, rendered)
+
+        with self.assertRaises(AssertionError):
+            assert_static_acceptance_articles(self, mutated, catalog["cases"])
 
     def test_render_acceptance_html_never_executes_or_injects_user_data(self):
         catalog = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
@@ -1509,6 +1592,38 @@ class AcceptanceCatalogTests(unittest.TestCase):
         self.assertEqual(destination.read_bytes(), "甲\n乙\n丙\n".encode("utf-8"))
         self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o644)
         self.assertEqual(list(self.temp_path.glob(".output.html.*.tmp")), [])
+
+    @unittest.skipUnless(os.name == "posix", "POSIX mode contract")
+    def test_atomic_success_keeps_stage_private_and_preserves_output_mode(self):
+        real_fdopen = os.fdopen
+        observed_stage_modes = []
+
+        def inspect_stage_mode(descriptor, *args, **kwargs):
+            observed_stage_modes.append(
+                stat.S_IMODE(os.fstat(descriptor).st_mode)
+            )
+            return real_fdopen(descriptor, *args, **kwargs)
+
+        for label, initial_mode in (
+            ("new", None),
+            ("private", 0o600),
+            ("group-readable", 0o640),
+        ):
+            with self.subTest(label=label):
+                destination = self.temp_path / f"{label}.html"
+                if initial_mode is not None:
+                    destination.write_text("old", encoding="utf-8")
+                    destination.chmod(initial_mode)
+                with mock.patch("os.fdopen", side_effect=inspect_stage_mode):
+                    BUILDER_MODULE.write_text_atomically(destination, "new")
+                expected_mode = (
+                    0o644 if initial_mode is None else initial_mode
+                )
+                self.assertEqual(
+                    stat.S_IMODE(destination.stat().st_mode),
+                    expected_mode,
+                )
+        self.assertEqual(observed_stage_modes, [0o600, 0o600, 0o600])
 
     def test_write_text_atomically_rejects_missing_parent_and_output_symlink(self):
         missing_parent = self.temp_path / "missing" / "output.html"
@@ -1656,6 +1771,133 @@ class AcceptanceCatalogTests(unittest.TestCase):
                     list(case_dir.glob(".output.html.*.tmp")),
                     [],
                 )
+
+    @unittest.skipUnless(os.name == "posix", "POSIX mode contract")
+    def test_replace_and_cleanup_failure_leaves_private_stage_and_cleanup_error(self):
+        destination = self.temp_path / "output.html"
+        destination.write_bytes(b"old bytes")
+        destination.chmod(0o600)
+
+        with (
+            mock.patch(
+                "os.replace",
+                side_effect=OSError("private-replace"),
+            ),
+            mock.patch.object(
+                Path,
+                "unlink",
+                side_effect=OSError("private-cleanup"),
+            ),
+        ):
+            with self.assertRaises(BUILDER_MODULE.CatalogError) as caught:
+                BUILDER_MODULE.write_text_atomically(destination, "new")
+
+        self.assertEqual(str(caught.exception), "output_cleanup_error")
+        self.assertEqual(destination.read_bytes(), b"old bytes")
+        self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o600)
+        stages = list(self.temp_path.glob(".output.html.*.tmp"))
+        self.assertEqual(len(stages), 1)
+        self.assertEqual(stat.S_IMODE(stages[0].stat().st_mode), 0o600)
+        stages[0].unlink()
+
+    def test_main_only_converts_controlled_catalog_errors(self):
+        output = self.temp_path / "output.html"
+        for error_type in (TypeError, ValueError):
+            with self.subTest(error_type=error_type.__name__):
+                with mock.patch.object(
+                    BUILDER_MODULE,
+                    "render_acceptance_html",
+                    side_effect=error_type("private-programming-error"),
+                ):
+                    with self.assertRaises(error_type):
+                        BUILDER_MODULE.main(
+                            [
+                                "--catalog",
+                                str(CATALOG),
+                                "--output",
+                                str(output),
+                            ]
+                        )
+
+    def test_main_reports_cleanup_error_without_traceback_or_details(self):
+        destination = self.temp_path / "output.html"
+        stderr = io.StringIO()
+        with (
+            mock.patch(
+                "os.replace",
+                side_effect=OSError("private-replace"),
+            ),
+            mock.patch.object(
+                Path,
+                "unlink",
+                side_effect=OSError("private-cleanup"),
+            ),
+            redirect_stderr(stderr),
+        ):
+            result = BUILDER_MODULE.main(
+                [
+                    "--catalog",
+                    str(CATALOG),
+                    "--output",
+                    str(destination),
+                ]
+            )
+
+        self.assertEqual(result, 1)
+        self.assertEqual(stderr.getvalue(), "catalog_error\n")
+        self.assertNotIn("Traceback", stderr.getvalue())
+        self.assertNotIn("private-", stderr.getvalue())
+        for stage in self.temp_path.glob(".output.html.*.tmp"):
+            stage.unlink()
+
+    def test_successful_replace_syncs_parent_directory(self):
+        destination = self.temp_path / "output.html"
+        real_fsync = os.fsync
+        directory_fsync_calls = []
+
+        def record_fsync(descriptor):
+            if stat.S_ISDIR(os.fstat(descriptor).st_mode):
+                directory_fsync_calls.append(descriptor)
+            return real_fsync(descriptor)
+
+        with mock.patch("os.fsync", side_effect=record_fsync):
+            BUILDER_MODULE.write_text_atomically(destination, "new")
+
+        self.assertEqual(len(directory_fsync_calls), 1)
+
+    def test_directory_fsync_only_ignores_explicit_unsupported_errno(self):
+        if not hasattr(BUILDER_MODULE, "_fsync_directory"):
+            self.fail("missing directory fsync helper")
+        unsupported_open = OSError(errno.EINVAL, "private-unsupported-open")
+        with mock.patch("os.open", side_effect=unsupported_open):
+            BUILDER_MODULE._fsync_directory(self.temp_path)
+
+        unsupported_fsync = OSError(
+            errno.EINVAL,
+            "private-unsupported-fsync",
+        )
+        with (
+            mock.patch("os.open", return_value=123),
+            mock.patch("os.fsync", side_effect=unsupported_fsync),
+            mock.patch("os.close") as close,
+        ):
+            BUILDER_MODULE._fsync_directory(self.temp_path)
+        close.assert_called_once_with(123)
+
+        unexpected = OSError(errno.EIO, "private-io")
+        with (
+            mock.patch("os.open", return_value=456),
+            mock.patch("os.fsync", side_effect=unexpected),
+            mock.patch("os.close") as close,
+        ):
+            with self.assertRaises(BUILDER_MODULE.CatalogError) as caught:
+                BUILDER_MODULE._fsync_directory(self.temp_path)
+        close.assert_called_once_with(456)
+        self.assertEqual(
+            str(caught.exception),
+            "output_directory_sync_error",
+        )
+        self.assertNotIn("private-", str(caught.exception))
 
     def test_render_and_atomic_write_are_byte_deterministic(self):
         catalog = BUILDER_MODULE.load_catalog(CATALOG)
