@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -371,6 +372,32 @@ class AcceptanceArticleParser(HTMLParser):
     def handle_data(self, data):
         if self._current is not None:
             self._current["text"].append(data)
+
+
+class AcceptanceConsoleParser(HTMLParser):
+    CONTROL_TAGS = {"button", "input", "select", "textarea"}
+
+    def __init__(self):
+        super().__init__()
+        self.ids = []
+        self.tag_counts = {}
+        self.controls = []
+        self.label_targets = set()
+        self.external_resources = []
+
+    def handle_starttag(self, tag, attrs):
+        attributes = dict((name, value or "") for name, value in attrs)
+        self.tag_counts[tag] = self.tag_counts.get(tag, 0) + 1
+        if attributes.get("id"):
+            self.ids.append(attributes["id"])
+        if tag in self.CONTROL_TAGS:
+            self.controls.append((tag, attributes))
+        if tag == "label" and attributes.get("for"):
+            self.label_targets.add(attributes["for"])
+        if tag in {"link", "script", "img", "iframe"}:
+            resource = attributes.get("href") or attributes.get("src")
+            if resource:
+                self.external_resources.append(resource)
 
 
 def assert_static_acceptance_articles(testcase, rendered, cases):
@@ -1583,6 +1610,213 @@ class AcceptanceCatalogTests(unittest.TestCase):
         for pattern in secret_patterns:
             with self.subTest(pattern=pattern.pattern):
                 self.assertIsNone(pattern.search(rendered))
+
+    def test_interactive_console_has_unique_semantic_structure_and_labeled_controls(self):
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+        parser = AcceptanceConsoleParser()
+        parser.feed(rendered)
+        parser.close()
+
+        self.assertEqual(parser.tag_counts.get("h1"), 1)
+        self.assertEqual(parser.tag_counts.get("main"), 1)
+        for landmark in ("header", "main", "section", "article", "footer"):
+            self.assertGreater(parser.tag_counts.get(landmark, 0), 0, landmark)
+        required_ids = {
+            "summary-dashboard",
+            "case-filters",
+            "case-list",
+            "import-results",
+            "export-results",
+            "reset-results",
+        }
+        self.assertTrue(required_ids.issubset(parser.ids))
+        self.assertEqual(len(parser.ids), len(set(parser.ids)))
+        self.assertIn('class="skip-link"', rendered)
+        self.assertIn('href="#main-content"', rendered)
+        for tag, attributes in parser.controls:
+            with self.subTest(tag=tag, control=attributes.get("id")):
+                control_id = attributes.get("id")
+                has_name = bool(attributes.get("aria-label"))
+                has_label = bool(control_id and control_id in parser.label_targets)
+                self.assertTrue(has_name or has_label)
+        self.assertEqual(parser.external_resources, [])
+
+    def test_dashboard_filters_and_a11y_live_regions_cover_the_acceptance_workflow(self):
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+
+        for label in (
+            "总数",
+            "通过",
+            "失败",
+            "阻塞",
+            "未执行",
+            "完成率",
+            "关键词",
+            "模式",
+            "分类",
+            "优先级",
+            "输入类型",
+            "风险",
+            "状态",
+            "清除筛选",
+        ):
+            with self.subTest(label=label):
+                self.assertIn(label, rendered)
+        self.assertGreaterEqual(rendered.count('aria-live="polite"'), 2)
+        for state in ("not-run", "passed", "failed", "blocked"):
+            self.assertIn(f'"{state}"', rendered)
+        self.assertIn("错误放行风险", rendered)
+        self.assertIn("错误拒绝风险", rendered)
+        self.assertIn("toLocaleLowerCase", rendered)
+        self.assertIn("input.content", rendered)
+
+    def test_runtime_case_renderer_covers_every_case_field_with_safe_dom_apis(self):
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+
+        for field in (
+            "id",
+            "title",
+            "mode",
+            "priority",
+            "category",
+            "objective",
+            "preconditions",
+            "inputKinds",
+            "inputs",
+            "name",
+            "format",
+            "content",
+            "steps",
+            "actor",
+            "action",
+            "expected",
+            "expectedOutcome",
+            "mustContain",
+            "mustNotContain",
+            "acceptanceChecks",
+            "notes",
+        ):
+            with self.subTest(field=field):
+                self.assertRegex(rendered, rf"\b{field}\b")
+        for api in (
+            "document.createElement",
+            ".textContent",
+            ".setAttribute",
+            ".append",
+            ".replaceChildren",
+        ):
+            self.assertIn(api, rendered)
+        self.assertIn('createElement("code")', rendered)
+        self.assertIn('createElement("textarea")', rendered)
+        self.assertIn('aria-pressed', rendered)
+        self.assertIn("copyInput(input.content, code", rendered)
+        for sink in (
+            "innerHTML",
+            "outerHTML",
+            "insertAdjacentHTML",
+            "document.write",
+            "eval(",
+            "Function(",
+        ):
+            self.assertNotIn(sink, rendered)
+
+    def test_versioned_storage_and_exact_result_schema_are_embedded(self):
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+
+        self.assertIn(
+            '"chronic-disease-certification-qc-acceptance:" + '
+            "acceptanceCatalog.catalogVersion",
+            rendered,
+        )
+        self.assertIn(
+            "JSON.stringify({ version, updatedAt, results })",
+            rendered,
+        )
+        self.assertIn("localStorage.setItem(storageKey", rendered)
+        self.assertIn("localStorage.getItem(storageKey)", rendered)
+        self.assertIn("localStorage.removeItem(storageKey)", rendered)
+        self.assertIn("showNotice(", rendered)
+        self.assertIn("validateResultsDocument", rendered)
+        self.assertIn("candidateResults", rendered)
+
+    def test_import_export_reset_copy_and_print_actions_follow_contract(self):
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+
+        self.assertIn('accept=".json,application/json"', rendered)
+        self.assertIn("慢特病Skill验收结果-", rendered)
+        self.assertIn("window.confirm(", rendered)
+        self.assertIn("window.print()", rendered)
+        self.assertIn("navigator.clipboard.writeText", rendered)
+        self.assertIn("document.createRange()", rendered)
+        self.assertIn("selection.addRange(range)", rendered)
+        self.assertIn("URL.createObjectURL", rendered)
+        self.assertIn("URL.revokeObjectURL", rendered)
+        self.assertIn('"updatedAt"', rendered)
+
+    def test_console_styles_are_tokenized_responsive_printable_and_restrained(self):
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+
+        for token in (
+            "--color-bg",
+            "--color-surface-strong",
+            "--color-success",
+            "--color-warning",
+            "--color-danger",
+            "--space-1",
+            "--radius-md",
+            "--focus-ring",
+            "--motion-fast",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token, rendered)
+        self.assertIn("@media (min-width: 1100px)", rendered)
+        self.assertIn("@media (min-width: 600px) and (max-width: 1099px)", rendered)
+        self.assertIn("@media (max-width: 599px)", rendered)
+        self.assertIn("@media (prefers-reduced-motion: reduce)", rendered)
+        self.assertIn("@media print", rendered)
+        self.assertIn("break-inside: avoid", rendered)
+        self.assertIn("overflow-x: hidden", rendered)
+        self.assertNotIn("gradient(", rendered.casefold())
+        self.assertNotIn("@import", rendered.casefold())
+
+    @unittest.skipUnless(shutil.which("node"), "Node is optional")
+    def test_interactive_script_has_valid_javascript_syntax(self):
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+        scripts = re.findall(
+            r"<script(?: [^>]*)?>(.*?)</script>",
+            rendered,
+            flags=re.DOTALL,
+        )
+        interactive = "\n".join(
+            script
+            for script in scripts
+            if "acceptanceCatalog" in script
+            and "JSON.parse" in script
+        )
+
+        result = subprocess.run(
+            ["node", "--check", "-"],
+            input=interactive,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_write_text_atomically_normalizes_lf_and_sets_mode(self):
         destination = self.temp_path / "output.html"
