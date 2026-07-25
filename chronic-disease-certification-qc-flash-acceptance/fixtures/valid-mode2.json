@@ -106,6 +106,16 @@
       "sourceReference": "患者材料：测试段落",
       "impact": "可能导致符合条件的申请被错误拒绝",
       "recommendation": "重新提取证据 A 并复核审核结论"
+    },
+    {
+      "id": "I002",
+      "dimension": "审核条件与结论一致性",
+      "severity": "high",
+      "auditClaim": "原审核以证据 A 缺失为由给出不通过结论",
+      "actualEvidence": "患者材料中的证据 A 满足认定标准要求",
+      "sourceReference": "患者材料：测试段落；认定标准：测试条款",
+      "impact": "可能导致审核条件判断与最终结论不一致并造成错误拒绝",
+      "recommendation": "根据证据 A 已满足的事实重新判定审核条件并修正结论"
     }
   ],
   "recommendations": [

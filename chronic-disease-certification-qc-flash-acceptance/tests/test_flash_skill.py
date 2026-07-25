@@ -326,6 +326,7 @@ def assert_valid_mode2(test_case, fixture):
     sources = fixture["sourceDocuments"]
     test_case.assertIsInstance(sources, list)
     test_case.assertTrue(sources, "sourceDocuments")
+    source_types = []
     for index, source in enumerate(sources):
         path = f"sourceDocuments[{index}]"
         test_case.assertIsInstance(source, dict, path)
@@ -337,6 +338,13 @@ def assert_valid_mode2(test_case, fixture):
             f"{path}.type",
         )
         assert_nonempty_string(test_case, source["content"], f"{path}.content")
+        source_types.append(source["type"])
+    test_case.assertIn("patient_material", source_types)
+    test_case.assertIn("audit_result", source_types)
+    if profile["standardKind"] == "absent":
+        test_case.assertNotIn("standard", source_types)
+    else:
+        test_case.assertIn("standard", source_types)
 
     analysis = fixture["analysisRecord"]
     test_case.assertEqual(
@@ -403,6 +411,23 @@ def assert_valid_mode2(test_case, fixture):
         base_review["preliminaryResult"],
         {"meets", "does_not_meet", "uncertain"},
     )
+    if (
+        profile["standardKind"] != "absent"
+        and profile["auditDetail"] == "detailed"
+    ):
+        test_case.assertTrue(
+            base_review["materialFacts"],
+            "detailed review requires materialFacts",
+        )
+        test_case.assertTrue(
+            judgments,
+            "detailed review requires ruleJudgments",
+        )
+        for index, judgment in enumerate(judgments):
+            test_case.assertTrue(
+                judgment["evidence"],
+                f"baseReview.ruleJudgments[{index}].evidence",
+            )
 
     comparison = fixture["auditComparison"]
     test_case.assertEqual(
@@ -470,6 +495,7 @@ def assert_valid_mode2(test_case, fixture):
 
     issues = fixture["issues"]
     test_case.assertIsInstance(issues, list)
+    issue_dimensions = set()
     for index, issue in enumerate(issues, start=1):
         path = f"issues[{index - 1}]"
         test_case.assertIsInstance(issue, dict, path)
@@ -510,6 +536,30 @@ def assert_valid_mode2(test_case, fixture):
             {"high", "medium", "low"},
             f"{path}.severity",
         )
+        issue_dimensions.add(issue["dimension"])
+    issue_status_dimensions = {
+        dimension["name"]
+        for dimension in dimensions
+        if dimension["status"] == "issue"
+    }
+    test_case.assertEqual(
+        issue_status_dimensions,
+        issue_dimensions,
+        "issue dimensions and issue records must cover the same dimensions",
+    )
+
+    qc_conclusion = comparison["qcConclusion"]
+    risk = comparison["risk"]
+    if qc_conclusion == "reliable":
+        test_case.assertFalse(issue_status_dimensions)
+        test_case.assertEqual([], issues)
+        test_case.assertEqual("none", risk)
+    elif qc_conclusion == "problematic":
+        test_case.assertTrue(issue_status_dimensions)
+        test_case.assertTrue(issues)
+        test_case.assertNotEqual("none", risk)
+    else:
+        test_case.assertEqual("unknown", risk)
 
     assert_string_array(
         test_case,
@@ -542,13 +592,20 @@ def assert_valid_mode2(test_case, fixture):
         test_case.assertEqual("not_checked", rule_dimension["status"])
 
     if profile["standardKind"] == "natural_language":
-        for judgment in judgments:
-            test_case.assertRegex(judgment["ruleId"], r"^TMP-R\d{3}$")
+        test_case.assertEqual(
+            [
+                f"TMP-R{index:03d}"
+                for index in range(1, len(judgments) + 1)
+            ],
+            [judgment["ruleId"] for judgment in judgments],
+        )
 
     if profile["auditDetail"] == "conclusion_only":
-        for name in ("证据提取准确性", "审核条件与结论一致性"):
+        for name in MODE2_DIMENSIONS[:4]:
             dimension = dimensions[MODE2_DIMENSIONS.index(name)]
             test_case.assertEqual("not_checked", dimension["status"])
+        test_case.assertEqual("uncertain", qc_conclusion)
+        test_case.assertEqual("unknown", risk)
 
 
 class OpenAIYamlParserTests(unittest.TestCase):
@@ -875,17 +932,255 @@ class Mode2FixtureContractTests(unittest.TestCase):
         empty_confirmation_inventory["confirmation"]["inventoryShown"] = []
         mutations["empty confirmation inventory"] = empty_confirmation_inventory
 
+        missing_patient_material = copy.deepcopy(self.fixture)
+        missing_patient_material["sourceDocuments"] = [
+            source
+            for source in missing_patient_material["sourceDocuments"]
+            if source["type"] != "patient_material"
+        ]
+        mutations["missing patient material"] = missing_patient_material
+
+        missing_audit_result = copy.deepcopy(self.fixture)
+        missing_audit_result["sourceDocuments"] = [
+            source
+            for source in missing_audit_result["sourceDocuments"]
+            if source["type"] != "audit_result"
+        ]
+        mutations["missing audit result"] = missing_audit_result
+
+        missing_structured_standard = copy.deepcopy(self.fixture)
+        missing_structured_standard["sourceDocuments"] = [
+            source
+            for source in missing_structured_standard["sourceDocuments"]
+            if source["type"] != "standard"
+        ]
+        mutations["missing structured standard"] = missing_structured_standard
+
+        empty_detailed_facts = copy.deepcopy(self.fixture)
+        empty_detailed_facts["baseReview"]["materialFacts"] = []
+        mutations["empty detailed material facts"] = empty_detailed_facts
+
+        empty_detailed_judgments = copy.deepcopy(self.fixture)
+        empty_detailed_judgments["baseReview"]["ruleJudgments"] = []
+        mutations["empty detailed rule judgments"] = empty_detailed_judgments
+
+        empty_detailed_evidence = copy.deepcopy(self.fixture)
+        empty_detailed_evidence["baseReview"]["ruleJudgments"][0]["evidence"] = []
+        mutations["empty detailed judgment evidence"] = empty_detailed_evidence
+
+        reliable_with_issues = copy.deepcopy(self.fixture)
+        reliable_with_issues["auditComparison"]["qcConclusion"] = "reliable"
+        reliable_with_issues["auditComparison"]["risk"] = "none"
+        mutations["reliable with issues"] = reliable_with_issues
+
+        reliable_with_risk = copy.deepcopy(self.fixture)
+        reliable_with_risk["auditComparison"]["qcConclusion"] = "reliable"
+        reliable_with_risk["issues"] = []
+        for dimension in reliable_with_risk["dimensions"]:
+            dimension["status"] = "passed"
+            dimension["summary"] = "本维度复核通过"
+        mutations["reliable with non-none risk"] = reliable_with_risk
+
+        problematic_without_risk = copy.deepcopy(self.fixture)
+        problematic_without_risk["auditComparison"]["risk"] = "none"
+        mutations["problematic without risk"] = problematic_without_risk
+
+        problematic_without_issues = copy.deepcopy(self.fixture)
+        problematic_without_issues["issues"] = []
+        for dimension in problematic_without_issues["dimensions"]:
+            dimension["status"] = "passed"
+            dimension["summary"] = "本维度复核通过"
+        mutations["problematic without issues"] = problematic_without_issues
+
+        uncertain_without_unknown_risk = copy.deepcopy(self.fixture)
+        uncertain_without_unknown_risk["auditComparison"]["qcConclusion"] = (
+            "uncertain"
+        )
+        mutations["uncertain without unknown risk"] = uncertain_without_unknown_risk
+
+        missing_issue_record = copy.deepcopy(self.fixture)
+        missing_issue_record["issues"] = missing_issue_record["issues"][:1]
+        mutations["issue dimension without record"] = missing_issue_record
+
+        record_for_passed_dimension = copy.deepcopy(self.fixture)
+        record_for_passed_dimension["issues"][0]["dimension"] = "证据提取准确性"
+        mutations["record for passed dimension"] = record_for_passed_dimension
+
         for name, mutation in mutations.items():
             with self.subTest(mutation=name):
                 with self.assertRaises(AssertionError):
                     assert_valid_mode2(self, mutation)
 
-    def test_rejects_conclusion_only_output_that_claims_detailed_checks(self):
-        mutation = copy.deepcopy(self.fixture)
-        mutation["inputProfile"]["auditDetail"] = "conclusion_only"
+    def test_accepts_reliable_report_without_issue_dimensions_or_risk(self):
+        reliable = copy.deepcopy(self.fixture)
+        reliable["auditComparison"]["qcConclusion"] = "reliable"
+        reliable["auditComparison"]["risk"] = "none"
+        reliable["auditComparison"]["summary"] = "复核未发现原审核存在质量问题"
+        reliable["auditComparison"]["originalConclusion"] = "通过"
+        reliable["analysisRecord"]["preliminaryConclusion"] = (
+            "原审核判断与患者材料及认定标准一致"
+        )
+        for source in reliable["sourceDocuments"]:
+            if source["type"] == "audit_result":
+                source["content"] = "原审核认定证据 A 已提供，结论为通过。"
+        reliable["issues"] = []
+        for dimension in reliable["dimensions"]:
+            dimension["status"] = "passed"
+            dimension["summary"] = "本维度复核通过"
+            dimension["notCheckedReason"] = ""
 
-        with self.assertRaises(AssertionError):
-            assert_valid_mode2(self, mutation)
+        assert_valid_mode2(self, reliable)
+
+    def conclusion_only_fixture(self):
+        fixture = copy.deepcopy(self.fixture)
+        fixture["inputProfile"]["auditDetail"] = "conclusion_only"
+        fixture["auditComparison"]["qcConclusion"] = "uncertain"
+        fixture["auditComparison"]["risk"] = "unknown"
+        fixture["auditComparison"]["summary"] = (
+            "仅有原审核结论，无法核查未展示的审核行为"
+        )
+        fixture["analysisRecord"]["inputSummary"] = [
+            "已收到患者材料、结构化标准和原审核结论"
+        ]
+        fixture["analysisRecord"]["preliminaryConclusion"] = (
+            "只能独立复核患者材料与认定标准，无法核查原审核过程"
+        )
+        for source in fixture["sourceDocuments"]:
+            if source["type"] == "audit_result":
+                source["content"] = "原审核结论为不通过。"
+        fixture["issues"] = []
+        for dimension in fixture["dimensions"][:4]:
+            dimension["status"] = "not_checked"
+            dimension["summary"] = "原审核仅提供结论，当前维度无法核查"
+            dimension["notCheckedReason"] = "未提供审核主张、证据和规则过程"
+        return fixture
+
+    def test_accepts_safe_conclusion_only_degradation(self):
+        assert_valid_mode2(self, self.conclusion_only_fixture())
+
+    def test_rejects_conclusion_only_forbidden_statuses_conclusion_and_risk(self):
+        mutations = {}
+        for index, dimension_name in enumerate(MODE2_DIMENSIONS[:4]):
+            visible_status = self.conclusion_only_fixture()
+            visible_status["dimensions"][index]["status"] = "passed"
+            visible_status["dimensions"][index]["notCheckedReason"] = ""
+            mutations[f"visible status for {dimension_name}"] = visible_status
+
+        reliable_conclusion = self.conclusion_only_fixture()
+        reliable_conclusion["auditComparison"]["qcConclusion"] = "reliable"
+        mutations["reliable conclusion"] = reliable_conclusion
+
+        known_risk = self.conclusion_only_fixture()
+        known_risk["auditComparison"]["risk"] = "none"
+        mutations["known risk"] = known_risk
+
+        for name, mutation in mutations.items():
+            with self.subTest(mutation=name):
+                with self.assertRaises(AssertionError):
+                    assert_valid_mode2(self, mutation)
+
+    def natural_language_fixture(self):
+        fixture = copy.deepcopy(self.fixture)
+        fixture["inputProfile"]["standardKind"] = "natural_language"
+        second_judgment = copy.deepcopy(fixture["baseReview"]["ruleJudgments"][0])
+        fixture["baseReview"]["ruleJudgments"].append(second_judgment)
+        for index, judgment in enumerate(
+            fixture["baseReview"]["ruleJudgments"],
+            start=1,
+        ):
+            judgment["ruleId"] = f"TMP-R{index:03d}"
+        return fixture
+
+    def test_accepts_consecutive_natural_language_temp_rule_ids(self):
+        assert_valid_mode2(self, self.natural_language_fixture())
+
+    def test_rejects_duplicate_or_nonsequential_natural_language_temp_ids(self):
+        duplicate = self.natural_language_fixture()
+        duplicate["baseReview"]["ruleJudgments"][1]["ruleId"] = "TMP-R001"
+
+        starts_at_999 = self.natural_language_fixture()
+        starts_at_999["baseReview"]["ruleJudgments"][0]["ruleId"] = "TMP-R999"
+
+        for name, mutation in {
+            "duplicate": duplicate,
+            "starts at 999": starts_at_999,
+        }.items():
+            with self.subTest(mutation=name):
+                with self.assertRaises(AssertionError):
+                    assert_valid_mode2(self, mutation)
+
+    def test_accepts_absent_profile_and_rejects_standard_or_rule_review(self):
+        absent = copy.deepcopy(self.fixture)
+        absent["inputProfile"]["standardKind"] = "absent"
+        absent["sourceDocuments"] = [
+            source
+            for source in absent["sourceDocuments"]
+            if source["type"] != "standard"
+        ]
+        absent["analysisRecord"]["inputSummary"] = [
+            "已收到患者材料和详细审核结果，未提供认定标准"
+        ]
+        absent["analysisRecord"]["interpretations"] = [
+            "未提供认定标准，不判断独立政策资格"
+        ]
+        absent["analysisRecord"]["preliminaryConclusion"] = (
+            "原审核的材料缺失主张有问题，独立资格结论不确定"
+        )
+        absent["baseReview"]["ruleJudgments"] = []
+        absent["baseReview"]["preliminaryResult"] = "uncertain"
+        absent["auditComparison"]["risk"] = "unknown"
+        absent["auditComparison"]["summary"] = (
+            "材料缺失主张与患者材料不符，但无标准时无法判断独立资格"
+        )
+        absent["dimensions"][3]["status"] = "not_checked"
+        absent["dimensions"][3]["summary"] = "未提供认定标准，无法核查条件与结论一致性"
+        absent["dimensions"][3]["notCheckedReason"] = "未提供认定标准"
+        absent["dimensions"][4]["status"] = "not_checked"
+        absent["dimensions"][4]["summary"] = "未提供认定标准，无法检查规则维护质量"
+        absent["dimensions"][4]["notCheckedReason"] = "未提供认定标准"
+        absent["issues"] = [
+            issue
+            for issue in absent["issues"]
+            if issue["dimension"] != "审核条件与结论一致性"
+        ]
+
+        assert_valid_mode2(self, absent)
+
+        with_standard = copy.deepcopy(absent)
+        with_standard["sourceDocuments"].append(
+            {
+                "name": "不应存在的标准",
+                "type": "standard",
+                "content": "标准内容",
+            }
+        )
+        with_judgment = copy.deepcopy(absent)
+        with_judgment["baseReview"]["ruleJudgments"] = [
+            {
+                "ruleId": "R001",
+                "result": "met",
+                "evidence": ["证据 A"],
+                "reason": "错误地执行了规则判断",
+            }
+        ]
+        with_policy_result = copy.deepcopy(absent)
+        with_policy_result["baseReview"]["preliminaryResult"] = "meets"
+        with_rule_maintenance_check = copy.deepcopy(absent)
+        with_rule_maintenance_check["dimensions"][4]["status"] = "passed"
+        with_rule_maintenance_check["dimensions"][4]["summary"] = (
+            "错误地声称已检查规则维护质量"
+        )
+        with_rule_maintenance_check["dimensions"][4]["notCheckedReason"] = ""
+
+        for name, mutation in {
+            "standard source": with_standard,
+            "rule judgment": with_judgment,
+            "policy result": with_policy_result,
+            "rule maintenance check": with_rule_maintenance_check,
+        }.items():
+            with self.subTest(mutation=name):
+                with self.assertRaises(AssertionError):
+                    assert_valid_mode2(self, mutation)
 
 
 class Mode2DocumentationTests(unittest.TestCase):
@@ -917,6 +1212,10 @@ class Mode2DocumentationTests(unittest.TestCase):
         self.assertNotIn("references/mode1-contract.md", section)
         self.assertLess(section.index("用户确认"), section.index("baseReview"))
         self.assertLess(section.index("baseReview"), section.index("auditComparison"))
+        self.assertRegex(
+            section,
+            r"(?m)^5\. .*只依据患者材料和认定标准.*`baseReview`",
+        )
         self.assertIn("已序列化并通过校验的 JSON 文本", section)
         self.assertIn("只替换该序列化文本", section)
 
@@ -964,6 +1263,13 @@ class Mode2DocumentationTests(unittest.TestCase):
             "TMP-R001",
             "完整原文",
             "不得编造",
+            "至少一项 `patient_material`",
+            "至少一项 `audit_result`",
+            "`reliable` 时",
+            "`problematic` 时",
+            "`uncertain` 时",
+            "前四个维度",
+            "连续且唯一",
             "<病种>-审核质控-flash-<日期>.json",
             "<病种>-审核质控-flash-<日期>.html",
         ):

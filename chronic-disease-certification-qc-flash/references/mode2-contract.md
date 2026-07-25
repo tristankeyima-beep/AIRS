@@ -18,7 +18,7 @@
 - `schemaVersion` 固定为 `flash-1.0`；`mode` 固定为 `qc`。
 - `meta` 字段恰好为 `reportTitle`、`diseaseName`、`generatedAt`，均为非空字符串。
 - `inputProfile` 字段恰好为 `standardKind`、`auditDetail`、`materialsConfirmedComplete`。`standardKind` 只能是 `structured`、`natural_language`、`absent`；`auditDetail` 只能是 `detailed`、`brief`、`conclusion_only`；正式成果中的完整性字段必须是布尔值 `true`。
-- `sourceDocuments` 是非空数组。每项字段恰好为 `name`、`type`、`content`，均为非空字符串；`type` 只能是 `patient_material`、`standard`、`audit_result`。`content` 必须保存收到的完整原文，不得摘要替代、删节或改写。
+- `sourceDocuments` 是非空数组。每项字段恰好为 `name`、`type`、`content`，均为非空字符串；`type` 只能是 `patient_material`、`standard`、`audit_result`。每份报告必须包含至少一项 `patient_material` 和至少一项 `audit_result`；`structured`、`natural_language` 必须至少有一项 `standard`，`absent` 不得有 `standard`。`content` 必须保存收到的完整原文，不得摘要替代、删节或改写。
 - `analysisRecord` 字段恰好为 `inputSummary`、`interpretations`、`evidenceFindings`、`uncertainties`、`preliminaryConclusion`。前四项都是字符串数组，结论是非空字符串。
 - `recommendations` 是字符串数组，允许为空数组；数组中的字符串不得为空。
 
@@ -32,6 +32,7 @@
 - `materialFacts` 是字符串数组。
 - `ruleJudgments` 是数组，每项字段恰好为 `ruleId`、`result`、`evidence`、`reason`。`ruleId` 和 `reason` 是非空字符串；`result` 只能是 `met`、`not_met`、`unknown`；`evidence` 是字符串数组。
 - `preliminaryResult` 只能是 `meets`、`does_not_meet`、`uncertain`。
+- 当 `standardKind` 不是 `absent` 且 `auditDetail=detailed` 时，`materialFacts`、`ruleJudgments` 及每项判断的 `evidence` 都不得为空。
 
 ## `auditComparison`
 
@@ -39,6 +40,9 @@
 
 - `qcConclusion` 只能是 `reliable`、`problematic`、`uncertain`。
 - `risk` 只能是 `none`、`false_approval`、`false_rejection`、`both`、`unknown`。
+- `reliable` 时，不得有 `issue` 维度或问题记录，且 `risk` 必须为 `none`。
+- `problematic` 时，必须至少有一个 `issue` 维度和问题记录，且 `risk` 不得为 `none`。
+- `uncertain` 时，`risk` 必须为 `unknown`。
 
 ## 五个质控维度
 
@@ -54,12 +58,12 @@
 
 ## 问题、确认与降级
 
-- `issues` 是数组。每项字段恰好为 `id`、`dimension`、`severity`、`auditClaim`、`actualEvidence`、`sourceReference`、`impact`、`recommendation`，全部为非空字符串。`id` 从 `I001` 开始连续编号；`dimension` 必须是上述五个维度之一且对应维度状态为 `issue`；`severity` 只能是 `high`、`medium`、`low`。
+- `issues` 是数组。每项字段恰好为 `id`、`dimension`、`severity`、`auditClaim`、`actualEvidence`、`sourceReference`、`impact`、`recommendation`，全部为非空字符串。`id` 从 `I001` 开始连续编号；问题记录的维度集合必须与状态为 `issue` 的维度集合完全相等，非问题维度不得出现在问题记录中；`severity` 只能是 `high`、`medium`、`low`。
 - `confirmation` 字段恰好为 `confirmed`、`inventoryShown`、`userResponse`。`confirmed` 必须为布尔值 `true`；`inventoryShown` 是非空字符串数组；`userResponse` 是非空字符串。
-- `standardKind=absent`：不得判断独立政策资格；`ruleJudgments` 必须为空数组，`preliminaryResult` 必须为 `uncertain`，“规则维护质量”必须为 `not_checked` 并写明原因。
-- `auditDetail=conclusion_only`：不得编造审核证据或规则执行过程；“证据提取准确性”和“审核条件与结论一致性”必须为 `not_checked` 并写明原因。
+- `standardKind=absent`：不得判断独立政策资格；不得包含 `standard` 来源，`ruleJudgments` 必须为空数组，`preliminaryResult` 必须为 `uncertain`，“规则维护质量”必须为 `not_checked` 并写明原因。
+- `auditDetail=conclusion_only`：不得编造或推断未展示的审核主张、证据、推理和规则执行过程；前四个维度必须为 `not_checked` 并写明原因，`qcConclusion` 必须为 `uncertain`，`risk` 必须为 `unknown`。
 - `auditDetail=brief`：只核查可见主张，无法获取的检查项标为 `not_checked` 并写明原因，不得编造缺失过程。
-- `standardKind=natural_language`：可以构建仅用于本次质控的临时规则，编号从 `TMP-R001` 开始连续排列，但不得把它们称为正式业务规则。任何影响结论的含义歧义必须写入 `analysisRecord.uncertainties`，并令 `qcConclusion` 为 `uncertain`。
+- `standardKind=natural_language`：可以构建仅用于本次质控的临时规则，编号必须从 `TMP-R001` 开始连续且唯一，但不得把它们称为正式业务规则。任何影响结论的含义歧义必须写入 `analysisRecord.uncertainties`，并令 `qcConclusion` 为 `uncertain`。
 
 交付文件名固定为 `<病种>-审核质控-flash-<日期>.json` 和 `<病种>-审核质控-flash-<日期>.html`。
 
@@ -174,6 +178,16 @@
       "sourceReference": "患者材料：测试段落",
       "impact": "可能导致符合条件的申请被错误拒绝",
       "recommendation": "重新提取证据 A 并复核审核结论"
+    },
+    {
+      "id": "I002",
+      "dimension": "审核条件与结论一致性",
+      "severity": "high",
+      "auditClaim": "原审核以证据 A 缺失为由给出不通过结论",
+      "actualEvidence": "患者材料中的证据 A 满足认定标准要求",
+      "sourceReference": "患者材料：测试段落；认定标准：测试条款",
+      "impact": "可能导致审核条件判断与最终结论不一致并造成错误拒绝",
+      "recommendation": "根据证据 A 已满足的事实重新判定审核条件并修正结论"
     }
   ],
   "recommendations": [
