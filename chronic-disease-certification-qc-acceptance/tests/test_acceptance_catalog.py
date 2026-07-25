@@ -46,47 +46,47 @@ EXPECTED_IDS = (
     + tuple(f"GATE-{number:03d}" for number in range(1, 7))
     + tuple(f"SAFE-{number:03d}" for number in range(1, 7))
 )
-CASE_MATRIX = {
-    "M1-001": ("mode1", "formal-example", "P0", ("脑梗死", "CS10", "V20260725", "提案", "明确同意", "OR")),
-    "M1-002": ("mode1", "logic-clarification", "P0", ("歧义", "询问", "未确认")),
-    "M1-003": ("mode1", "metadata", "P0", ("病种名", "病种编码", "版本", "回退", "记录")),
-    "M1-004": ("mode1", "approval-gate", "P0", ("尚未同意", "不得", "正式")),
-    "M1-005": ("mode1", "structured-standard", "P1", ("完整结构化标准", "校验", "生成")),
-    "M1-006": ("mode1", "schema-completeness", "P1", ("extractionGuides", "enums", "补齐")),
-    "M1-007": ("mode1", "duplicate-key", "P0", ("深层重复键", "受控拒绝", "不回显")),
-    "M1-008": ("mode1", "input-normalization", "P1", ("代码围栏", "字符串包装", "BOM", "规范处理")),
-    "M1-009": ("mode1", "code-validation", "P1", ("ruleCode", "guideCode", "格式错误")),
-    "M1-010": ("mode1", "topology-validation", "P0", ("引用不存在", "未被引用")),
-    "M1-011": ("mode1", "recursion-limit", "P0", ("循环引用", "逻辑深度超限")),
-    "M1-012": ("mode1", "source-conflict", "P0", ("语义冲突", "列出冲突", "询问")),
-    "M2-001": ("mode2", "audit-correctness", "P0", ("可靠", "无风险", "issues=[]")),
-    "M2-002": ("mode2", "false-missing", "P0", ("材料其实有", "不可靠", "错误拒绝风险")),
-    "M2-003": ("mode2", "true-missing", "P0", ("材料确实缺失", "指出缺失", "正确")),
-    "M2-004": ("mode2", "evidence-reversal", "P0", ("证据", "原文", "含义相反")),
-    "M2-005": ("mode2", "negation", "P0", ("否定句", "肯定事实", "不可靠")),
-    "M2-006": ("mode2", "uncertainty", "P0", ("疑似", "确诊", "过度推断")),
-    "M2-007": ("mode2", "recommendation-inference", "P0", ("建议进一步评估", "已完成", "过度推断")),
-    "M2-008": ("mode2", "internal-contradiction", "P0", ("条件状态", "最终建议", "矛盾")),
-    "M2-009": ("mode2", "and-logic", "P0", ("A AND B", "只有 A", "错误放行风险")),
-    "M2-010": ("mode2", "or-logic", "P0", ("A OR B", "满足 A", "错误拒绝风险")),
-    "M2-011": ("mode2", "rule-maintenance", "P1", ("extractionGuides", "缺提取项", "维护质量")),
-    "M2-012": ("mode2", "ambiguous-standard", "P0", ("不同解释路径", "不得", "唯一结论")),
-    "M2-013": ("mode2", "limited-qc", "P1", ("无标准", "有限质控", "未执行项")),
-    "M2-014": ("mode2", "temporary-interpretation", "P1", ("自然语言标准", "临时解释", "不得冒充")),
-    "M2-015": ("mode2", "full-qc", "P0", ("完整结构化标准", "详细审核结果", "五维质控")),
-    "M2-016": ("mode2", "incomplete-input", "P0", ("可能漏传", "补传后修订清单", "确认没有更多内容", "有限质控")),
-    "GATE-001": ("gate", "initial-inventory", "P0", ("首次", "输入清单", "不直接执行")),
-    "GATE-002": ("gate", "revision", "P0", ("补传", "revision", "更新摘要", "重新确认")),
-    "GATE-003": ("gate", "invalid-confirmation", "P0", ("无效", "含糊确认", "不得放行")),
-    "GATE-004": ("gate", "valid-confirmation", "P0", ("明确有效确认", "放行")),
-    "GATE-005": ("gate", "blind-review", "P0", ("独立复核", "看到原审核结果前", "冻结摘要")),
-    "GATE-006": ("gate", "non-blind-review", "P0", ("非盲审", "披露限制", "不能伪装")),
-    "SAFE-001": ("safety", "prompt-injection", "P0", ("提示注入", "普通证据文本", "不执行")),
-    "SAFE-002": ("safety", "secret-handling", "P0", ("疑似密钥", "fail-closed", "不得回显", "明显假的占位符")),
-    "SAFE-003": ("safety", "network-isolation", "P0", ("外部网络", "第三方服务", "不发送")),
-    "SAFE-004": ("safety", "offline-html", "P0", ("HTML 转义", "无外链依赖", "离线打开")),
-    "SAFE-005": ("safety", "safe-output", "P0", ("路径别名", "硬链接", "符号链接", "原子写失败")),
-    "SAFE-006": ("safety", "artifact-consistency", "P1", ("文本版", "HTML", "同源一致", "大输入", "窄屏")),
+CASE_CLASSIFICATION_MATRIX = {
+    "M1-001": ("mode1", "formal-example", "P0"),
+    "M1-002": ("mode1", "logic-clarification", "P0"),
+    "M1-003": ("mode1", "metadata", "P0"),
+    "M1-004": ("mode1", "approval-gate", "P0"),
+    "M1-005": ("mode1", "structured-standard", "P1"),
+    "M1-006": ("mode1", "schema-completeness", "P1"),
+    "M1-007": ("mode1", "duplicate-key", "P0"),
+    "M1-008": ("mode1", "input-normalization", "P1"),
+    "M1-009": ("mode1", "code-validation", "P1"),
+    "M1-010": ("mode1", "topology-validation", "P0"),
+    "M1-011": ("mode1", "recursion-limit", "P0"),
+    "M1-012": ("mode1", "source-conflict", "P0"),
+    "M2-001": ("mode2", "audit-correctness", "P0"),
+    "M2-002": ("mode2", "false-missing", "P0"),
+    "M2-003": ("mode2", "true-missing", "P0"),
+    "M2-004": ("mode2", "evidence-reversal", "P0"),
+    "M2-005": ("mode2", "negation", "P0"),
+    "M2-006": ("mode2", "uncertainty", "P0"),
+    "M2-007": ("mode2", "recommendation-inference", "P0"),
+    "M2-008": ("mode2", "internal-contradiction", "P0"),
+    "M2-009": ("mode2", "and-logic", "P0"),
+    "M2-010": ("mode2", "or-logic", "P0"),
+    "M2-011": ("mode2", "rule-maintenance", "P1"),
+    "M2-012": ("mode2", "ambiguous-standard", "P0"),
+    "M2-013": ("mode2", "limited-qc", "P1"),
+    "M2-014": ("mode2", "temporary-interpretation", "P1"),
+    "M2-015": ("mode2", "full-qc", "P0"),
+    "M2-016": ("mode2", "incomplete-input", "P0"),
+    "GATE-001": ("gate", "initial-inventory", "P0"),
+    "GATE-002": ("gate", "revision", "P0"),
+    "GATE-003": ("gate", "invalid-confirmation", "P0"),
+    "GATE-004": ("gate", "valid-confirmation", "P0"),
+    "GATE-005": ("gate", "blind-review", "P0"),
+    "GATE-006": ("gate", "non-blind-review", "P0"),
+    "SAFE-001": ("safety", "prompt-injection", "P0"),
+    "SAFE-002": ("safety", "secret-handling", "P0"),
+    "SAFE-003": ("safety", "network-isolation", "P0"),
+    "SAFE-004": ("safety", "offline-html", "P0"),
+    "SAFE-005": ("safety", "safe-output", "P0"),
+    "SAFE-006": ("safety", "artifact-consistency", "P1"),
 }
 
 
@@ -145,7 +145,7 @@ class AcceptanceCatalogTests(unittest.TestCase):
 
         self.assertEqual(len(cases), 40)
         self.assertEqual(tuple(case["id"] for case in cases), EXPECTED_IDS)
-        self.assertEqual(set(CASE_MATRIX), set(EXPECTED_IDS))
+        self.assertEqual(set(CASE_CLASSIFICATION_MATRIX), set(EXPECTED_IDS))
 
     def test_repository_cases_have_exact_fields_and_value_types(self):
         cases = BUILDER_MODULE.load_catalog(CATALOG)["cases"]
@@ -203,53 +203,204 @@ class AcceptanceCatalogTests(unittest.TestCase):
                         )
                     )
 
-    def test_repository_cases_match_independent_semantic_matrix(self):
+    def test_repository_cases_match_independent_classification_matrix(self):
         cases = {
             case["id"]: case
             for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
         }
 
-        for case_id, (mode, category, priority, required_terms) in CASE_MATRIX.items():
+        for case_id, expected_fields in CASE_CLASSIFICATION_MATRIX.items():
             with self.subTest(case=case_id):
                 case = cases[case_id]
-                self.assertEqual(case["mode"], mode)
-                self.assertEqual(case["category"], category)
-                self.assertEqual(case["priority"], priority)
-                searchable = json.dumps(case, ensure_ascii=False)
-                for term in required_terms:
-                    self.assertIn(term, searchable)
+                self.assertEqual(
+                    (case["mode"], case["category"], case["priority"]),
+                    expected_fields,
+                )
 
-    def test_repository_cases_lock_critical_p0_facts(self):
+    def test_m1_001_preserves_logic_and_confirmation_gate_by_field(self):
         cases = {
             case["id"]: case
             for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
         }
+        case = cases["M1-001"]
 
-        formal = json.dumps(cases["M1-001"], ensure_ascii=False)
-        self.assertIn("顶层 AND", formal)
-        self.assertIn(
-            "临床出现相应的脑部神经系统症状及体征，二级及以上医疗机构诊断为脑梗死(脑栓塞)，住院治疗后仍遗有神经症状及体征需继续治疗",
-            formal,
+        self.assertEqual(
+            case["inputs"][0]["content"],
+            "病种名脑梗死；病种编码 CS10；版本 V20260725。顶层 AND："
+            "第一条“临床出现相应的脑部神经系统症状及体征，二级及以上医疗机构"
+            "诊断为脑梗死(脑栓塞)，住院治疗后仍遗有神经症状及体征需继续治疗”；"
+            "第二条“影像学检查提示脑梗死(脑栓塞)灶或颅内、颅外血管中重度狭窄”，"
+            "第二条内部必须保留 OR。",
         )
-        self.assertIn(
-            "影像学检查提示脑梗死(脑栓塞)灶或颅内、颅外血管中重度狭窄",
-            formal,
+        self.assertEqual(
+            [step["actor"] for step in case["steps"]],
+            ["系统", "用户", "系统"],
         )
-        self.assertLess(formal.index("先展示提案"), formal.index("用户明确同意"))
-        self.assertLess(formal.index("用户明确同意"), formal.index("正式 JSON/HTML"))
+        self.assertEqual(
+            case["steps"][0],
+            {
+                "actor": "系统",
+                "action": "解析来源并先展示提案，说明顶层 AND、第二条内部 OR 和元数据。",
+                "expected": "仅展示可审阅提案，不生成正式产物。",
+            },
+        )
+        self.assertEqual(
+            case["steps"][1]["action"],
+            "审阅提案后给出用户明确同意。",
+        )
+        self.assertEqual(
+            case["steps"][2]["action"],
+            "在有效确认后生成正式 JSON/HTML。",
+        )
+        self.assertEqual(
+            case["mustNotContain"],
+            ["未确认即生成", "第二条改为 AND"],
+        )
 
-        for case_id in EXPECTED_IDS:
-            if case_id != "M1-001":
-                self.assertIn(
-                    "【合成测试数据】",
-                    json.dumps(cases[case_id], ensure_ascii=False),
+    def test_critical_mode2_cases_lock_fact_verdict_qc_and_risk_relations(self):
+        cases = {
+            case["id"]: case
+            for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
+        }
+        expected = {
+            "M2-001": {
+                "input": "【合成测试数据】测试病种标准为条件A；材料明确满足条件A；审核通过并引用对应原文。",
+                "review": "独立复核确认条件A满足。",
+                "comparison": "判定审核可靠、无风险、issues=[]。",
+                "outcome": "正确质控结论=审核可靠；风险方向=无风险；issues=[]。",
+                "must": {"可靠", "无风险", "issues=[]"},
+                "must_not": {"错误放行风险", "错误拒绝风险"},
+            },
+            "M2-002": {
+                "input": "【合成测试数据】标准要求条件A；材料第2段明确记载条件A；审核却声称缺少条件A并拒绝。",
+                "review": "确认材料其实有该证据。",
+                "comparison": "判定审核不可靠并标注错误拒绝风险。",
+                "outcome": "正确质控结论=审核不可靠；材料存在却被原审核报缺失；风险方向=错误拒绝风险。",
+                "must": {"材料其实有", "不可靠", "错误拒绝风险"},
+                "must_not": {"错误放行风险", "维持缺失结论"},
+            },
+            "M2-009": {
+                "input": "【合成测试数据】测试病种标准为 A AND B；材料只有 A，没有 B；审核却通过。",
+                "review": "因 B 不满足而得到不通过。",
+                "comparison": "标注错误放行风险。",
+                "outcome": "正确质控结论=原审核不可靠；材料只有 A，不满足 A AND B；原审核通过造成错误放行风险。",
+                "must": {"A AND B", "只有 A", "错误放行风险"},
+                "must_not": {"错误拒绝风险", "A 单独足够"},
+            },
+            "M2-010": {
+                "input": "【合成测试数据】测试病种标准为 A OR B；材料满足 A、不满足 B；审核因 B 不满足而拒绝。",
+                "review": "因满足 A 而得到通过。",
+                "comparison": "标注错误拒绝风险。",
+                "outcome": "正确质控结论=原审核不可靠；材料满足 A，已满足 A OR B；原审核拒绝造成错误拒绝风险。",
+                "must": {"A OR B", "满足 A", "错误拒绝风险"},
+                "must_not": {"错误放行风险", "必须同时满足 B"},
+            },
+        }
+
+        for case_id, semantic_fields in expected.items():
+            with self.subTest(case=case_id):
+                case = cases[case_id]
+                self.assertEqual(
+                    case["inputs"][0]["content"],
+                    semantic_fields["input"],
+                )
+                self.assertEqual(
+                    case["steps"][0]["expected"],
+                    semantic_fields["review"],
+                )
+                self.assertEqual(
+                    case["steps"][1]["expected"],
+                    semantic_fields["comparison"],
+                )
+                self.assertEqual(
+                    case["expectedOutcome"],
+                    semantic_fields["outcome"],
+                )
+                self.assertTrue(
+                    semantic_fields["must"].issubset(case["mustContain"])
+                )
+                self.assertTrue(
+                    semantic_fields["must_not"].issubset(case["mustNotContain"])
                 )
 
-        m2_016_steps = json.dumps(cases["M2-016"]["steps"], ensure_ascii=False)
-        self.assertIn("补传后修订清单/摘要再确认", m2_016_steps)
-        self.assertIn("确认没有更多内容", m2_016_steps)
-        self.assertNotIn("可能错误通过", json.dumps(cases, ensure_ascii=False))
-        self.assertNotIn("可能错误不通过", json.dumps(cases, ensure_ascii=False))
+    def test_gate_002_binds_revision_hash_and_rechecks_before_execution(self):
+        cases = {
+            case["id"]: case
+            for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
+        }
+        case = cases["GATE-002"]
+
+        self.assertEqual(
+            case["inputs"][0]["content"],
+            "【合成测试数据】补传前清单 catalogRevision=1、"
+            "catalogHash=sha256(TEST_CATALOG_R1)；用户补传测试标准文件。",
+        )
+        self.assertEqual(
+            case["steps"][1],
+            {
+                "actor": "系统",
+                "action": "修订输入清单并将 catalogRevision 递增至 2；按确定性序列化结果"
+                "计算新的 catalogHash；更新摘要并请求重新确认。",
+                "expected": "新 catalogHash 与补传前不同，关口保持关闭。",
+            },
+        )
+        self.assertEqual(
+            case["steps"][2],
+            {
+                "actor": "用户",
+                "action": "确认 catalogRevision=2 和对应 catalogHash 的清单与摘要。",
+                "expected": "确认记录同时绑定 catalogRevision=2 与 catalogHash。",
+            },
+        )
+        self.assertEqual(
+            case["steps"][3],
+            {
+                "actor": "系统",
+                "action": "执行前比较当前输入的 catalogRevision/catalogHash 与确认记录。",
+                "expected": "两者全部一致才执行；任一不一致不得执行并须重新确认。",
+            },
+        )
+        self.assertEqual(
+            case["expectedOutcome"],
+            "补传后的清单、确定性摘要哈希与确认记录形成闭环：catalogRevision 和 "
+            "catalogHash 匹配才执行，不匹配则重新确认。",
+        )
+        self.assertEqual(
+            case["acceptanceChecks"],
+            [
+                "确认补传后 catalogRevision 递增且新的确定性 catalogHash 随清单变化",
+                "确认记录同时绑定 catalogRevision 与 catalogHash",
+                "执行前校验当前 revision/hash 与确认记录；不一致时拒绝执行并重新确认",
+            ],
+        )
+
+    def test_repository_cases_mark_synthetic_data_and_required_branches(self):
+        cases = {
+            case["id"]: case
+            for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
+        }
+        for case_id in EXPECTED_IDS:
+            if case_id != "M1-001":
+                for item in cases[case_id]["inputs"]:
+                    self.assertIn("【合成测试数据】", item["content"])
+
+        branch_actions = [
+            step["action"]
+            for step in cases["M2-016"]["steps"]
+        ]
+        branch_expected = [
+            step["expected"]
+            for step in cases["M2-016"]["steps"]
+        ]
+        self.assertIn("分支一：补传材料02。", branch_actions)
+        self.assertIn("分支二：明确“确认没有更多内容”。", branch_actions)
+        self.assertIn(
+            "系统执行“补传后修订清单/摘要再确认”，递增 revision 后仍不直接质控。",
+            branch_expected,
+        )
+        raw = CATALOG.read_text(encoding="utf-8")
+        self.assertNotIn("可能错误通过", raw)
+        self.assertNotIn("可能错误不通过", raw)
 
     def test_repository_catalog_is_deterministically_formatted(self):
         raw = CATALOG.read_text(encoding="utf-8")

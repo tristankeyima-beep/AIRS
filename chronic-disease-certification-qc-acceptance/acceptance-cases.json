@@ -630,7 +630,7 @@
           "expected": "判定审核可靠、无风险、issues=[]。"
         }
       ],
-      "expectedOutcome": "五维检查无异常，不虚构问题。",
+      "expectedOutcome": "正确质控结论=审核可靠；风险方向=无风险；issues=[]。",
       "mustContain": [
         "可靠",
         "无风险",
@@ -680,7 +680,7 @@
           "expected": "判定审核不可靠并标注错误拒绝风险。"
         }
       ],
-      "expectedOutcome": "假缺失被纠正，风险方向明确。",
+      "expectedOutcome": "正确质控结论=审核不可靠；材料存在却被原审核报缺失；风险方向=错误拒绝风险。",
       "mustContain": [
         "材料其实有",
         "不可靠",
@@ -1024,7 +1024,7 @@
           "expected": "标注错误放行风险。"
         }
       ],
-      "expectedOutcome": "AND 逻辑不被弱化，错误通过被拦截。",
+      "expectedOutcome": "正确质控结论=原审核不可靠；材料只有 A，不满足 A AND B；原审核通过造成错误放行风险。",
       "mustContain": [
         "A AND B",
         "只有 A",
@@ -1074,7 +1074,7 @@
           "expected": "标注错误拒绝风险。"
         }
       ],
-      "expectedOutcome": "OR 逻辑不被错误收紧。",
+      "expectedOutcome": "正确质控结论=原审核不可靠；材料满足 A，已满足 A OR B；原审核拒绝造成错误拒绝风险。",
       "mustContain": [
         "A OR B",
         "满足 A",
@@ -1455,43 +1455,57 @@
         "已确认清单",
         "补传文件"
       ],
-      "objective": "补传后修订清单、递增 revision、更新摘要并重新确认。",
+      "objective": "补传后递增 catalogRevision、重新计算确定性 catalogHash、更新摘要并将确认记录绑定两者，执行前校验一致性。",
       "preconditions": [
-        "revision 1 曾被确认但尚未执行"
+        "catalogRevision=1 的清单曾被确认但尚未执行"
       ],
       "inputs": [
         {
           "name": "补传样本",
           "format": "文本文件",
-          "content": "【合成测试数据】用户补传测试标准文件。"
+          "content": "【合成测试数据】补传前清单 catalogRevision=1、catalogHash=sha256(TEST_CATALOG_R1)；用户补传测试标准文件。"
         }
       ],
       "steps": [
         {
           "actor": "用户",
-          "action": "在 revision 1 后补传文件。",
+          "action": "在 catalogRevision=1 后补传文件。",
           "expected": "旧确认立即失效。"
         },
         {
           "actor": "系统",
-          "action": "修订清单、递增 revision 至 2、更新摘要并重新确认。",
-          "expected": "仅 revision 2 的明确确认可以放行。"
+          "action": "修订输入清单并将 catalogRevision 递增至 2；按确定性序列化结果计算新的 catalogHash；更新摘要并请求重新确认。",
+          "expected": "新 catalogHash 与补传前不同，关口保持关闭。"
+        },
+        {
+          "actor": "用户",
+          "action": "确认 catalogRevision=2 和对应 catalogHash 的清单与摘要。",
+          "expected": "确认记录同时绑定 catalogRevision=2 与 catalogHash。"
+        },
+        {
+          "actor": "系统",
+          "action": "执行前比较当前输入的 catalogRevision/catalogHash 与确认记录。",
+          "expected": "两者全部一致才执行；任一不一致不得执行并须重新确认。"
         }
       ],
-      "expectedOutcome": "输入变化产生新快照，不沿用旧确认。",
+      "expectedOutcome": "补传后的清单、确定性摘要哈希与确认记录形成闭环：catalogRevision 和 catalogHash 匹配才执行，不匹配则重新确认。",
       "mustContain": [
         "补传",
-        "revision",
+        "catalogRevision",
+        "catalogHash",
         "更新摘要",
-        "重新确认"
+        "重新确认",
+        "执行前校验"
       ],
       "mustNotContain": [
-        "沿用 revision 1 确认",
-        "补传后直接执行"
+        "沿用 catalogRevision=1 的确认",
+        "补传后直接执行",
+        "revision/hash 不一致仍执行"
       ],
       "acceptanceChecks": [
-        "revision 从 1 递增到 2",
-        "新摘要包含补传文件"
+        "确认补传后 catalogRevision 递增且新的确定性 catalogHash 随清单变化",
+        "确认记录同时绑定 catalogRevision 与 catalogHash",
+        "执行前校验当前 revision/hash 与确认记录；不一致时拒绝执行并重新确认"
       ],
       "notes": "补传内容为合成测试数据。"
     },
