@@ -2226,6 +2226,16 @@ class AcceptanceCatalogTests(unittest.TestCase):
                 ),
                 (
                     "  { ...valid, results: { ...valid.results, "
+                    '"CASE-A": { ...valid.results["CASE-A"], '
+                    'actual: "x".repeat(10001) } } },'
+                ),
+                (
+                    "  { ...valid, results: { ...valid.results, "
+                    '"CASE-A": { ...valid.results["CASE-A"], '
+                    'notes: "x".repeat(10001) } } },'
+                ),
+                (
+                    "  { ...valid, results: { ...valid.results, "
                     '"CASE-A": { status: "passed", actual: "ok" } } },'
                 ),
                 (
@@ -2866,6 +2876,19 @@ class AcceptanceCatalogTests(unittest.TestCase):
                 persist_function.group(1),
                 import_function.group(1),
                 "(async () => {",
+                "  let oversizedRead = false;",
+                (
+                    '  const oversizedFile = { name: "results.json", size: 1048577, '
+                    'async text() { oversizedRead = true; return "{}"; } };'
+                ),
+                "  await importResults(oversizedFile);",
+                (
+                    "  if (results !== oldResults || stored !== 'old-storage' || "
+                    "renders !== 0 || updates !== 0 || notices.length !== 1 || "
+                    "oversizedRead) "
+                    'throw new Error("oversized-import-mutated-state");'
+                ),
+                "  notices.length = 0;",
                 (
                     '  const file = { name: "results.json", '
                     'async text() { return "{}"; } };'

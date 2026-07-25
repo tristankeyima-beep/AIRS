@@ -2357,7 +2357,9 @@ function normalizeImportedResults(payload) {
       !exactKeys(item, ["actual", "notes", "status"]) ||
       !STATUS_VALUES.includes(item.status) ||
       typeof item.actual !== "string" ||
-      typeof item.notes !== "string"
+      typeof item.notes !== "string" ||
+      item.actual.length > 10000 ||
+      item.notes.length > 10000
     ) {
       throw new Error("invalid-result");
     }
@@ -2668,6 +2670,7 @@ function appendResultEditor(parent, caseData, printSummary) {
     textarea.name = field;
     textarea.value = results[caseData.id][field];
     textarea.placeholder = placeholder;
+    textarea.maxLength = 10000;
     textarea.setAttribute("aria-label", caseData.id + " " + labelText);
     textarea.addEventListener("input", () => {
       results[caseData.id][field] = textarea.value;
@@ -2858,7 +2861,11 @@ function exportResults() {
 
 async function importResults(file) {
   try {
-    if (!file || !file.name.toLocaleLowerCase("zh-CN").endsWith(".json")) {
+    if (
+      !file ||
+      !file.name.toLocaleLowerCase("zh-CN").endsWith(".json") ||
+      file.size > 1048576
+    ) {
       throw new Error("invalid-file-type");
     }
     const text = await file.text();
