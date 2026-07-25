@@ -19,5 +19,5 @@ description: 用于需要以轻量方式生成门诊慢特病结构化认定标�
 6. 向用户展示规则、提取项和逻辑关系摘要，明确请求用户确认；如用户要求修改，更新分析草稿并重复展示，直到取得用户确认。
 7. 用户确认后，把完整来源原文放入 `sourceDocuments`，把分析草稿放入 `analysisRecord`，再按 `flash-1.0` 生成正式 JSON。
 8. 按 `references/output-checklist.md` 完成自检，然后复制 `assets/certification-template.html` 作为交付 HTML。
-9. 安全写入模板中的 `__FLASH_DATA_JSON__`：只在 HTML 内嵌副本中把 `<`、`>`、`&` 分别转义为 Unicode `\u003c`、`\u003e`、`\u0026`，精确替换一次占位符，不修改模板 CSS 或 JavaScript。
+9. 安全写入模板中的 `__FLASH_DATA_JSON__`：从已序列化并通过校验的 JSON 文本开始，只替换该序列化文本中的字面字符 `<`、`>`、`&`，分别转义为 Unicode `\u003c`、`\u003e`、`\u0026`；再用得到的 HTML 内嵌副本精确替换一次占位符，不修改模板 CSS 或 JavaScript。
 10. 重新读取 JSON 和 HTML，确认没有残留占位符、内嵌数据可恢复且两份成果业务内容一致，最后交付 JSON 和 HTML。
