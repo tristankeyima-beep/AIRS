@@ -191,6 +191,9 @@ class Mode1FixtureContractTests(unittest.TestCase):
         )
         self.assertTrue(fixture["sourceDocuments"])
         for source in fixture["sourceDocuments"]:
+            self.assertEqual({"name", "type", "content"}, set(source))
+            self.assertEqual("standard", source["type"])
+            self.assertTrue(source["name"].strip())
             self.assertTrue(source["content"].strip())
 
         rule_ids = [rule["id"] for rule in fixture["rules"]]
@@ -276,6 +279,8 @@ class Mode1DocumentationTests(unittest.TestCase):
             "OR",
             "sourceDocuments",
             "analysisRecord",
+            "`name`、`type`、`content`",
+            '"type": "standard"',
             "阻断性歧义",
             "<病种>-认定标准-flash-<版本>.json",
             "<病种>-认定标准-flash-<版本>.html",

@@ -7,7 +7,7 @@
 - 根对象必须且只能包含 `schemaVersion`、`mode`、`meta`、`sourceDocuments`、`analysisRecord`、`rules`、`logic`、`confirmation`。
 - `schemaVersion` 固定为 `flash-1.0`，`mode` 固定为 `certification`。
 - `meta` 必须包含 `diseaseName`、`diseaseCode`、`version`、`description` 四个字符串；`diseaseCode` 可以为空字符串。
-- `sourceDocuments` 必须保存每份来源的名称和完整原文，禁止只存摘要或截断内容。
+- `sourceDocuments` 中每个对象必须且只能包含 `name`、`type`、`content`；`type` 固定为 `standard`，`name` 和保存完整来源原文的 `content` 都不得为空，禁止只存摘要或截断内容。
 - `analysisRecord` 必须且只能包含 `inputSummary`、`interpretations`、`evidenceFindings`、`uncertainties`、`preliminaryConclusion`。
 - 规则 `id` 从 `R001` 开始按数组顺序连续且唯一。所有规则的提取项 `id` 在全局从 `K001` 开始连续且唯一。
 - 每条规则必须保存非空 `sourceQuote`。每个提取项必须包含 `name`、`dataType`、`expectedEvidence`、`negativeEvidence`、`unknownWhen`、`preferredSource`；`dataType` 只能是 `enum` 或 `text`。
@@ -32,6 +32,7 @@
   "sourceDocuments": [
     {
       "name": "测试认定标准",
+      "type": "standard",
       "content": "满足条件 A 或条件 B，可认定为测试病种甲。"
     }
   ],

@@ -10,6 +10,7 @@
   "sourceDocuments": [
     {
       "name": "测试认定标准",
+      "type": "standard",
       "content": "满足条件 A 或条件 B，可认定为测试病种甲。"
     }
   ],
