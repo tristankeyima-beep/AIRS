@@ -6,11 +6,12 @@
 
 - 根对象必须且只能包含 `schemaVersion`、`mode`、`meta`、`sourceDocuments`、`analysisRecord`、`rules`、`logic`、`confirmation`。
 - `schemaVersion` 固定为 `flash-1.0`，`mode` 固定为 `certification`。
-- `meta` 必须且只能包含 `diseaseName`、`diseaseCode`、`version`、`description`，四项均为字符串；`diseaseName`、`version`、`description` 不得为空，`diseaseCode` 可以为空字符串。
-- `sourceDocuments` 必须是非空数组。每个对象必须且只能包含 `name`、`type`、`content`，三项均为字符串；`type` 固定为 `standard`，`name` 和保存完整来源原文的 `content` 不得为空，禁止只存摘要或截断内容。
+- `meta` 必须且只能包含 `diseaseName`、`diseaseCode`、`version`、`description`，四项均为字符串；`diseaseName`、`version`、`description` 不得为空，`diseaseCode` 可以为空字符串。`diseaseCode` 为空字符串时，页面显示“未提供编码”，不得判定为无效。版本采用 `VYYYYMMDD` 时，日期表示成果生成日期，不是政策发布日期。
+- `sourceDocuments` 必须是非空数组。一份输入材料对应一条记录，禁止把多份材料合并为一条摘要。每个对象必须且只能包含 `name`、`type`、`content`，三项均为字符串；`type` 固定为 `standard`，`name` 和保存该份材料完整来源原文的 `content` 不得为空，禁止只存摘要、截断或改写内容。
 - `analysisRecord` 必须且只能包含 `inputSummary`、`interpretations`、`evidenceFindings`、`uncertainties`、`preliminaryConclusion`。前四项必须是字符串数组；前三个数组必须非空且所有成员不得为空，`uncertainties` 可以是空数组，但存在成员时成员不得为空。`preliminaryConclusion` 必须是非空字符串。
 - `rules` 必须是非空数组。每条规则必须且只能包含 `id`、`content`、`sourceQuote`、`extractionItems`；`id`、`content`、`sourceQuote` 均为非空字符串，`extractionItems` 是非空数组。规则 `id` 从 `R001` 开始按数组顺序连续且唯一。
-- 每条规则的 `sourceQuote` 必须是至少一项 `sourceDocuments[].content` 中真实存在的逐字子串。
+- 规则切分以准入逻辑为准：全部必须满足的 `AND` 子条件可以保留在同一条规则；只要任一满足即可的 `OR` 子条件必须拆成多条规则，并由 `logic` 的 `OR` 组合。
+- 每条规则的 `sourceQuote` 必须是单一来源中的连续原句，是该项 `sourceDocuments[].content` 中真实存在的逐字子串；不得拼接不同位置或不同来源的片段，不得改写文字或标点。
 - 每个提取项必须且只能包含 `id`、`name`、`dataType`、`expectedEvidence`、`negativeEvidence`、`unknownWhen`、`preferredSource`，各项均为字符串且不得为空；`dataType` 只能是 `enum` 或 `text`。提取项 `id` 在全部规则中从 `K001` 开始连续且唯一。
 - `logic` 只允许嵌套 `group` 和 `rule` 节点。`group.operator` 只能是 `AND` 或 `OR`，且 `children` 非空；`rule.ruleId` 引用已声明规则。每条规则必须且只能被引用一次。
 - `confirmation` 必须且只能包含 `confirmed`、`summaryShown`、`userResponse`；`confirmed` 必须是布尔值，并且只有取得用户确认后才能设为 `true` 和生成正式成果；另外两项必须是非空字符串。
