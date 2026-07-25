@@ -17,7 +17,7 @@ ROOT_FIELDS = frozenset(
     }
 )
 GENERATED_FILE = "慢特病认定标准与审核质控-验收测试用例.html"
-VERSION_PATTERN = re.compile(r"\d{4}\.\d{2}\.\d{2}\.\d+")
+VERSION_PATTERN = re.compile(r"[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+")
 TEXT_FIELDS = ("catalogVersion", "title", "description", "generatedFile")
 
 
@@ -48,7 +48,7 @@ def load_catalog(path):
 
     try:
         catalog = json.loads(text, object_pairs_hook=_reject_duplicate_pairs)
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, RecursionError):
         raise CatalogError("catalog_json_error") from None
 
     if not isinstance(catalog, dict):
