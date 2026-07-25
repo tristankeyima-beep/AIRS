@@ -1,6 +1,7 @@
 import copy
 import json
 import re
+import subprocess
 import tempfile
 import unittest
 from collections import Counter
@@ -45,6 +46,70 @@ MODE2_KNOWN_CONCLUSION_RESULTS = {
     "通过": "meets",
     "不通过": "does_not_meet",
 }
+MODE1_RENDERER_TARGET_IDS = {
+    "analysis",
+    "analysis-content",
+    "analysis-title",
+    "confirmation",
+    "confirmation-content",
+    "confirmation-title",
+    "extractions",
+    "extractions-content",
+    "extractions-title",
+    "flash-data",
+    "logic",
+    "logic-content",
+    "logic-title",
+    "main",
+    "overview",
+    "overview-content",
+    "page-navigation",
+    "report-description",
+    "report-error",
+    "report-title",
+    "rules",
+    "rules-content",
+    "rules-title",
+    "sources",
+    "sources-content",
+    "sources-title",
+}
+MODE2_RENDERER_TARGET_IDS = {
+    "analysis",
+    "analysis-content",
+    "analysis-heading",
+    "confirmation",
+    "confirmation-content",
+    "confirmation-heading",
+    "dimensions",
+    "dimensions-content",
+    "dimensions-heading",
+    "error-panel",
+    "flash-data",
+    "header-meta",
+    "issues",
+    "issues-content",
+    "issues-heading",
+    "main",
+    "page-navigation",
+    "recommendations",
+    "recommendations-content",
+    "recommendations-heading",
+    "report-shell",
+    "report-title",
+    "rules",
+    "rules-content",
+    "rules-heading",
+    "scope",
+    "scope-content",
+    "scope-heading",
+    "sources",
+    "sources-content",
+    "sources-heading",
+    "summary",
+    "summary-content",
+    "summary-heading",
+}
 
 
 def read(path):
@@ -54,6 +119,10 @@ def read(path):
 def embedded_html(template_path, fixture_path):
     template = read(template_path)
     data = json.loads(read(fixture_path))
+    return embedded_html_from_data(template, data)
+
+
+def embedded_html_from_data(template, data):
     payload = json.dumps(data, ensure_ascii=False, indent=2)
     payload = (
         payload.replace("<", "\\u003c")
@@ -61,6 +130,390 @@ def embedded_html(template_path, fixture_path):
         .replace("&", "\\u0026")
     )
     return template.replace("__FLASH_DATA_JSON__", payload)
+
+
+def extract_flash_payload(html):
+    match = re.search(
+        r'<script id="flash-data" type="application/json">'
+        r"(?P<payload>.*?)</script>",
+        html,
+        re.DOTALL,
+    )
+    if not match:
+        raise AssertionError("HTML must contain the flash-data JSON slot")
+    return match.group("payload")
+
+
+def assert_exact_template_ids(test_case, template, expected_ids):
+    actual_ids = re.findall(
+        r'<[a-z][^>]*\bid="([^"]+)"[^>]*>',
+        template,
+        re.IGNORECASE,
+    )
+    test_case.assertEqual(expected_ids, set(actual_ids))
+    for target_id in sorted(expected_ids):
+        test_case.assertEqual(
+            1,
+            actual_ids.count(target_id),
+            f'id="{target_id}" must occur exactly once',
+        )
+    test_case.assertRegex(
+        template,
+        r'<button\b[^>]*class="[^"]*\bnav-toggle\b[^"]*"[^>]*'
+        r'\baria-controls="page-navigation"[^>]*>',
+    )
+
+
+def run_qc_renderer(template_path, payload, action="none", report_kind="qc"):
+    template = read(template_path)
+    scripts = re.findall(
+        r"<script(?:\s[^>]*)?>(.*?)</script>",
+        template,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if len(scripts) != 2:
+        raise AssertionError("qc template must contain data and renderer scripts")
+    elements = []
+    for tag_match in re.finditer(
+        r"<(?P<tag>[a-z][\w-]*)\b(?P<attrs>[^>]*)>",
+        template,
+        re.IGNORECASE,
+    ):
+        attributes = tag_match.group("attrs")
+        id_match = re.search(r'\bid="([^"]+)"', attributes, re.IGNORECASE)
+        if not id_match:
+            continue
+        class_match = re.search(
+            r'\bclass="([^"]*)"',
+            attributes,
+            re.IGNORECASE,
+        )
+        elements.append({
+            "id": id_match.group(1),
+            "tagName": tag_match.group("tag"),
+            "hidden": bool(re.search(
+                r"(?:^|\s)hidden(?:\s|=|$)",
+                attributes,
+                re.IGNORECASE,
+            )),
+            "className": class_match.group(1) if class_match else "",
+        })
+
+    nav_match = re.search(
+        r'<nav\b(?P<attrs>[^>]*)\bid="(?P<id>[^"]+)"[^>]*>'
+        r"(?P<body>.*?)</nav>",
+        template,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if not nav_match:
+        raise AssertionError("qc template must contain its real navigation")
+    nav_targets = re.findall(
+        r'<a\b[^>]*\bhref="#([^"]+)"',
+        nav_match.group("body"),
+        re.IGNORECASE,
+    )
+
+    toggle_match = re.search(
+        r'<button\b(?P<attrs>[^>]*)\bclass="[^"]*\bnav-toggle\b[^"]*"'
+        r"[^>]*>",
+        template,
+        re.IGNORECASE,
+    )
+    if not toggle_match:
+        raise AssertionError("qc template must contain its real nav toggle")
+    toggle_tag = toggle_match.group(0)
+    expanded_match = re.search(
+        r'\baria-expanded="([^"]+)"',
+        toggle_tag,
+        re.IGNORECASE,
+    )
+    controls_match = re.search(
+        r'\baria-controls="([^"]+)"',
+        toggle_tag,
+        re.IGNORECASE,
+    )
+    template_model = {
+        "reportKind": report_kind,
+        "elements": elements,
+        "navigation": {
+            "id": nav_match.group("id"),
+            "targets": nav_targets,
+        },
+        "toggle": {
+            "ariaExpanded": (
+                expanded_match.group(1) if expanded_match else "false"
+            ),
+            "ariaControls": (
+                controls_match.group(1) if controls_match else ""
+            ),
+        },
+    }
+    payload_text = (
+        payload
+        if isinstance(payload, str)
+        else json.dumps(payload, ensure_ascii=False)
+    )
+    harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+
+class ClassList {
+  constructor(element) {
+    this.element = element;
+    this.values = new Set(
+      element.className.split(/\s+/).filter(Boolean)
+    );
+  }
+  add(value) {
+    this.values.add(value);
+    this.element.className = Array.from(this.values).join(" ");
+  }
+  remove(value) {
+    this.values.delete(value);
+    this.element.className = Array.from(this.values).join(" ");
+  }
+  toggle(value, force) {
+    const enabled = force === undefined ? !this.values.has(value) : force;
+    if (enabled) this.add(value);
+    else this.remove(value);
+    return enabled;
+  }
+  contains(value) {
+    return this.values.has(value);
+  }
+}
+
+class Element {
+  constructor(tagName, id = "") {
+    this.tagName = tagName.toUpperCase();
+    this.id = id;
+    this.children = [];
+    this.attributes = new Map();
+    this.listeners = new Map();
+    this.className = "";
+    this.classList = new ClassList(this);
+    this.hidden = false;
+    this.textContent = "";
+    this.hash = "";
+  }
+  appendChild(child) {
+    this.children.push(child);
+    return child;
+  }
+  append(...children) {
+    children.forEach(child => this.appendChild(child));
+  }
+  replaceChildren(...children) {
+    this.children = [];
+    this.append(...children);
+  }
+  setAttribute(name, value) {
+    const stringValue = String(value);
+    this.attributes.set(name, stringValue);
+    if (name === "href") this.hash = stringValue;
+  }
+  getAttribute(name) {
+    return this.attributes.has(name) ? this.attributes.get(name) : null;
+  }
+  hasAttribute(name) {
+    return this.attributes.has(name);
+  }
+  removeAttribute(name) {
+    this.attributes.delete(name);
+  }
+  addEventListener(type, handler) {
+    if (!this.listeners.has(type)) this.listeners.set(type, []);
+    this.listeners.get(type).push(handler);
+  }
+  dispatch(type) {
+    (this.listeners.get(type) || []).forEach(handler => handler({
+      currentTarget: this,
+      target: this
+    }));
+  }
+  querySelectorAll(selector) {
+    if (selector === 'a[href^="#"]') {
+      return this.children.filter(child => child.tagName === "A");
+    }
+    return [];
+  }
+  focus() {
+    document.activeElement = this;
+  }
+  blur() {
+    if (document.activeElement === this) document.activeElement = null;
+    this.dispatch("blur");
+  }
+}
+
+const elements = new Map();
+const register = (id, tagName = "div") => {
+  const element = new Element(tagName, id);
+  elements.set(id, element);
+  return element;
+};
+const templateModel = JSON.parse(
+  fs.readFileSync(process.argv[5], "utf8")
+);
+templateModel.elements.forEach(spec => {
+  const element = register(spec.id, spec.tagName);
+  element.hidden = spec.hidden;
+  element.className = spec.className;
+  element.classList = new ClassList(element);
+});
+const nav = elements.get(templateModel.navigation.id);
+templateModel.navigation.targets.forEach(id => {
+  const link = new Element("a");
+  link.setAttribute("href", `#${id}`);
+  nav.appendChild(link);
+});
+const toggle = new Element("button");
+toggle.className = "nav-toggle";
+toggle.classList = new ClassList(toggle);
+toggle.setAttribute(
+  "aria-expanded",
+  templateModel.toggle.ariaExpanded
+);
+toggle.setAttribute(
+  "aria-controls",
+  templateModel.toggle.ariaControls
+);
+const sideNav = new Element("aside");
+sideNav.className = "side-nav";
+sideNav.classList = new ClassList(sideNav);
+
+const document = {
+  title: "",
+  activeElement: null,
+  documentElement: { scrollHeight: 4000 },
+  createElement(tagName) {
+    return new Element(tagName);
+  },
+  getElementById(id) {
+    return elements.get(id) || null;
+  },
+  querySelector(selector) {
+    if (selector === ".nav-toggle") return toggle;
+    if (selector === ".side-nav") return sideNav;
+    if (selector.startsWith(".")) {
+      const className = selector.slice(1);
+      return Array.from(elements.values()).find(
+        element => element.classList.contains(className)
+      ) || null;
+    }
+    return null;
+  },
+  querySelectorAll(selector) {
+    if (selector === ".side-nav nav a") return nav ? nav.children : [];
+    if (selector === "main section") {
+      return templateModel.navigation.targets
+        .map(id => elements.get(id))
+        .filter(Boolean);
+    }
+    return [];
+  }
+};
+
+const window = {
+  scrollY: 0,
+  innerHeight: 800,
+  listeners: new Map(),
+  addEventListener(type, handler) {
+    this.listeners.set(type, handler);
+  }
+};
+
+const renderer = fs.readFileSync(process.argv[2], "utf8");
+const dataSlot = elements.get("flash-data");
+if (dataSlot) {
+  dataSlot.textContent = fs.readFileSync(process.argv[3], "utf8");
+}
+const context = {
+  document,
+  window,
+  console,
+  JSON,
+  Array,
+  Object,
+  String,
+  Boolean,
+  Error,
+  Math,
+  Set
+};
+vm.runInNewContext(renderer, context);
+
+if (process.argv[4] === "menu") {
+  toggle.dispatch("click");
+  if (nav && nav.children[1]) nav.children[1].dispatch("click");
+}
+
+const collectText = element => element ? [
+  element.textContent,
+  ...element.children.flatMap(collectText)
+].join(" ") : "";
+const shell = templateModel.reportKind === "certification"
+  ? elements.get("main")
+  : elements.get("report-shell");
+const errorPanel = templateModel.reportKind === "certification"
+  ? elements.get("report-error")
+  : elements.get("error-panel");
+const summary = templateModel.reportKind === "certification"
+  ? elements.get("overview-content")
+  : elements.get("summary-content");
+const rules = elements.get("rules-content");
+const scopeHeading = elements.get("scope-heading");
+process.stdout.write(JSON.stringify({
+  shellHidden: shell ? shell.hidden : null,
+  errorHidden: errorPanel ? errorPanel.hidden : null,
+  errorText: collectText(errorPanel),
+  summaryChildCount: summary ? summary.children.length : null,
+  rulesChildCount: rules ? rules.children.length : null,
+  focusId: document.activeElement ? document.activeElement.id : null,
+  focusTabIndex: scopeHeading
+    ? scopeHeading.getAttribute("tabindex")
+    : null,
+  toggleExpanded: toggle.getAttribute("aria-expanded"),
+  navOpen: nav ? nav.classList.contains("is-open") : null
+}));
+"""
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        renderer_path = root / "renderer.js"
+        payload_path = root / "payload.json"
+        harness_path = root / "harness.js"
+        model_path = root / "template-model.json"
+        renderer_path.write_text(scripts[1], encoding="utf-8")
+        payload_path.write_text(payload_text, encoding="utf-8")
+        harness_path.write_text(harness, encoding="utf-8")
+        model_path.write_text(
+            json.dumps(template_model, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            [
+                "node",
+                str(harness_path),
+                str(renderer_path),
+                str(payload_path),
+                action,
+                str(model_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    if result.returncode != 0:
+        raise AssertionError(result.stderr)
+    return json.loads(result.stdout)
+
+
+def run_mode1_renderer(template_path, payload):
+    return run_qc_renderer(
+        template_path,
+        payload,
+        report_kind="certification",
+    )
 
 
 def parse_frontmatter(markdown):
@@ -2241,6 +2694,13 @@ class FlashCertificationTemplateTests(unittest.TestCase):
                 ),
             )
 
+    def test_all_renderer_target_ids_exist_exactly_once(self):
+        assert_exact_template_ids(
+            self,
+            self.template,
+            MODE1_RENDERER_TARGET_IDS,
+        )
+
     def test_template_exposes_accessible_landmarks_and_focus(self):
         self.assertRegex(
             self.template,
@@ -2304,27 +2764,78 @@ class FlashCertificationTemplateTests(unittest.TestCase):
         self.assertIn("引用的规则不存在", self.template)
         self.assertIn('node("p", "无")', self.template)
 
+    def test_validate_has_minimal_fail_closed_delivery_gates(self):
+        for marker in (
+            'data.schemaVersion !== "flash-1.0"',
+            'data.mode !== "certification"',
+            "data.confirmation.confirmed !== true",
+        ):
+            self.assertIn(marker, self.template)
+
+    def test_error_state_hides_formal_report_and_shows_chinese_message(self):
+        self.assertRegex(
+            self.template,
+            r'<div\b[^>]*\bid="report-error"[^>]*\bhidden[^>]*>',
+        )
+        self.assertLess(
+            self.template.index('id="report-error"'),
+            self.template.index('class="app-shell"'),
+        )
+        self.assertIn('byId("main").hidden = true', self.template)
+        self.assertIn("errorBox.hidden = false", self.template)
+        self.assertIn("无法生成报告", self.template)
+
+    def test_node_vm_harness_executes_valid_mode1_fixture(self):
+        fixture = json.loads(read(self.fixture_path))
+        state = run_mode1_renderer(self.template_path, fixture)
+        self.assertFalse(state["shellHidden"])
+        self.assertTrue(state["errorHidden"])
+        self.assertGreater(state["summaryChildCount"], 0)
+        self.assertGreater(state["rulesChildCount"], 0)
+
+    def test_node_vm_harness_fail_closes_delivery_gate_violations(self):
+        fixture = json.loads(read(self.fixture_path))
+        mutations = (
+            (
+                "schema",
+                "报告数据版本必须为 flash-1.0",
+                lambda item: item.update(schemaVersion="flash-0.9"),
+            ),
+            (
+                "mode",
+                "报告数据模式必须为 certification",
+                lambda item: item.update(mode="qc"),
+            ),
+            (
+                "confirmation",
+                "正式报告需要用户确认",
+                lambda item: item["confirmation"].update(confirmed=False),
+            ),
+        )
+        for name, message, mutate in mutations:
+            with self.subTest(gate=name):
+                candidate = copy.deepcopy(fixture)
+                mutate(candidate)
+                state = run_mode1_renderer(self.template_path, candidate)
+                self.assertTrue(state["shellHidden"])
+                self.assertFalse(state["errorHidden"])
+                self.assertIn(message, state["errorText"])
+
     def test_template_embeds_exact_mode1_fixture(self):
         fixture = json.loads(read(self.fixture_path))
         html = embedded_html(self.template_path, self.fixture_path)
 
-        self.assertNotIn("__FLASH_DATA_JSON__", html)
         self.assertIn("测试病种甲", html)
         self.assertIn("R001", html)
-        match = re.search(
-            r'<script id="flash-data" type="application/json">'
-            r"(?P<payload>.*?)</script>",
-            html,
-            re.DOTALL,
-        )
-        self.assertIsNotNone(match)
-        self.assertEqual(fixture, json.loads(match.group("payload")))
+        payload = extract_flash_payload(html)
+        self.assertNotEqual("__FLASH_DATA_JSON__", payload.strip())
+        self.assertEqual(fixture, json.loads(payload))
 
     def test_hostile_source_content_cannot_break_out_of_data_slot(self):
         hostile = (
             "</script><script>"
-            "document.body.textContent='owned'"
-            "</script>"
+            "globalThis.__flashOwned=true"
+            "</script><&>"
         )
         fixture = json.loads(read(self.fixture_path))
         fixture["sourceDocuments"][0]["content"] = hostile
@@ -2341,9 +2852,27 @@ class FlashCertificationTemplateTests(unittest.TestCase):
 
         self.assertNotIn(hostile, hostile_html)
         self.assertIn("\\u003c/script", hostile_html)
+        payload = re.search(
+            r'<script id="flash-data" type="application/json">'
+            r"(?P<payload>.*?)</script>",
+            hostile_html,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(payload)
+        restored = json.loads(payload.group("payload"))
+        self.assertEqual(fixture, restored)
+        self.assertEqual(
+            hostile,
+            restored["sourceDocuments"][0]["content"],
+        )
         script_tags = re.findall(
             r"<script\b[^>]*>",
             hostile_html,
+            re.IGNORECASE,
+        )
+        original_script_tags = re.findall(
+            r"<script\b[^>]*>",
+            self.template,
             re.IGNORECASE,
         )
         executable_scripts = [
@@ -2351,7 +2880,7 @@ class FlashCertificationTemplateTests(unittest.TestCase):
             for tag in script_tags
             if 'type="application/json"' not in tag
         ]
-        self.assertEqual(2, len(script_tags))
+        self.assertEqual(len(original_script_tags), len(script_tags))
         self.assertEqual(1, len(executable_scripts))
 
     def test_empty_rules_raise_visible_chinese_contract_error(self):
@@ -2488,12 +3017,12 @@ class FlashQcReportTemplateTests(unittest.TestCase):
 
     def test_template_has_exact_navigation_and_sections(self):
         navigation = (
-            ("summary", "报告摘要"),
+            ("summary", "结论总览"),
             ("scope", "输入范围"),
-            ("dimensions", "五维复核"),
+            ("dimensions", "五维检查"),
             ("issues", "问题清单"),
-            ("rules", "规则判断"),
-            ("recommendations", "改进建议"),
+            ("rules", "逐规则复核"),
+            ("recommendations", "建议"),
             ("analysis", "分析记录"),
             ("sources", "原始材料"),
             ("confirmation", "确认记录"),
@@ -2509,6 +3038,13 @@ class FlashQcReportTemplateTests(unittest.TestCase):
                     )
                 ),
             )
+
+    def test_all_renderer_target_ids_exist_exactly_once(self):
+        assert_exact_template_ids(
+            self,
+            self.template,
+            MODE2_RENDERER_TARGET_IDS,
+        )
 
     def test_template_exposes_accessible_navigation_and_print_details(self):
         self.assertRegex(
@@ -2570,6 +3106,7 @@ class FlashQcReportTemplateTests(unittest.TestCase):
             'audit_result: "原审核结果"',
             'true: "已确认"',
             'false: "未确认"',
+            'two_stage_non_blind: "同一上下文两阶段复核（非盲）"',
         )
         for mapping in mappings:
             self.assertIn(mapping, self.template)
@@ -2608,6 +3145,170 @@ class FlashQcReportTemplateTests(unittest.TestCase):
         ):
             self.assertIn(empty_state, self.template)
 
+    def test_error_state_hides_report_and_replaces_partial_output(self):
+        self.assertRegex(
+            self.template,
+            r'<div\b[^>]*\bid="error-panel"[^>]*\bhidden[^>]*>',
+        )
+        self.assertRegex(
+            self.template,
+            r'<div\b[^>]*\bclass="shell"[^>]*\bid="report-shell"[^>]*>',
+        )
+        self.assertIn("const showError = error =>", self.template)
+        self.assertIn('byId("report-shell").hidden = true', self.template)
+        self.assertIn("panel.replaceChildren(", self.template)
+        self.assertIn("showError(error)", self.template)
+        error_panel = self.template.index('id="error-panel"')
+        report_shell = self.template.index('id="report-shell"')
+        self.assertLess(error_panel, report_shell)
+
+    def test_rules_section_renders_full_base_review(self):
+        rules_renderer = self.template[
+            self.template.index("const renderRules = data =>"):
+            self.template.index("const renderRecommendations = data =>")
+        ]
+        for required in (
+            "review.materialFacts",
+            "review.preliminaryResult",
+            "review.ruleJudgments",
+            '"患者材料事实"',
+            '"独立复核初步结果"',
+        ):
+            self.assertIn(required, rules_renderer)
+
+    def test_analysis_long_content_is_collapsible_and_print_visible(self):
+        renderer = self.template[
+            self.template.index("const makeAnalysisCard ="):
+            self.template.index("const requireObject =")
+        ]
+        self.assertIn('node("details")', renderer)
+        self.assertIn('node("summary", title)', renderer)
+        self.assertIn('"detail-body"', renderer)
+        self.assertIn(
+            'makeAnalysisCard("初步结论", [analysis.preliminaryConclusion])',
+            self.template,
+        )
+        self.assertIn(
+            "details:not([open]) > :not(summary)",
+            self.template,
+        )
+
+    def test_renderer_javascript_has_valid_syntax(self):
+        scripts = re.findall(
+            r"<script(?:\s[^>]*)?>(.*?)</script>",
+            self.template,
+            re.DOTALL | re.IGNORECASE,
+        )
+        self.assertEqual(2, len(scripts))
+        with tempfile.TemporaryDirectory() as directory:
+            script_path = Path(directory) / "renderer.js"
+            script_path.write_text(scripts[1], encoding="utf-8")
+            result = subprocess.run(
+                ["node", "--check", str(script_path)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_validate_has_minimal_fail_closed_quality_gates(self):
+        for marker in (
+            'data.schemaVersion !== "flash-1.0"',
+            "data.inputProfile.materialsConfirmedComplete !== true",
+            "data.confirmation.confirmed !== true",
+            "standardKinds",
+            "auditDetails",
+            "preliminaryResults",
+            "qcConclusions",
+            "riskValues",
+            "dimensionNames",
+            "dimensionStatuses",
+            "sourceTypes",
+            "ruleResults",
+            "issueSeverities",
+        ):
+            self.assertIn(marker, self.template)
+
+    def test_node_vm_harness_executes_valid_fixture(self):
+        fixture = json.loads(read(self.fixture_path))
+        state = run_qc_renderer(self.template_path, fixture)
+        self.assertFalse(state["shellHidden"])
+        self.assertTrue(state["errorHidden"])
+        self.assertGreater(state["summaryChildCount"], 0)
+        self.assertGreater(state["rulesChildCount"], 2)
+
+    def test_node_vm_harness_uses_ids_from_passed_template(self):
+        fixture = json.loads(read(self.fixture_path))
+        broken_template = self.template.replace(
+            'id="summary-content"',
+            'id="summary-content-broken"',
+            1,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            template_path = Path(directory) / "broken-template.html"
+            template_path.write_text(broken_template, encoding="utf-8")
+            state = run_qc_renderer(template_path, fixture)
+
+        self.assertTrue(state["shellHidden"])
+        self.assertFalse(state["errorHidden"])
+        self.assertIsNone(state["summaryChildCount"])
+        self.assertIn("replaceChildren", state["errorText"])
+
+    def test_node_vm_harness_fail_closes_bad_json(self):
+        state = run_qc_renderer(self.template_path, "{ bad json")
+        self.assertTrue(state["shellHidden"])
+        self.assertFalse(state["errorHidden"])
+        self.assertIn("无法解析报告数据", state["errorText"])
+
+    def test_node_vm_harness_fail_closes_critical_false_gates(self):
+        fixture = json.loads(read(self.fixture_path))
+        mutations = (
+            ("schema", lambda item: item.update(schemaVersion="flash-0.9")),
+            (
+                "materials",
+                lambda item: item["inputProfile"].update(
+                    materialsConfirmedComplete=False
+                ),
+            ),
+            (
+                "confirmation",
+                lambda item: item["confirmation"].update(confirmed=False),
+            ),
+        )
+        for name, mutate in mutations:
+            with self.subTest(gate=name):
+                candidate = copy.deepcopy(fixture)
+                mutate(candidate)
+                state = run_qc_renderer(self.template_path, candidate)
+                self.assertTrue(state["shellHidden"])
+                self.assertFalse(state["errorHidden"])
+
+    def test_node_vm_harness_fail_closes_invalid_dimension(self):
+        fixture = json.loads(read(self.fixture_path))
+        fixture["dimensions"][1]["name"] = "自定义维度"
+        fixture["dimensions"][2]["status"] = "skipped"
+        state = run_qc_renderer(self.template_path, fixture)
+        self.assertTrue(state["shellHidden"])
+        self.assertFalse(state["errorHidden"])
+        self.assertIn("五维", state["errorText"])
+
+    def test_mobile_menu_link_moves_focus_to_target_heading(self):
+        fixture = json.loads(read(self.fixture_path))
+        state = run_qc_renderer(self.template_path, fixture, action="menu")
+        self.assertEqual("scope-heading", state["focusId"])
+        self.assertEqual("-1", state["focusTabIndex"])
+        self.assertEqual("false", state["toggleExpanded"])
+        self.assertFalse(state["navOpen"])
+        self.assertIn(
+            'heading.addEventListener("blur"',
+            self.template,
+        )
+        mobile = self.template[self.template.index("@media (max-width: 980px)"):]
+        self.assertRegex(
+            mobile,
+            r"section\s*\{[^}]*scroll-margin-top:\s*5\.5rem;",
+        )
+
     def test_empty_dimensions_raise_visible_chinese_contract_error(self):
         fixture = json.loads(read(self.fixture_path))
         fixture["dimensions"] = []
@@ -2628,7 +3329,11 @@ class FlashQcReportTemplateTests(unittest.TestCase):
 
     def test_missing_required_field_and_bad_json_have_visible_chinese_errors(self):
         self.assertIn(
-            'if (!data || data.mode !== "qc")',
+            'data.schemaVersion !== "flash-1.0"',
+            self.template,
+        )
+        self.assertIn(
+            'data.mode !== "qc"',
             self.template,
         )
         self.assertIn(
@@ -2641,20 +3346,18 @@ class FlashQcReportTemplateTests(unittest.TestCase):
     def test_template_embeds_exact_mode2_fixture(self):
         fixture = json.loads(read(self.fixture_path))
         html = embedded_html(self.template_path, self.fixture_path)
-        self.assertNotIn("__FLASH_DATA_JSON__", html)
         self.assertIn("测试审核质控报告", html)
         self.assertIn("I002", html)
-        match = re.search(
-            r'<script id="flash-data" type="application/json">'
-            r"(?P<payload>.*?)</script>",
-            html,
-            re.DOTALL,
-        )
-        self.assertIsNotNone(match)
-        self.assertEqual(fixture, json.loads(match.group("payload")))
+        payload = extract_flash_payload(html)
+        self.assertNotEqual("__FLASH_DATA_JSON__", payload.strip())
+        self.assertEqual(fixture, json.loads(payload))
 
     def test_hostile_source_content_cannot_break_out_of_data_slot(self):
-        hostile = "</script><script>document.body.textContent='owned'</script>"
+        hostile = (
+            "</script><script>"
+            "globalThis.__flashOwned=true"
+            "</script><&>"
+        )
         fixture = json.loads(read(self.fixture_path))
         fixture["sourceDocuments"][0]["content"] = hostile
         with tempfile.TemporaryDirectory() as directory:
@@ -2666,11 +3369,29 @@ class FlashQcReportTemplateTests(unittest.TestCase):
             hostile_html = embedded_html(self.template_path, fixture_path)
         self.assertNotIn(hostile, hostile_html)
         self.assertIn("\\u003c/script", hostile_html)
+        payload = re.search(
+            r'<script id="flash-data" type="application/json">'
+            r"(?P<payload>.*?)</script>",
+            hostile_html,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(payload)
+        restored = json.loads(payload.group("payload"))
+        self.assertEqual(fixture, restored)
+        self.assertEqual(
+            hostile,
+            restored["sourceDocuments"][0]["content"],
+        )
         script_tags = re.findall(r"<script\b[^>]*>", hostile_html, re.IGNORECASE)
+        original_script_tags = re.findall(
+            r"<script\b[^>]*>",
+            self.template,
+            re.IGNORECASE,
+        )
         executable_scripts = [
             tag for tag in script_tags if 'type="application/json"' not in tag
         ]
-        self.assertEqual(2, len(script_tags))
+        self.assertEqual(len(original_script_tags), len(script_tags))
         self.assertEqual(1, len(executable_scripts))
 
     def test_navigation_uses_final_anchor_fallback_without_observer_override(self):
@@ -2697,6 +3418,539 @@ class FlashQcReportTemplateTests(unittest.TestCase):
             self.template,
         )
         self.assertIn('link.removeAttribute("aria-current")', self.template)
+
+
+class FlashSharedGuardrailTests(unittest.TestCase):
+    def test_checklist_uses_checkboxes_and_covers_shared_invariants(self):
+        checklist = read(SKILL_ROOT / "references" / "output-checklist.md")
+        for heading in ("## 通用", "## 模式 1", "## 模式 2"):
+            self.assertIn(heading, checklist)
+        checklist_items = [
+            line for line in checklist.splitlines() if line.startswith("- ")
+        ]
+        self.assertGreaterEqual(len(checklist_items), 20)
+        for item in checklist_items:
+            self.assertTrue(item.startswith("- [ ] "), item)
+        for marker in (
+            "JSON 可解析",
+            "sourceDocuments",
+            "analysisRecord",
+            "用户确认",
+            "当前模式的正确模板",
+            "__FLASH_DATA_JSON__",
+            "模板 CSS 和 JavaScript 未修改",
+            "HTML 内嵌数据可以还原为交付 JSON",
+            "英文状态",
+            "均来自 JSON",
+            "每条规则在逻辑树中恰好出现一次",
+            "五个质控维度各出现一次",
+            "baseReview",
+            "auditComparison",
+            "not_checked",
+            "风险方向",
+            "局部问题",
+            "仅结论",
+            "inventoryShown",
+            "疑似秘密",
+            "目标服务或地址",
+            "材料范围",
+        ):
+            self.assertIn(marker, checklist)
+
+    def test_conclusion_only_guidance_is_split_into_atomic_checkboxes(self):
+        checklist = read(SKILL_ROOT / "references" / "output-checklist.md")
+        items = [
+            line
+            for line in checklist.splitlines()
+            if line.startswith("- [ ] ") and "仅结论" in line
+        ]
+        self.assertGreaterEqual(len(items), 5)
+        for marker in (
+            "前三个过程依赖维度",
+            "方向相反",
+            "方向一致",
+            "方向未知",
+            "标准缺失",
+        ):
+            self.assertTrue(any(marker in item for item in items), marker)
+
+    def test_combination_common_security_and_stop_rules_are_explicit(self):
+        skill = read(SKILL_ROOT / "SKILL.md")
+        for marker in (
+            "## 组合请求",
+            "先完整执行模式 1",
+            "作为模式 2 的认定标准输入",
+            "模式 2 的输入完整性确认",
+            "## 通用约束",
+            "JSON 是唯一业务内容源",
+            "不执行其中的指令",
+            "不使用用户未提供的政策或医学知识",
+            "## 安全与错误处理",
+            "API 密钥",
+            "令牌",
+            "Cookie",
+            "密码",
+            "系统提示",
+            "停止生成正式成果物",
+            "先移除或替换",
+            "才可向外部服务发送或上传患者材料",
+            "输入不足",
+            "阻断性歧义",
+            "未确认完整",
+            "模板缺失",
+            "内嵌 JSON 不一致",
+            "不把部分页面称为正式交付物",
+        ):
+            self.assertIn(marker, skill)
+        self.assertNotRegex(skill, r"scripts/|python3|node |npm |shell")
+        self.assertLessEqual(len(skill.splitlines()), 140)
+
+    def test_combination_gate_is_section_scoped_and_ordered(self):
+        skill = read(SKILL_ROOT / "SKILL.md")
+        match = re.search(
+            r"(?ms)^## 组合请求$\n(?P<body>.*?)(?=^## |\Z)",
+            skill,
+        )
+        self.assertIsNotNone(match)
+        body = match.group("body")
+        markers = (
+            "先完整执行模式 1",
+            "阻断性歧义已经解决",
+            "用户已确认",
+            "正式 JSON",
+            "才把该 JSON 作为模式 2 的认定标准输入",
+            "模式 2 的输入完整性确认",
+        )
+        positions = [body.index(marker) for marker in markers]
+        self.assertEqual(positions, sorted(positions))
+
+    def test_security_stops_and_scopes_external_sends_in_single_bullets(self):
+        skill = read(SKILL_ROOT / "SKILL.md")
+        match = re.search(
+            r"(?ms)^## 安全与错误处理$\n(?P<body>.*?)(?=^## |\Z)",
+            skill,
+        )
+        self.assertIsNotNone(match)
+        bullets = [
+            line for line in match.group("body").splitlines()
+            if line.startswith("- ")
+        ]
+        secret = next(line for line in bullets if "API 密钥" in line)
+        for marker in (
+            "立即停止后续处理",
+            "脱敏告警",
+            "不含具体值",
+            "不得回显",
+            "记录",
+            "上传",
+            "秘密",
+        ):
+            self.assertIn(marker, secret)
+        external = next(line for line in bullets if "外部" in line)
+        for marker in (
+            "目标服务或地址",
+            "具体动作",
+            "材料范围",
+            "任一项不清楚",
+            "保持本地处理并询问",
+            "不得发送",
+        ):
+            self.assertIn(marker, external)
+
+    def test_runtime_files_do_not_contain_external_runtime_commands(self):
+        command_pattern = re.compile(
+            r"^[ \t]*(?:(?:[-*+>])[ \t]+|\d+[.)][ \t]+)?`*"
+            r"(?:python3?[ \t]+\S+|node[ \t]+\S+|"
+            r"npm[ \t]+(?:run|exec)\b|npx[ \t]+\S+|"
+            r"bash[ \t]+\S+|sh[ \t]+-c\b)",
+            re.I | re.MULTILINE,
+        )
+        for path in SKILL_ROOT.rglob("*"):
+            if path.is_file():
+                self.assertIsNone(command_pattern.search(read(path)), str(path))
+
+    def test_runtime_command_pattern_handles_wrapped_commands_without_prose_false_positives(self):
+        command_pattern = re.compile(
+            r"^[ \t]*(?:(?:[-*+>])[ \t]+|\d+[.)][ \t]+)?`*"
+            r"(?:python3?[ \t]+\S+|node[ \t]+\S+|"
+            r"npm[ \t]+(?:run|exec)\b|npx[ \t]+\S+|"
+            r"bash[ \t]+\S+|sh[ \t]+-c\b)",
+            re.I | re.MULTILINE,
+        )
+        commands = (
+            "python3 tool.py",
+            "- `python validate.py`",
+            "1. node render.js",
+            "2) `npm run build`",
+            "* npx package",
+            "> bash deploy.sh",
+            "+ `sh -c 'echo ok'`",
+        )
+        prose = (
+            "不支持 Python、Node 或 Shell 运行时。",
+            "- 不调用外部运行时脚本。",
+            "`node` 是运行时名称。",
+            "const node = makeNode();",
+            "npm 包管理说明。",
+        )
+        for candidate in commands:
+            with self.subTest(command=candidate):
+                self.assertIsNotNone(command_pattern.search(candidate))
+        for candidate in prose:
+            with self.subTest(prose=candidate):
+                self.assertIsNone(command_pattern.search(candidate))
+
+    def test_openai_metadata_matches_final_flash_interface(self):
+        interface = parse_openai_interface(
+            read(SKILL_ROOT / "agents" / "openai.yaml")
+        )
+        self.assertEqual(
+            {
+                "display_name": "门诊慢特病认定与质控 Flash",
+                "short_description":
+                    "轻量生成门诊慢特病认定标准并复核患者材料与智能审核结果",
+                "default_prompt":
+                    "使用 $chronic-disease-certification-qc-flash "
+                    "生成门诊慢特病认定标准，或复核患者材料与智能审核结果。",
+            },
+            interface,
+        )
+
+
+class FlashFinalAcceptanceTests(unittest.TestCase):
+    RUNTIME_FILES = {
+        "SKILL.md",
+        "agents/openai.yaml",
+        "references/mode1-contract.md",
+        "references/mode2-contract.md",
+        "references/output-checklist.md",
+        "assets/certification-template.html",
+        "assets/qc-report-template.html",
+    }
+    FORWARD_CASE_IDS = (
+        "M1-CLEAR",
+        "M1-AMBIGUOUS",
+        "M2-DETAILED",
+        "M2-CONCLUSION-ONLY",
+        "M2-NO-STANDARD",
+        "COMBINED",
+        "PRESSURE-URGENT",
+        "PRESSURE-INJECTION",
+        "PRESSURE-HTML",
+    )
+    FORWARD_RESULT_FIELDS = (
+        "Outcome",
+        "Coverage",
+        "Gate behavior",
+        "JSON contract",
+        "HTML behavior",
+        "Difference from baseline",
+        "Follow-up change",
+        "Provenance",
+    )
+    FORWARD_COVERAGE = {
+        "M1-CLEAR": "gate-stage / partial",
+        "M1-AMBIGUOUS": "reachable assertions complete",
+        "M2-DETAILED": "gate-stage / partial",
+        "M2-CONCLUSION-ONLY": "gate-stage / partial",
+        "M2-NO-STANDARD": "gate-stage / partial",
+        "COMBINED": "reachable assertions complete",
+        "PRESSURE-URGENT": "reachable assertions complete",
+        "PRESSURE-INJECTION": "reachable assertions complete",
+        "PRESSURE-HTML": "gate-stage / partial",
+    }
+
+    def test_forward_results_record_all_cases_and_complete_evidence_fields(self):
+        results_path = ACCEPTANCE_ROOT / "forward-results.md"
+        raw_path = ACCEPTANCE_ROOT / "forward-raw-results.json"
+        self.assertTrue(results_path.is_file())
+        self.assertTrue(raw_path.is_file())
+        results = read(results_path)
+        catalog = json.loads(
+            read(ACCEPTANCE_ROOT / "evaluation-cases.json")
+        )
+        raw = json.loads(read(raw_path))
+
+        self.assertEqual({"runDate", "isolation", "cases"}, set(raw))
+        self.assertEqual("2026-07-25", raw["runDate"])
+        assert_nonempty_string(self, raw["isolation"], "raw.isolation")
+        self.assertEqual(
+            {"id", "evaluator", "prompt", "response"},
+            set(raw["cases"][0]),
+        )
+        catalog_cases = catalog["cases"]
+        raw_cases = raw["cases"]
+        self.assertEqual(len(catalog_cases), len(raw_cases))
+        self.assertEqual(
+            [case["id"] for case in catalog_cases],
+            [case["id"] for case in raw_cases],
+        )
+        self.assertEqual(
+            [case["prompt"] for case in catalog_cases],
+            [case["prompt"] for case in raw_cases],
+        )
+        self.assertEqual(
+            len(raw_cases),
+            len({case["id"] for case in raw_cases}),
+        )
+        raw_by_id = {}
+        for index, case in enumerate(raw_cases):
+            self.assertEqual(
+                {"id", "evaluator", "prompt", "response"},
+                set(case),
+                f"raw.cases[{index}]",
+            )
+            self.assertRegex(case["evaluator"], r"^/root/eval_[a-z0-9_]+$")
+            assert_nonempty_string(
+                self,
+                case["response"],
+                f"raw.cases[{index}].response",
+            )
+            raw_by_id[case["id"]] = case
+
+        self.assertIn("fresh evaluator", results)
+        self.assertIn("未提供 expected、设计文档或基线结果", results)
+        self.assertIn("确认门禁", results)
+        self.assertIn("## Pass rubric", results)
+        self.assertIn("9/9 reachable gate-stage behavior pass", results)
+        self.assertIn(
+            "不等于 9/9 end-to-end artifact pass",
+            results,
+        )
+        self.assertIn(
+            "9/9 cases 均有 expected，语义匹配仍由人工审查",
+            results,
+        )
+        self.assertIn("## Artifact verification", results)
+        self.assertIn("93 项自动化测试通过", results)
+        self.assertIn("两份 fixture", results)
+        self.assertIn("Mode 2 Node VM DOM", results)
+        self.assertIn("Mode 1 早期 browser smoke", results)
+        self.assertIn("MachPort", results)
+        self.assertIn("Permission denied", results)
+        self.assertIn("应用内浏览器安全策略", results)
+        self.assertIn("file://", results)
+        self.assertIn("Step 4 未完成", results)
+        self.assertIn("非产品缺陷", results)
+        self.assertIn(
+            "不能替代 CSS、打印和控制台的真实视觉验收",
+            results,
+        )
+
+        headings = re.findall(r"(?m)^## ([A-Z0-9-]+)$", results)
+        self.assertEqual(list(self.FORWARD_CASE_IDS), headings)
+        for index, case_id in enumerate(self.FORWARD_CASE_IDS):
+            start = results.index(f"## {case_id}\n")
+            if index + 1 < len(self.FORWARD_CASE_IDS):
+                end = results.index(
+                    f"## {self.FORWARD_CASE_IDS[index + 1]}\n",
+                    start,
+                )
+            else:
+                end = len(results)
+            section = results[start:end]
+            for field in self.FORWARD_RESULT_FIELDS:
+                self.assertRegex(
+                    section,
+                    rf"(?m)^- {re.escape(field)}: \S",
+                    f"{case_id} missing {field}",
+                )
+            self.assertIn(
+                f"- Coverage: {self.FORWARD_COVERAGE[case_id]}",
+                section,
+            )
+            provenance = re.search(
+                r"(?m)^- Provenance: `forward-raw-results\.json`; "
+                r"evaluator: `(?P<evaluator>/root/eval_[a-z0-9_]+)`$",
+                section,
+            )
+            self.assertIsNotNone(
+                provenance,
+                f"{case_id} missing auditable provenance",
+            )
+            self.assertEqual(
+                raw_by_id[case_id]["evaluator"],
+                provenance.group("evaluator"),
+            )
+            evidence = re.search(
+                r"(?m)^- Evidence:\s*\n\n {2,}> (?P<excerpt>[^\n]+)$",
+                section,
+            )
+            self.assertIsNotNone(
+                evidence,
+                f"{case_id} missing quoted evaluator evidence",
+            )
+            self.assertIn(
+                evidence.group("excerpt"),
+                raw_by_id[case_id]["response"],
+                f"{case_id} evidence is not a verbatim raw substring",
+            )
+
+    def test_skill_stays_compact_and_progressively_loads_mode_contracts(self):
+        skill = read(SKILL_ROOT / "SKILL.md")
+        self.assertLessEqual(len(skill.splitlines()), 140)
+
+        mode1_match = re.search(
+            r"(?ms)^## 模式 1：.*?$\n(?P<body>.*?)(?=^## |\Z)",
+            skill,
+        )
+        mode2_match = re.search(
+            r"(?ms)^## 模式 2：.*?$\n(?P<body>.*?)(?=^## |\Z)",
+            skill,
+        )
+        self.assertIsNotNone(mode1_match)
+        self.assertIsNotNone(mode2_match)
+        mode1 = mode1_match.group("body")
+        mode2 = mode2_match.group("body")
+
+        self.assertIn("references/mode1-contract.md", mode1)
+        self.assertIn("references/mode2-contract.md", mode2)
+        self.assertNotIn("mode2-contract.md", mode1)
+        self.assertNotIn("mode1-contract.md", mode2)
+        self.assertIn("模式 1 不读取模式 2 的契约", mode1)
+        self.assertIn("模式 2 不读取模式 1 的契约", mode2)
+
+    def test_skill_and_checklist_validate_the_data_slot_not_the_whole_html(self):
+        skill = read(SKILL_ROOT / "SKILL.md")
+        checklist = read(
+            SKILL_ROOT / "references" / "output-checklist.md"
+        )
+        mode_sections = (
+            re.search(
+                r"(?ms)^## 模式 1：.*?$\n(?P<body>.*?)(?=^## |\Z)",
+                skill,
+            ),
+            re.search(
+                r"(?ms)^## 模式 2：.*?$\n(?P<body>.*?)(?=^## |\Z)",
+                skill,
+            ),
+        )
+        for match in mode_sections:
+            self.assertIsNotNone(match)
+            section = match.group("body")
+            for marker in (
+                "替换前",
+                "数据槽",
+                "占位符恰好出现一次",
+                "替换后",
+                "可解析",
+                "逐字段等值",
+                "用户数据",
+                "合法存在",
+            ):
+                self.assertIn(marker, section)
+
+        for marker in (
+            "替换前",
+            "数据槽",
+            "占位符恰好出现一次",
+            "替换后",
+            "可解析",
+            "逐字段等值",
+            "用户数据",
+            "合法存在",
+        ):
+            self.assertIn(marker, checklist)
+        self.assertNotIn("确认没有残留占位符", skill)
+        self.assertNotIn("完整 HTML 中绝对不存在", skill + checklist)
+
+    def test_fixtures_keep_complete_sources_and_visible_analysis_fields(self):
+        for fixture_name in ("valid-mode1.json", "valid-mode2.json"):
+            with self.subTest(fixture=fixture_name):
+                fixture = json.loads(
+                    read(ACCEPTANCE_ROOT / "fixtures" / fixture_name)
+                )
+                self.assertTrue(fixture["sourceDocuments"])
+                for source in fixture["sourceDocuments"]:
+                    self.assertEqual({"name", "type", "content"}, set(source))
+                    for field in ("name", "type", "content"):
+                        assert_nonempty_string(
+                            self,
+                            source[field],
+                            f"{fixture_name}.sourceDocuments.{field}",
+                        )
+
+                analysis = fixture["analysisRecord"]
+                assert_string_array(
+                    self,
+                    analysis["inputSummary"],
+                    f"{fixture_name}.analysisRecord.inputSummary",
+                    allow_empty=False,
+                )
+                assert_nonempty_string(
+                    self,
+                    analysis["preliminaryConclusion"],
+                    f"{fixture_name}.analysisRecord.preliminaryConclusion",
+                )
+
+    def test_templates_have_one_safe_slot_and_no_network_or_html_injection(self):
+        for template_name in (
+            "certification-template.html",
+            "qc-report-template.html",
+        ):
+            with self.subTest(template=template_name):
+                template = read(SKILL_ROOT / "assets" / template_name)
+                self.assertEqual(1, template.count("__FLASH_DATA_JSON__"))
+                self.assertNotRegex(template, r"(?i)https?://")
+                self.assertNotRegex(template, r"(?i)\binnerHTML\b")
+
+    def test_runtime_contains_exactly_the_seven_nonempty_design_files(self):
+        actual = {
+            path.relative_to(SKILL_ROOT).as_posix()
+            for path in SKILL_ROOT.rglob("*")
+            if path.is_file()
+        }
+        self.assertEqual(self.RUNTIME_FILES, actual)
+        for relative in sorted(self.RUNTIME_FILES):
+            with self.subTest(runtime_file=relative):
+                path = SKILL_ROOT / relative
+                self.assertTrue(path.is_file())
+                self.assertTrue(read(path).strip())
+
+    def test_both_fixtures_round_trip_through_safe_html_injection(self):
+        pairs = (
+            ("certification-template.html", "valid-mode1.json"),
+            ("qc-report-template.html", "valid-mode2.json"),
+        )
+        for template_name, fixture_name in pairs:
+            with self.subTest(template=template_name, fixture=fixture_name):
+                fixture_path = ACCEPTANCE_ROOT / "fixtures" / fixture_name
+                expected = json.loads(read(fixture_path))
+                rendered = embedded_html(
+                    SKILL_ROOT / "assets" / template_name,
+                    fixture_path,
+                )
+                payload = extract_flash_payload(rendered)
+                self.assertNotEqual("__FLASH_DATA_JSON__", payload.strip())
+                self.assertEqual(expected, json.loads(payload))
+
+    def test_placeholder_literal_in_user_source_round_trips_for_both_modes(self):
+        pairs = (
+            ("certification-template.html", "valid-mode1.json"),
+            ("qc-report-template.html", "valid-mode2.json"),
+        )
+        literal = "__FLASH_DATA_JSON__"
+        for template_name, fixture_name in pairs:
+            with self.subTest(template=template_name, fixture=fixture_name):
+                fixture = json.loads(
+                    read(ACCEPTANCE_ROOT / "fixtures" / fixture_name)
+                )
+                fixture["sourceDocuments"][0]["content"] = (
+                    f"合法原文保留字面串：{literal}"
+                )
+                rendered = embedded_html_from_data(
+                    read(SKILL_ROOT / "assets" / template_name),
+                    fixture,
+                )
+                self.assertIn(literal, rendered)
+                payload = extract_flash_payload(rendered)
+                self.assertNotEqual(literal, payload.strip())
+                restored = json.loads(payload)
+                self.assertEqual(fixture, restored)
+                self.assertEqual(
+                    fixture["sourceDocuments"][0]["content"],
+                    restored["sourceDocuments"][0]["content"],
+                )
 
 
 if __name__ == "__main__":

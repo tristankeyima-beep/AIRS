@@ -475,6 +475,7 @@
 </head>
 <body>
   <a class="skip-link" href="#main">跳至主要内容</a>
+  <div id="report-error" class="error" role="alert" hidden></div>
   <div class="app-shell">
     <aside class="side-nav" aria-label="报告目录">
       <p class="rail-kicker">Flash report</p>
@@ -496,7 +497,6 @@
         <p class="eyebrow">门诊慢特病 · 认定标准</p>
         <h1 id="report-title">门诊慢特病认定标准</h1>
         <p id="report-description" class="lede">正在读取离线报告数据。</p>
-        <div id="report-error" class="error" role="alert" hidden></div>
         <div id="overview-content"></div>
       </section>
 
@@ -732,6 +732,18 @@
         if (!data || typeof data !== "object") {
           throw new Error("报告数据不是对象");
         }
+        if (data.schemaVersion !== "flash-1.0") {
+          throw new Error("报告数据版本必须为 flash-1.0");
+        }
+        if (data.mode !== "certification") {
+          throw new Error("报告数据模式必须为 certification");
+        }
+        if (!data.confirmation) {
+          throw new Error("报告缺少确认记录");
+        }
+        if (data.confirmation.confirmed !== true) {
+          throw new Error("正式报告需要用户确认");
+        }
         if (
           !data.meta ||
           !Array.isArray(data.rules) ||
@@ -774,6 +786,7 @@
             : "数据解析或渲染失败";
         errorBox.textContent = `无法生成报告：${message}。`;
         errorBox.hidden = false;
+        byId("main").hidden = true;
         byId("report-description").textContent =
           "请检查内嵌 JSON 数据后重新生成。";
         [

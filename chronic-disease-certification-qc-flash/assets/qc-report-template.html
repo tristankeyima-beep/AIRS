@@ -46,6 +46,10 @@
       box-sizing: border-box;
     }
 
+    [hidden] {
+      display: none !important;
+    }
+
     html {
       scroll-behavior: smooth;
       scroll-padding-top: 1.5rem;
@@ -263,7 +267,8 @@
     }
 
     .error-panel {
-      margin: var(--space-5);
+      width: min(680px, calc(100% - 2rem));
+      margin: 12vh auto var(--space-5);
       padding: 1rem 1.25rem;
       color: #702c27;
       background: var(--danger-soft);
@@ -624,6 +629,10 @@
         display: block;
       }
 
+      section {
+        scroll-margin-top: 5.5rem;
+      }
+
       nav {
         display: none;
         max-height: min(70vh, 480px);
@@ -765,8 +774,9 @@
   </style>
 </head>
 <body>
-  <a class="skip-link" href="#main">跳到报告正文</a>
-  <div class="shell">
+  <div class="error-panel" id="error-panel" role="alert" hidden></div>
+  <div class="shell" id="report-shell">
+    <a class="skip-link" href="#main">跳到报告正文</a>
     <aside class="rail" aria-label="报告索引">
       <div class="rail-head">
         <p class="rail-kicker">FLASH QC</p>
@@ -774,12 +784,12 @@
       </div>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="page-navigation">展开报告导航</button>
       <nav id="page-navigation" aria-label="页面导航">
-        <a href="#summary">报告摘要</a>
+        <a href="#summary">结论总览</a>
         <a href="#scope">输入范围</a>
-        <a href="#dimensions">五维复核</a>
+        <a href="#dimensions">五维检查</a>
         <a href="#issues">问题清单</a>
-        <a href="#rules">规则判断</a>
-        <a href="#recommendations">改进建议</a>
+        <a href="#rules">逐规则复核</a>
+        <a href="#recommendations">建议</a>
         <a href="#analysis">分析记录</a>
         <a href="#sources">原始材料</a>
         <a href="#confirmation">确认记录</a>
@@ -793,13 +803,11 @@
         <div class="meta-strip" id="header-meta"></div>
       </header>
 
-      <div class="error-panel" id="error-panel" role="alert" hidden></div>
-
       <section id="summary" aria-labelledby="summary-heading">
         <div class="section-heading">
           <span class="number">01</span>
           <div>
-            <h2 id="summary-heading">报告摘要</h2>
+            <h2 id="summary-heading">结论总览</h2>
             <p class="section-note">独立复核结论与原审核结论的关键对照。</p>
           </div>
         </div>
@@ -821,7 +829,7 @@
         <div class="section-heading">
           <span class="number">03</span>
           <div>
-            <h2 id="dimensions-heading">五维复核</h2>
+            <h2 id="dimensions-heading">五维检查</h2>
             <p class="section-note">从材料、证据、推理、结论一致性和规则维护五个维度检查。</p>
           </div>
         </div>
@@ -843,7 +851,7 @@
         <div class="section-heading">
           <span class="number">05</span>
           <div>
-            <h2 id="rules-heading">规则判断</h2>
+            <h2 id="rules-heading">逐规则复核</h2>
             <p class="section-note">先依据患者材料和认定标准形成的独立判断，不以原审核结果替代。</p>
           </div>
         </div>
@@ -854,7 +862,7 @@
         <div class="section-heading">
           <span class="number">06</span>
           <div>
-            <h2 id="recommendations-heading">改进建议</h2>
+            <h2 id="recommendations-heading">建议</h2>
             <p class="section-note">针对本次质控发现形成的可执行修正建议。</p>
           </div>
         </div>
@@ -931,8 +939,38 @@
         audit_result: "原审核结果",
         true: "已确认",
         false: "未确认",
-        two_stage_non_blind: "两阶段非盲复核"
+        two_stage_non_blind: "同一上下文两阶段复核（非盲）"
       };
+      const standardKinds = new Set([
+        "structured", "natural_language", "absent"
+      ]);
+      const auditDetails = new Set([
+        "detailed", "brief", "conclusion_only"
+      ]);
+      const preliminaryResults = new Set([
+        "meets", "does_not_meet", "uncertain"
+      ]);
+      const qcConclusions = new Set([
+        "reliable", "problematic", "uncertain"
+      ]);
+      const riskValues = new Set([
+        "none", "false_approval", "false_rejection", "both", "unknown"
+      ]);
+      const dimensionNames = [
+        "材料缺失判断准确性",
+        "证据提取准确性",
+        "过度推理",
+        "审核条件与结论一致性",
+        "规则维护质量"
+      ];
+      const dimensionStatuses = new Set([
+        "passed", "issue", "not_checked"
+      ]);
+      const sourceTypes = new Set([
+        "patient_material", "standard", "audit_result"
+      ]);
+      const ruleResults = new Set(["met", "not_met", "unknown"]);
+      const issueSeverities = new Set(["high", "medium", "low"]);
 
       const byId = id => document.getElementById(id);
       const text = value => value === undefined || value === null || value === ""
@@ -995,8 +1033,10 @@
       };
 
       const makeAnalysisCard = (title, values) => {
-        const card = node("article", null, "card");
-        add(card, node("h3", title), makeList(values));
+        const card = node("details");
+        const body = node("div", null, "detail-body");
+        body.appendChild(makeList(values));
+        add(card, node("summary", title), body);
         return card;
       };
 
@@ -1013,7 +1053,11 @@
       };
 
       const validate = data => {
-        if (!data || data.mode !== "qc") {
+        if (
+          !data
+          || data.schemaVersion !== "flash-1.0"
+          || data.mode !== "qc"
+        ) {
           throw new Error("数据不是模式 2 质控报告");
         }
         [
@@ -1024,11 +1068,43 @@
           ["auditComparison", data.auditComparison],
           ["confirmation", data.confirmation]
         ].forEach(item => requireObject(item[1], item[0]));
+        if (data.inputProfile.materialsConfirmedComplete !== true) {
+          throw new Error("材料清单尚未确认完整");
+        }
+        if (data.confirmation.confirmed !== true) {
+          throw new Error("缺少用户确认记录");
+        }
+        if (!standardKinds.has(data.inputProfile.standardKind)) {
+          throw new Error("认定标准类型无效");
+        }
+        if (!auditDetails.has(data.inputProfile.auditDetail)) {
+          throw new Error("审核结果粒度无效");
+        }
+        if (data.baseReview.method !== "two_stage_non_blind") {
+          throw new Error("复核方法无效");
+        }
+        if (!preliminaryResults.has(data.baseReview.preliminaryResult)) {
+          throw new Error("独立复核初步结果无效");
+        }
+        if (!qcConclusions.has(data.auditComparison.qcConclusion)) {
+          throw new Error("质控结论无效");
+        }
+        if (!riskValues.has(data.auditComparison.risk)) {
+          throw new Error("风险方向无效");
+        }
         [
           ["sourceDocuments", data.sourceDocuments],
           ["dimensions", data.dimensions],
           ["issues", data.issues],
           ["recommendations", data.recommendations]
+        ].forEach(item => requireArray(item[1], item[0]));
+        [
+          ["baseReview.materialFacts", data.baseReview.materialFacts],
+          ["baseReview.ruleJudgments", data.baseReview.ruleJudgments],
+          ["analysisRecord.inputSummary", data.analysisRecord.inputSummary],
+          ["analysisRecord.interpretations", data.analysisRecord.interpretations],
+          ["analysisRecord.evidenceFindings", data.analysisRecord.evidenceFindings],
+          ["analysisRecord.uncertainties", data.analysisRecord.uncertainties]
         ].forEach(item => requireArray(item[1], item[0]));
         if (!data.sourceDocuments.length) {
           throw new Error("未提供原始材料");
@@ -1036,22 +1112,41 @@
         if (!data.dimensions.length) {
           throw new Error("未提供五维复核结果");
         }
+        if (
+          data.dimensions.length !== dimensionNames.length
+          || data.dimensions.some((dimension, index) =>
+            !dimension
+            || dimension.name !== dimensionNames[index]
+            || !dimensionStatuses.has(dimension.status)
+            || (
+              dimension.status === "not_checked"
+                ? (
+                  typeof dimension.notCheckedReason !== "string"
+                  || !dimension.notCheckedReason.trim()
+                )
+                : dimension.notCheckedReason !== ""
+            )
+          )
+        ) {
+          throw new Error("五维检查名称、顺序或状态无效");
+        }
+        if (data.sourceDocuments.some(source =>
+          !source || !sourceTypes.has(source.type)
+        )) {
+          throw new Error("原始材料类型无效");
+        }
+        if (data.baseReview.ruleJudgments.some(judgment =>
+          !judgment || !ruleResults.has(judgment.result)
+        )) {
+          throw new Error("逐规则复核结果无效");
+        }
+        if (data.issues.some(issue =>
+          !issue || !issueSeverities.has(issue.severity)
+        )) {
+          throw new Error("问题严重程度无效");
+        }
         if (!data.meta.reportTitle || !data.meta.diseaseName || !data.meta.generatedAt) {
           throw new Error("报告数据不完整：缺少报告基本信息");
-        }
-        if (
-          !Array.isArray(data.baseReview.materialFacts)
-          || !Array.isArray(data.baseReview.ruleJudgments)
-        ) {
-          throw new Error("报告数据不完整：独立复核格式错误");
-        }
-        if (
-          !Array.isArray(data.analysisRecord.inputSummary)
-          || !Array.isArray(data.analysisRecord.interpretations)
-          || !Array.isArray(data.analysisRecord.evidenceFindings)
-          || !Array.isArray(data.analysisRecord.uncertainties)
-        ) {
-          throw new Error("报告数据不完整：分析记录格式错误");
         }
       };
 
@@ -1180,13 +1275,26 @@
       };
 
       const renderRules = data => {
+        const review = data.baseReview;
         const root = byId("rules-content");
         root.replaceChildren();
-        if (data.baseReview.ruleJudgments.length === 0) {
+        const facts = node("article", null, "card wide");
+        add(
+          facts,
+          node("h3", "患者材料事实"),
+          makeList(review.materialFacts, "fact-list")
+        );
+        const result = makeValueCard(
+          "独立复核初步结果",
+          review.preliminaryResult,
+          true
+        );
+        root.append(facts, result);
+        if (review.ruleJudgments.length === 0) {
           root.appendChild(node("p", "无", "empty-state"));
           return;
         }
-        data.baseReview.ruleJudgments.forEach(judgment => {
+        review.ruleJudgments.forEach(judgment => {
           const card = node("article", null, "card");
           const head = node("div", null, "issue-head");
           add(
@@ -1226,7 +1334,7 @@
           makeAnalysisCard("理解与解释", analysis.interpretations),
           makeAnalysisCard("证据发现", analysis.evidenceFindings),
           makeAnalysisCard("不确定项", analysis.uncertainties),
-          makeValueCard("初步结论", analysis.preliminaryConclusion, true)
+          makeAnalysisCard("初步结论", [analysis.preliminaryConclusion])
         );
       };
 
@@ -1290,6 +1398,16 @@
         renderConfirmation(data);
       };
 
+      const showError = error => {
+        byId("report-shell").hidden = true;
+        const panel = byId("error-panel");
+        panel.hidden = false;
+        panel.replaceChildren(
+          node("strong", "报告加载失败"),
+          node("p", error.message || "报告数据不完整")
+        );
+      };
+
       try {
         let data;
         try {
@@ -1300,12 +1418,7 @@
         validate(data);
         render(data);
       } catch (error) {
-        const panel = byId("error-panel");
-        panel.hidden = false;
-        panel.replaceChildren(
-          node("strong", "报告加载失败"),
-          node("p", error.message || "报告数据不完整")
-        );
+        showError(error);
       }
 
       const nav = byId("page-navigation");
@@ -1348,6 +1461,18 @@
           nav.classList.remove("is-open");
           toggle.setAttribute("aria-expanded", "false");
           toggle.textContent = "展开报告导航";
+          const sectionId = link.getAttribute("href").slice(1);
+          const heading = byId(`${sectionId}-heading`);
+          if (heading) {
+            const hadTabIndex = heading.hasAttribute("tabindex");
+            if (!hadTabIndex) heading.setAttribute("tabindex", "-1");
+            heading.focus({ preventScroll: true });
+            if (!hadTabIndex) {
+              heading.addEventListener("blur", () => {
+                heading.removeAttribute("tabindex");
+              }, { once: true });
+            }
+          }
         });
       });
 
