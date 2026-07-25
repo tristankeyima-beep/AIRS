@@ -476,6 +476,10 @@ const summary = templateModel.reportKind === "certification"
   ? elements.get("overview-content")
   : elements.get("summary-content");
 const rules = elements.get("rules-content");
+const scopeContent = elements.get("scope-content");
+const sourcesContent = elements.get("sources-content");
+const issuesContent = elements.get("issues-content");
+const dimensionsContent = elements.get("dimensions-content");
 const logicContent = elements.get("logic-content");
 const ruleNodes = descendantsWithClass(logicContent, "rule-node");
 const extractionNodes = descendantsWithClass(
@@ -498,6 +502,40 @@ process.stdout.write(JSON.stringify({
   errorText: collectText(errorPanel),
   summaryChildCount: summary ? summary.children.length : null,
   rulesChildCount: rules ? rules.children.length : null,
+  summaryText: collectText(summary),
+  summaryLabels: summary
+    ? summary.children.slice(0, 5).map(card => {
+      const label = walk(card).find(item =>
+        item.className.split(/\s+/).includes("label")
+      );
+      return label ? collectText(label).trim() : "";
+    })
+    : [],
+  scopeText: collectText(scopeContent),
+  sourcesText: collectText(sourcesContent),
+  issuesText: collectText(issuesContent),
+  dimensionsText: collectText(dimensionsContent),
+  rulesText: collectText(rules),
+  sourceIds: sourcesContent
+    ? walk(sourcesContent).map(item => item.id).filter(id =>
+      id && id !== "sources-content"
+    )
+    : [],
+  sourcePreTexts: sourcesContent
+    ? walk(sourcesContent)
+      .filter(item => item.tagName === "PRE")
+      .map(item => item.textContent)
+    : [],
+  issueLinkTargets: issuesContent
+    ? walk(issuesContent)
+      .filter(item => item.tagName === "A")
+      .map(item => item.getAttribute("href"))
+    : [],
+  renderedIssueCount: issuesContent
+    ? issuesContent.children.filter(item =>
+      item.className.split(/\s+/).includes("issue")
+    ).length
+    : null,
   ...(templateModel.reportKind === "certification" ? {
     logicTreeShape: {
       groupCount: logicGroups.length,
@@ -3187,7 +3225,7 @@ class FlashQcReportTemplateTests(unittest.TestCase):
             'audit_result: "原审核结果"',
             'true: "已确认"',
             'false: "未确认"',
-            'two_stage_non_blind: "同一上下文两阶段复核（非盲）"',
+            'two_stage_non_blind: "两阶段复核：先独立判断，再对照原审核"',
         )
         for mapping in mappings:
             self.assertIn(mapping, self.template)
@@ -3252,7 +3290,7 @@ class FlashQcReportTemplateTests(unittest.TestCase):
             "review.materialFacts",
             "review.preliminaryResult",
             "review.ruleJudgments",
-            '"患者材料事实"',
+            '"本次质控提取的患者材料事实"',
             '"独立复核初步结果"',
         ):
             self.assertIn(required, rules_renderer)

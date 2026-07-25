@@ -350,7 +350,7 @@
     }
 
     .summary-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
     }
 
     .scope-grid {
@@ -387,6 +387,33 @@
 
     .card.not-checked {
       border-left: 4px solid var(--unknown);
+      background: #fff8e8;
+    }
+
+    .not-checked-reason {
+      padding: 0.75rem;
+      color: #5c4300;
+      background: #fff1c7;
+      border: 1px solid #e7c96c;
+      border-radius: var(--radius-sm);
+      font-weight: 700;
+    }
+
+    .source-warning,
+    .material-warning {
+      color: #7b2f20;
+      font-weight: 700;
+    }
+
+    .structured-tree {
+      margin: 0.5rem 0 1rem;
+      padding-left: 1.25rem;
+    }
+
+    .source-link {
+      display: inline-block;
+      margin: 0.25rem 0.75rem 0.25rem 0;
+      font-weight: 700;
     }
 
     .label {
@@ -786,12 +813,12 @@
       <nav id="page-navigation" aria-label="页面导航">
         <a href="#summary">结论总览</a>
         <a href="#scope">输入范围</a>
+        <a href="#sources">原始材料</a>
         <a href="#dimensions">五维检查</a>
         <a href="#issues">问题清单</a>
         <a href="#rules">逐规则复核</a>
         <a href="#recommendations">建议</a>
         <a href="#analysis">分析记录</a>
-        <a href="#sources">原始材料</a>
         <a href="#confirmation">确认记录</a>
       </nav>
     </aside>
@@ -819,15 +846,26 @@
           <span class="number">02</span>
           <div>
             <h2 id="scope-heading">输入范围</h2>
-            <p class="section-note">本次复核收到的材料范围、审核粒度与独立审查事实。</p>
+            <p class="section-note">本次复核收到的材料范围、审核粒度与两阶段复核方法。</p>
           </div>
         </div>
         <div class="scope-grid" id="scope-content"></div>
       </section>
 
-      <section id="dimensions" aria-labelledby="dimensions-heading">
+      <section id="sources" aria-labelledby="sources-heading">
         <div class="section-heading">
           <span class="number">03</span>
+          <div>
+            <h2 id="sources-heading">原始材料</h2>
+            <p class="section-note">逐份保存并展示患者材料、认定标准与原审核结果原文。</p>
+          </div>
+        </div>
+        <div id="sources-content"></div>
+      </section>
+
+      <section id="dimensions" aria-labelledby="dimensions-heading">
+        <div class="section-heading">
+          <span class="number">04</span>
           <div>
             <h2 id="dimensions-heading">五维检查</h2>
             <p class="section-note">从材料、证据、推理、结论一致性和规则维护五个维度检查。</p>
@@ -838,7 +876,7 @@
 
       <section id="issues" aria-labelledby="issues-heading">
         <div class="section-heading">
-          <span class="number">04</span>
+          <span class="number">05</span>
           <div>
             <h2 id="issues-heading">问题清单</h2>
             <p class="section-note">每个问题均保留原审核主张、实际证据、来源与影响。</p>
@@ -849,7 +887,7 @@
 
       <section id="rules" aria-labelledby="rules-heading">
         <div class="section-heading">
-          <span class="number">05</span>
+          <span class="number">06</span>
           <div>
             <h2 id="rules-heading">逐规则复核</h2>
             <p class="section-note">先依据患者材料和认定标准形成的独立判断，不以原审核结果替代。</p>
@@ -860,7 +898,7 @@
 
       <section id="recommendations" aria-labelledby="recommendations-heading">
         <div class="section-heading">
-          <span class="number">06</span>
+          <span class="number">07</span>
           <div>
             <h2 id="recommendations-heading">建议</h2>
             <p class="section-note">针对本次质控发现形成的可执行修正建议。</p>
@@ -871,24 +909,13 @@
 
       <section id="analysis" aria-labelledby="analysis-heading">
         <div class="section-heading">
-          <span class="number">07</span>
+          <span class="number">08</span>
           <div>
             <h2 id="analysis-heading">分析记录</h2>
             <p class="section-note">保留从输入理解到初步结论的完整分析草稿。</p>
           </div>
         </div>
         <div class="analysis-columns" id="analysis-content"></div>
-      </section>
-
-      <section id="sources" aria-labelledby="sources-heading">
-        <div class="section-heading">
-          <span class="number">08</span>
-          <div>
-            <h2 id="sources-heading">原始材料</h2>
-            <p class="section-note">逐份保存并展示患者材料、认定标准与原审核结果原文。</p>
-          </div>
-        </div>
-        <div id="sources-content"></div>
       </section>
 
       <section id="confirmation" aria-labelledby="confirmation-heading">
@@ -939,7 +966,7 @@
         audit_result: "原审核结果",
         true: "已确认",
         false: "未确认",
-        two_stage_non_blind: "同一上下文两阶段复核（非盲）"
+        two_stage_non_blind: "两阶段复核：先独立判断，再对照原审核"
       };
       const standardKinds = new Set([
         "structured", "natural_language", "absent"
@@ -977,6 +1004,24 @@
         ? "无"
         : String(value);
       const translated = value => labels[value] || text(value);
+      const classifyOriginalConclusion = value => {
+        const content = String(value || "");
+        if (/(?:不通过|不予通过|拒绝)/.test(content)) {
+          return "does_not_meet";
+        }
+        if (/通过/.test(content)) return "meets";
+        return "unknown";
+      };
+      const comparisonDirection = data => {
+        const original = classifyOriginalConclusion(
+          data.auditComparison.originalConclusion
+        );
+        const independent = data.baseReview.preliminaryResult;
+        if (original === "unknown" || independent === "uncertain") {
+          return "无法判断";
+        }
+        return original === independent ? "一致" : "相反";
+      };
 
       const node = (tag, content, className) => {
         const element = document.createElement(tag);
@@ -1145,6 +1190,54 @@
         )) {
           throw new Error("问题严重程度无效");
         }
+        const comparison = data.auditComparison;
+        const original = classifyOriginalConclusion(
+          comparison.originalConclusion
+        );
+        const independent = data.baseReview.preliminaryResult;
+        const hasIssues = (
+          data.issues.length > 0
+          || data.dimensions.some(dimension => dimension.status === "issue")
+        );
+        let riskIsConsistent = true;
+        if (comparison.qcConclusion === "uncertain") {
+          riskIsConsistent = !hasIssues && comparison.risk === "unknown";
+        } else if (comparison.qcConclusion === "reliable") {
+          riskIsConsistent = !hasIssues && comparison.risk === "none";
+        } else if (!hasIssues) {
+          riskIsConsistent = false;
+        } else if (original === "unknown" || independent === "uncertain") {
+          riskIsConsistent = (
+            comparison.risk === "none"
+            || comparison.risk === "unknown"
+          );
+        } else if (original === independent) {
+          riskIsConsistent = comparison.risk === "none";
+        } else {
+          const expectedRisk = original === "meets"
+            ? "false_approval"
+            : "false_rejection";
+          riskIsConsistent = comparison.risk === expectedRisk;
+        }
+        if (data.inputProfile.auditDetail === "conclusion_only") {
+          const onlyUncheckedWithoutIssue = (
+            !hasIssues
+            && data.dimensions.every(
+              dimension => dimension.status === "not_checked"
+            )
+          );
+          const uncertainUnknown = (
+            comparison.qcConclusion === "uncertain"
+            && comparison.risk === "unknown"
+          );
+          riskIsConsistent = (
+            riskIsConsistent
+            && onlyUncheckedWithoutIssue === uncertainUnknown
+          );
+        }
+        if (!riskIsConsistent) {
+          throw new Error("风险方向与复核结论不一致");
+        }
         if (!data.meta.reportTitle || !data.meta.diseaseName || !data.meta.generatedAt) {
           throw new Error("报告数据不完整：缺少报告基本信息");
         }
@@ -1165,7 +1258,13 @@
         const comparison = data.auditComparison;
         const root = byId("summary-content");
         root.replaceChildren(
+          makeValueCard(
+            "本次独立复核",
+            data.baseReview.preliminaryResult,
+            true
+          ),
           makeValueCard("原审核结论", comparison.originalConclusion, true),
+          makeValueCard("方向判断", comparisonDirection(data), true),
           makeValueCard("质控结论", comparison.qcConclusion, true),
           makeValueCard("风险方向", comparison.risk, true)
         );
@@ -1196,19 +1295,21 @@
         const reviewCard = node("article", null, "card");
         add(
           reviewCard,
-          node("h3", "独立复核"),
+          node("h3", "两阶段复核：先独立判断，再对照原审核"),
           node("span", "复核方法", "label"),
           makeBadge(review.method),
-          node("span", "初步资格判断", "label"),
-          makeBadge(review.preliminaryResult)
+          node(
+            "p",
+            "第一阶段仅依据患者材料和认定标准形成独立判断；第二阶段再对照原审核结果。",
+            "muted"
+          ),
+          node(
+            "p",
+            "原审核结果在同一任务中可见，因此属于非盲复核。",
+            "muted"
+          )
         );
-        const facts = node("article", null, "card wide");
-        add(
-          facts,
-          node("h3", "患者材料事实"),
-          makeList(review.materialFacts, "fact-list")
-        );
-        root.replaceChildren(profileCard, reviewCard, facts);
+        root.replaceChildren(profileCard, reviewCard);
       };
 
       const renderDimensions = data => {
@@ -1226,11 +1327,16 @@
             makeBadge(dimension.status)
           );
           add(card, head, node("p", text(dimension.summary)));
-          if (dimension.notCheckedReason) {
+          if (dimension.status === "not_checked") {
             add(
               card,
-              node("span", "未检查原因", "label"),
-              node("p", dimension.notCheckedReason, "muted")
+              node("strong", "本项因输入受限未核查"),
+              node("span", "未核查原因", "label"),
+              node(
+                "p",
+                dimension.notCheckedReason,
+                "not-checked-reason"
+              )
             );
           }
           root.appendChild(card);
@@ -1243,8 +1349,44 @@
         return wrap;
       };
 
+      const patientMaterialIndex = data => {
+        const index = new Map();
+        data.sourceDocuments.forEach((source, sourceIndex) => {
+          if (source.type !== "patient_material") return;
+          const searchable = `${source.name}\n${source.content}`;
+          const ids = searchable.match(/\b\d{8,}\b/g) || [];
+          ids.forEach(id => {
+            if (!index.has(id)) index.set(id, `source-${sourceIndex + 1}`);
+          });
+        });
+        return index;
+      };
+
+      const sourceReferenceDetail = (value, materialIndex) => {
+        const wrap = detail("来源定位", value, true);
+        const ids = Array.from(new Set(
+          (String(value || "").match(/\b\d{8,}\b/g) || [])
+        ));
+        ids.forEach(id => {
+          const sourceId = materialIndex.get(id);
+          if (sourceId) {
+            const link = node("a", `定位材料 ${id}`, "source-link");
+            link.setAttribute("href", `#${sourceId}`);
+            wrap.appendChild(link);
+          } else {
+            wrap.appendChild(node(
+              "p",
+              `材料 ${id}：引用材料未在本报告材料清单中`,
+              "material-warning"
+            ));
+          }
+        });
+        return wrap;
+      };
+
       const renderIssues = data => {
         const root = byId("issues-content");
+        const materialIndex = patientMaterialIndex(data);
         root.replaceChildren();
         if (data.issues.length === 0) {
           root.appendChild(node("p", "未发现质控问题", "empty-state"));
@@ -1265,7 +1407,7 @@
             grid,
             detail("原审核主张", issue.auditClaim),
             detail("实际证据", issue.actualEvidence),
-            detail("来源定位", issue.sourceReference, true),
+            sourceReferenceDetail(issue.sourceReference, materialIndex),
             detail("可能影响", issue.impact),
             detail("改进建议", issue.recommendation)
           );
@@ -1281,7 +1423,12 @@
         const facts = node("article", null, "card wide");
         add(
           facts,
-          node("h3", "患者材料事实"),
+          node("h3", "本次质控提取的患者材料事实"),
+          node(
+            "p",
+            "以下事实由本次质控归纳，不代表原审核结论；具体内容以原始材料为准。",
+            "muted"
+          ),
           makeList(review.materialFacts, "fact-list")
         );
         const result = makeValueCard(
@@ -1305,6 +1452,13 @@
           add(
             card,
             head,
+            ...(String(judgment.ruleId).startsWith("TMP-")
+              ? [node(
+                "p",
+                "本次质控临时规则，非正式业务标准",
+                "source-warning"
+              )]
+              : []),
             node("span", "判断理由", "label"),
             node("p", text(judgment.reason)),
             node("span", "证据", "label"),
@@ -1338,23 +1492,147 @@
         );
       };
 
+      const makeFullSourceDetails = content => {
+        const full = node("details");
+        add(
+          full,
+          node("summary", "查看完整原文"),
+          node("pre", content, "source-copy detail-body")
+        );
+        return full;
+      };
+
+      const appendStructuredValue = (parent, value, state, depth = 0) => {
+        state.nodes += 1;
+        if (depth > 8 || state.nodes > 500) {
+          throw new Error("结构化内容超过安全展示限制");
+        }
+        if (value === null || typeof value !== "object") {
+          parent.appendChild(node("span", value === null ? "null" : String(value)));
+          return;
+        }
+        const list = node("ul", null, "structured-tree");
+        const entries = Array.isArray(value)
+          ? value.map((item, index) => [String(index + 1), item])
+          : Object.entries(value);
+        entries.forEach(entry => {
+          const item = node("li");
+          add(item, node("strong", `${entry[0]}：`));
+          appendStructuredValue(item, entry[1], state, depth + 1);
+          list.appendChild(item);
+        });
+        parent.appendChild(list);
+      };
+
+      const explicitAuditSegments = content => {
+        const marker = /(?:^|\n)\s*(finalResult|最终结论|ruleResults|逐规则审核结果|advice|审核建议|rawText|引用原文)\s*[:：]\s*/g;
+        const matches = Array.from(content.matchAll(marker));
+        if (matches.length < 2) return null;
+        const labelMap = {
+          finalResult: "最终结论",
+          最终结论: "最终结论",
+          ruleResults: "逐规则审核结果",
+          逐规则审核结果: "逐规则审核结果",
+          advice: "审核建议",
+          审核建议: "审核建议",
+          rawText: "引用原文",
+          引用原文: "引用原文"
+        };
+        return matches.map((match, index) => ({
+          label: labelMap[match[1]],
+          value: content.slice(
+            match.index + match[0].length,
+            index + 1 < matches.length ? matches[index + 1].index : content.length
+          ).trim()
+        }));
+      };
+
+      const appendPlainAuditSegments = (parent, segments) => {
+        segments.forEach(segment => {
+          const card = node("article", null, "card");
+          add(
+            card,
+            node("h4", segment.label),
+            node("p", segment.value)
+          );
+          if (
+            segment.label === "逐规则审核结果"
+            && /\b(?:TMP-)?[A-Z][A-Z0-9_-]*\b/.test(segment.value)
+            && /(?:不通过|通过)/.test(segment.value)
+            && /\b\d{4,}_\d+\b/.test(segment.value)
+          ) {
+            const ruleDetails = node("details");
+            add(
+              ruleDetails,
+              node("summary", "规则明细"),
+              node("p", segment.value, "detail-body")
+            );
+            const extractionDetails = node("details");
+            add(
+              extractionDetails,
+              node("summary", "提取项卡"),
+              node(
+                "p",
+                (segment.value.match(/\b\d{4,}_\d+\b/g) || []).join("、"),
+                "detail-body"
+              )
+            );
+            add(card, ruleDetails, extractionDetails);
+          }
+          parent.appendChild(card);
+        });
+      };
+
+      const renderAuditSourceBody = source => {
+        const body = node("div", null, "detail-body");
+        try {
+          const parsed = JSON.parse(source.content);
+          add(body, node("h3", "结构化摘要"));
+          appendStructuredValue(body, parsed, { nodes: 0 });
+        } catch (jsonError) {
+          try {
+            const segments = explicitAuditSegments(source.content);
+            if (!segments) throw new Error("缺少明确分段边界");
+            add(body, node("h3", "结构化摘要"));
+            appendPlainAuditSegments(body, segments);
+          } catch (plainError) {
+            add(
+              body,
+              node(
+                "p",
+                "原审核结果无法自动结构化，以下按原文展示",
+                "source-warning"
+              )
+            );
+          }
+        }
+        body.appendChild(makeFullSourceDetails(source.content));
+        return body;
+      };
+
       const renderSources = data => {
         const root = byId("sources-content");
         root.replaceChildren();
         data.sourceDocuments.forEach((source, index) => {
           const details = node("details");
+          details.setAttribute("id", `source-${index + 1}`);
           const summary = node("summary");
           add(
             summary,
             node("span", `${index + 1}. ${text(source.name)}`),
             makeBadge(source.type)
           );
-          const body = node("div", null, "detail-body");
-          add(
-            body,
-            node("span", "完整原文", "label"),
-            node("pre", text(source.content), "source-copy")
-          );
+          const body = source.type === "audit_result"
+            ? renderAuditSourceBody(source)
+            : (() => {
+              const ordinaryBody = node("div", null, "detail-body");
+              add(
+                ordinaryBody,
+                node("span", "完整原文", "label"),
+                node("pre", source.content, "source-copy")
+              );
+              return ordinaryBody;
+            })();
           add(details, summary, body);
           root.appendChild(details);
         });
@@ -1389,12 +1667,12 @@
         renderHeader(data);
         renderSummary(data);
         renderScope(data);
+        renderSources(data);
         renderDimensions(data);
         renderIssues(data);
         renderRules(data);
         renderRecommendations(data);
         renderAnalysis(data);
-        renderSources(data);
         renderConfirmation(data);
       };
 
