@@ -1,10 +1,23 @@
+import json
 import re
 import unittest
+from collections import Counter
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILL_ROOT = REPO_ROOT / "chronic-disease-certification-qc-flash"
+ACCEPTANCE_ROOT = REPO_ROOT / "chronic-disease-certification-qc-flash-acceptance"
+MODE1_REQUIRED_KEYS = {
+    "schemaVersion",
+    "mode",
+    "meta",
+    "sourceDocuments",
+    "analysisRecord",
+    "rules",
+    "logic",
+    "confirmation",
+}
 
 
 def read(path):
@@ -155,6 +168,120 @@ class FlashSkillStaticStructureTests(unittest.TestCase):
             content = read(path).upper()
             for marker in forbidden:
                 self.assertNotIn(marker, content, path.relative_to(REPO_ROOT))
+
+
+class Mode1FixtureContractTests(unittest.TestCase):
+    def test_valid_mode1_fixture_has_canonical_contract(self):
+        fixture_path = ACCEPTANCE_ROOT / "fixtures" / "valid-mode1.json"
+        self.assertTrue(fixture_path.is_file(), "missing valid-mode1.json")
+        fixture = json.loads(read(fixture_path))
+
+        self.assertEqual(MODE1_REQUIRED_KEYS, set(fixture))
+        self.assertEqual("flash-1.0", fixture["schemaVersion"])
+        self.assertEqual("certification", fixture["mode"])
+        self.assertEqual(
+            {
+                "inputSummary",
+                "interpretations",
+                "evidenceFindings",
+                "uncertainties",
+                "preliminaryConclusion",
+            },
+            set(fixture["analysisRecord"]),
+        )
+        self.assertTrue(fixture["sourceDocuments"])
+        for source in fixture["sourceDocuments"]:
+            self.assertTrue(source["content"].strip())
+
+        rule_ids = [rule["id"] for rule in fixture["rules"]]
+        self.assertEqual(
+            [f"R{index:03d}" for index in range(1, len(rule_ids) + 1)],
+            rule_ids,
+        )
+        extraction_ids = []
+        for rule in fixture["rules"]:
+            self.assertTrue(rule["sourceQuote"].strip())
+            for item in rule["extractionItems"]:
+                extraction_ids.append(item["id"])
+                self.assertIn(item["dataType"], {"enum", "text"})
+        self.assertEqual(
+            [f"K{index:03d}" for index in range(1, len(extraction_ids) + 1)],
+            extraction_ids,
+        )
+
+        references = []
+
+        def collect_logic(node):
+            self.assertIn(node.get("type"), {"group", "rule"})
+            if node["type"] == "group":
+                self.assertEqual({"type", "operator", "children"}, set(node))
+                self.assertIn(node["operator"], {"AND", "OR"})
+                self.assertTrue(node["children"])
+                for child in node["children"]:
+                    collect_logic(child)
+                return
+
+            self.assertEqual({"type", "ruleId"}, set(node))
+            references.append(node["ruleId"])
+
+        collect_logic(fixture["logic"])
+        self.assertEqual(set(rule_ids), set(references))
+        self.assertEqual(Counter({rule_id: 1 for rule_id in rule_ids}), Counter(references))
+        self.assertTrue(fixture["confirmation"]["confirmed"])
+
+
+class Mode1DocumentationTests(unittest.TestCase):
+    def test_skill_declares_gated_mode1_workflow(self):
+        skill = read(SKILL_ROOT / "SKILL.md")
+        section_match = re.search(
+            r"^## 模式 1：生成结构化认定标准\s*$"
+            r"(?P<body>.*?)(?=^## |\Z)",
+            skill,
+            re.MULTILINE | re.DOTALL,
+        )
+        self.assertIsNotNone(section_match, "missing exact Mode 1 heading")
+        section = section_match.group("body")
+
+        markers = (
+            "references/mode1-contract.md",
+            "references/output-checklist.md",
+            "assets/certification-template.html",
+            "阻断性歧义",
+            "待确认摘要",
+            "用户确认",
+            "分析草稿",
+            "正式 JSON",
+            "安全写入",
+            "JSON 和 HTML",
+        )
+        for marker in markers:
+            self.assertIn(marker, section)
+        self.assertNotIn("references/mode2-contract.md", section)
+        self.assertLess(section.index("阻断性歧义"), section.index("用户确认"))
+        self.assertLess(section.index("用户确认"), section.index("正式 JSON"))
+
+    def test_mode1_contract_documents_complete_flash_schema(self):
+        contract = read(SKILL_ROOT / "references" / "mode1-contract.md")
+
+        for field in MODE1_REQUIRED_KEYS:
+            self.assertIn(field, contract)
+        for marker in (
+            "R001",
+            "K001",
+            "enum",
+            "text",
+            "group",
+            "rule",
+            "AND",
+            "OR",
+            "sourceDocuments",
+            "analysisRecord",
+            "阻断性歧义",
+            "<病种>-认定标准-flash-<版本>.json",
+            "<病种>-认定标准-flash-<版本>.html",
+        ):
+            self.assertIn(marker, contract)
+        self.assertRegex(contract, r"阻断性歧义.{0,80}(?:未解决|未消除).{0,80}(?:不得|禁止)")
 
 
 if __name__ == "__main__":

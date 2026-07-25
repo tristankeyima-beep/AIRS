@@ -1,25 +1,3 @@
-# 模式 1 Flash 契约
-
-仅使用来源原文生成认定标准。阻断性歧义未解决时，不得生成正式 JSON 或 HTML；`analysisRecord.uncertainties` 只能记录不影响定稿的非阻断性不确定项。
-
-## 输出约束
-
-- 根对象必须且只能包含 `schemaVersion`、`mode`、`meta`、`sourceDocuments`、`analysisRecord`、`rules`、`logic`、`confirmation`。
-- `schemaVersion` 固定为 `flash-1.0`，`mode` 固定为 `certification`。
-- `meta` 必须包含 `diseaseName`、`diseaseCode`、`version`、`description` 四个字符串；`diseaseCode` 可以为空字符串。
-- `sourceDocuments` 必须保存每份来源的名称和完整原文，禁止只存摘要或截断内容。
-- `analysisRecord` 必须且只能包含 `inputSummary`、`interpretations`、`evidenceFindings`、`uncertainties`、`preliminaryConclusion`。
-- 规则 `id` 从 `R001` 开始按数组顺序连续且唯一。所有规则的提取项 `id` 在全局从 `K001` 开始连续且唯一。
-- 每条规则必须保存非空 `sourceQuote`。每个提取项必须包含 `name`、`dataType`、`expectedEvidence`、`negativeEvidence`、`unknownWhen`、`preferredSource`；`dataType` 只能是 `enum` 或 `text`。
-- `logic` 只允许嵌套 `group` 和 `rule` 节点。`group.operator` 只能是 `AND` 或 `OR`，且 `children` 非空；`rule.ruleId` 引用已声明规则。每条规则必须且只能被引用一次。
-- 取得用户确认后才可把 `confirmation.confirmed` 设为 `true` 并生成正式成果。
-- 文件名固定为 `<病种>-认定标准-flash-<版本>.json` 和 `<病种>-认定标准-flash-<版本>.html`。
-
-## 规范 JSON 示例
-
-以下结构与字段名必须原样遵守；内容替换为当前病种和来源：
-
-```json
 {
   "schemaVersion": "flash-1.0",
   "mode": "certification",
@@ -102,4 +80,3 @@
     "userResponse": "确认"
   }
 }
-```
