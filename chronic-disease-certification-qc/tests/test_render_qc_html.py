@@ -177,6 +177,57 @@ class QcRendererTests(unittest.TestCase):
                 )
                 self.assertIn("<!doctype html>", self.renderer.render_qc_html(fixture))
 
+    def test_business_labels_navigation_capability_links_and_reordered_advice(self):
+        report = json.loads(MODE2_FIXTURES[1].read_text(encoding="utf-8"))
+        report["issues"] = [
+            {
+                "issueId": "TRACE-001",
+                "category": "证据提取准确性",
+                "relatedCapabilities": ["材料缺失判断准确性"],
+                "issueType": "证据溯源错误",
+                "severity": "medium",
+                "ruleCode": "",
+                "keywordCode": "",
+                "modelClaim": "引用不存在的材料编号",
+                "evidenceStatus": "NOT_FOUND",
+                "materialEvidence": [],
+                "qcFinding": "原文存在，但材料编号引用错误",
+                "possibleImpact": "证据链无法准确追溯",
+                "impactOnFinalResult": "unchanged",
+                "riskDirection": "none",
+                "recommendation": "修正材料编号映射",
+                "confidence": "high",
+            }
+        ]
+        report.update({"qcConclusion": "基本可靠", "riskDirection": "局部判断错误"})
+        rendered = self.renderer.render_qc_html(report)
+        text = self.renderer.render_qc_text(report)
+
+        for value in (
+            '<nav class="section-nav"',
+            'href="#section-material-missing"',
+            'href="#section-evidence-accuracy"',
+            ">查看</a>",
+            ">未执行</span>",
+            "不完整结构化标准",
+            "详细审核结果",
+            "证据未找到",
+            "严重度：中",
+            "置信度：高",
+            "规则：不适用",
+            'id="issue-TRACE-001"',
+            'href="#issue-TRACE-001"',
+        ):
+            self.assertIn(value, rendered)
+        for raw_label in (">completed<", ">partial<", ">not_run<", "严重度：medium", "置信度：high"):
+            self.assertNotIn(raw_label, rendered)
+        self.assertLess(rendered.index('id="section-final-impact"'), rendered.index("总体建议"))
+        self.assertLess(rendered.index("总体建议"), rendered.index('id="section-material-missing"'))
+        self.assertLess(text.index("# 影响最终结论的问题"), text.index("# 建议"))
+        self.assertLess(text.index("# 建议"), text.index("# 材料缺失复核"))
+        for value in ('状态："未执行"', '标准格式："不完整结构化标准"', '严重度："中"', '证据状态："证据未找到"'):
+            self.assertIn(value, text)
+
     def test_eleven_single_mutation_regressions_have_local_errors(self):
         cases = []
 
@@ -390,8 +441,8 @@ class QcRendererTests(unittest.TestCase):
             self.renderer.validate_qc_report(report)
         review = {"ruleCode": "R001", "result": "无法判断", "modelClaim": "无主张", "evidenceStatus": "NOT_FOUND", "materialEvidence": [], "qcFinding": "无材料", "recommendation": "补充材料"}
         report = copy.deepcopy(self.report); report["ruleReviews"] = [review]
-        self.assertIn("NOT_FOUND", self.renderer.render_qc_text(report))
-        self.assertIn("NOT_FOUND", self.renderer.render_qc_html(report))
+        self.assertIn("证据未找到", self.renderer.render_qc_text(report))
+        self.assertIn("证据未找到", self.renderer.render_qc_html(report))
         report["ruleReviews"][0]["evidenceStatus"] = "MAYBE"
         with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
 
@@ -591,7 +642,7 @@ class QcRendererTests(unittest.TestCase):
         digest = report["inputScope"]["confirmation"]["inventorySha256"]
         self.assertEqual(self.renderer.compute_inventory_sha256(inventory), digest)
         text = self.renderer.render_qc_text(report); rendered = self.renderer.render_qc_html(report)
-        for value in ("isolated_blind", digest, "确认没有更多内容", "规则配置"):
+        for value in ("隔离盲审", digest, "确认没有更多内容", "规则配置"):
             self.assertIn(value, text); self.assertIn(value, rendered)
         for field, value in (("standardKind", "unknown"), ("auditResultKind", "unknown")):
             invalid = copy.deepcopy(report); invalid["inputScope"][field] = value
@@ -774,7 +825,7 @@ class QcRendererTests(unittest.TestCase):
             with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
 
     def test_approved_issue_codes_and_plan_evidence_shape_are_enforced(self):
-        self.assertEqual(self.renderer.RISK_LABELS["none"], "未发现明显风险")
+        self.assertEqual(self.renderer.RISK_LABELS["none"], "未影响最终结论")
         self.assertNotIn("未发现直接风险", self.renderer.RISK_LABELS.values())
         for impact in ("changed", "potentially_changed", "unchanged", "unknown"):
             report = copy.deepcopy(self.report); report["issues"][0]["impactOnFinalResult"] = impact
@@ -830,7 +881,7 @@ class QcRendererTests(unittest.TestCase):
         report["issues"] = []; report["ruleReviews"] = []; report["unperformedChecks"] = []
         report["capabilities"][1].update({"status": "completed", "reason": ""})
         text = self.renderer.render_qc_text(report)
-        headings = ["质控结论", "输入与检查范围", "影响最终结论的问题", "材料缺失复核", "证据准确性", "过度推理", "条件一致性", "规则维护质量", "逐规则复核", "建议", "未执行检查", "原始输入"]
+        headings = ["质控结论", "输入与检查范围", "影响最终结论的问题", "建议", "材料缺失复核", "证据准确性", "过度推理", "条件一致性", "规则维护质量", "逐规则复核", "未执行检查", "原始输入"]
         positions = [text.index("# " + heading) for heading in headings]
         self.assertEqual(positions, sorted(positions))
         self.assertGreaterEqual(text.count("无相关问题"), 5)

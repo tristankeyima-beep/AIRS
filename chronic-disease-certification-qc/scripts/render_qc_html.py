@@ -39,8 +39,62 @@ EVIDENCE_STATES = {"SUPPORTED", "CONTRADICTED", "NOT_FOUND", "INSUFFICIENT", "CO
 CATEGORIES = {"材料缺失判断准确性", "证据提取准确性", "过度推理", "审核条件与结论一致性", "规则维护质量"}
 ISSUE_CAPABILITY_BY_CATEGORY = {name: name for name in CATEGORIES}
 SECTION_CATEGORIES = (("材料缺失复核", "材料缺失判断准确性"), ("证据准确性", "证据提取准确性"), ("过度推理", "过度推理"), ("条件一致性", "审核条件与结论一致性"), ("规则维护质量", "规则维护质量"))
-RISK_LABELS = {"false_approval": "错误放行风险", "false_rejection": "错误拒绝风险", "both": "错误放行与错误拒绝风险", "none": "未发现明显风险"}
+RISK_LABELS = {
+    "false_approval": "可能导致不符合条件的申请被通过",
+    "false_rejection": "可能导致符合条件的申请被拒绝",
+    "both": "两个方向均可能受影响",
+    "none": "未影响最终结论",
+}
 IMPACT_LABELS = {"changed": "已改变最终结论", "potentially_changed": "可能改变最终结论", "unchanged": "未改变最终结论", "unknown": "最终影响暂无法判断"}
+CAPABILITY_STATUS_LABELS = {"completed": "已完成", "partial": "部分完成", "not_run": "未执行"}
+SEVERITY_LABELS = {"high": "高", "medium": "中", "low": "低"}
+EVIDENCE_STATE_LABELS = {
+    "SUPPORTED": "证据支持",
+    "CONTRADICTED": "证据矛盾",
+    "INSUFFICIENT": "证据不足",
+    "CONFLICTED": "证据相互冲突",
+    "NOT_FOUND": "证据未找到",
+    "NOT_APPLICABLE": "不适用",
+}
+STANDARD_KIND_LABELS = {
+    "structured_complete": "完整结构化标准",
+    "structured_incomplete": "不完整结构化标准",
+    "natural_language": "自然语言标准",
+    "absent": "未提供标准",
+}
+AUDIT_RESULT_KIND_LABELS = {
+    "detailed": "详细审核结果",
+    "brief": "简要审核结果",
+    "conclusion_only": "仅审核结论",
+}
+REVIEW_MODE_LABELS = {
+    "isolated_blind": "隔离盲审",
+    "independent_non_blind": "独立二次复核（非盲）",
+}
+CONFIRMATION_OUTCOME_LABELS = {"confirmed_complete": "已确认完整"}
+BOOLEAN_LABELS = {True: "是", False: "否"}
+CAPABILITY_SECTION_IDS = {
+    "材料缺失判断准确性": "section-material-missing",
+    "证据提取准确性": "section-evidence-accuracy",
+    "过度推理": "section-over-inference",
+    "审核条件与结论一致性": "section-condition-consistency",
+    "规则维护质量": "section-rule-maintenance",
+}
+REPORT_NAVIGATION = (
+    ("section-conclusion", "质控结论"),
+    ("section-scope", "输入与范围"),
+    ("section-capabilities", "检查能力"),
+    ("section-final-impact", "结论影响"),
+    ("section-recommendations", "建议"),
+    ("section-material-missing", "材料缺失复核"),
+    ("section-evidence-accuracy", "证据准确性"),
+    ("section-over-inference", "过度推理"),
+    ("section-condition-consistency", "条件一致性"),
+    ("section-rule-maintenance", "规则维护质量"),
+    ("section-rule-reviews", "逐规则复核"),
+    ("section-unperformed", "未执行检查"),
+    ("section-raw-input", "原始输入"),
+)
 EXPLAIN_TEXT = """质控报告对象关键约束
 - materialEvidence 必须是数组；NOT_FOUND/NOT_APPLICABLE 使用 []，其他证据状态使用非空数组。
 - 原始材料正文必须放在 rawInput.materials[].content。
@@ -724,6 +778,10 @@ def _text_scalar(value):
     return json.dumps(displayed, ensure_ascii=False)
 
 
+def _display_optional(value):
+    return value if isinstance(value, str) and value.strip() else "不适用"
+
+
 def _evidence_text(evidence):
     if not evidence: return "无证据。"
     entries = []
@@ -737,7 +795,7 @@ def _evidence_text(evidence):
 
 def _issue_text(issue):
     return "- 严重度：{}；问题类型：{}；规则：{}；关键词：{}；证据状态：{}；风险：{}；最终影响：{}；置信度：{}\n  模型主张：{}\n  材料/标准证据：{}\n  质控发现：{}\n  可能影响：{}\n  建议：{}".format(
-        _text_scalar(issue["severity"]), _text_scalar(issue["issueType"]), _text_scalar(issue["ruleCode"]), _text_scalar(issue["keywordCode"]), _text_scalar(issue["evidenceStatus"]), _text_scalar(RISK_LABELS[issue["riskDirection"]]), _text_scalar(IMPACT_LABELS[issue["impactOnFinalResult"]]), _text_scalar(issue["confidence"]), _text_scalar(issue["modelClaim"]), _evidence_text(issue["materialEvidence"]), _text_scalar(issue["qcFinding"]), _text_scalar(issue["possibleImpact"]), _text_scalar(issue["recommendation"]))
+        _text_scalar(SEVERITY_LABELS[issue["severity"]]), _text_scalar(issue["issueType"]), _text_scalar(_display_optional(issue["ruleCode"])), _text_scalar(_display_optional(issue["keywordCode"])), _text_scalar(EVIDENCE_STATE_LABELS[issue["evidenceStatus"]]), _text_scalar(RISK_LABELS[issue["riskDirection"]]), _text_scalar(IMPACT_LABELS[issue["impactOnFinalResult"]]), _text_scalar(SEVERITY_LABELS[issue["confidence"]]), _text_scalar(issue["modelClaim"]), _evidence_text(issue["materialEvidence"]), _text_scalar(issue["qcFinding"]), _text_scalar(issue["possibleImpact"]), _text_scalar(issue["recommendation"]))
 
 
 def _interpretation_paths_text(paths):
@@ -768,13 +826,13 @@ def _attestation_text(scope):
             _text_scalar(confirmation["inventorySha256"]),
             _text_scalar(inventory["rawInputSha256"]),
             _text_scalar(confirmation["userStatement"]),
-            _text_scalar(confirmation["outcome"]),
-            _text_scalar(confirmation["confirmedAfterInventory"]),
+            _text_scalar(CONFIRMATION_OUTCOME_LABELS[confirmation["outcome"]]),
+            _text_scalar(BOOLEAN_LABELS[confirmation["confirmedAfterInventory"]]),
         ),
         "审核引用但未提供：{}".format(_text_scalar("、".join(inventory["referencedButMissing"]) or "无")),
         "独立复核：模式：{}；比较前完成：{}；冻结产物摘要：{}".format(
-            _text_scalar(independent["mode"]),
-            _text_scalar(independent["completedBeforeComparison"]),
+            _text_scalar(REVIEW_MODE_LABELS[independent["mode"]]),
+            _text_scalar(BOOLEAN_LABELS[independent["completedBeforeComparison"]]),
             _text_scalar(independent["artifactSha256"]),
         ),
         "冻结独立复核产物：{}".format(_text_scalar(json.dumps(independent["artifact"], ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False))),
@@ -788,25 +846,25 @@ def render_qc_text(source):
     report = validate_qc_report(source)
     issue_groups = {category: [item for item in report["issues"] if item["category"] == category] for _, category in SECTION_CATEGORIES}
     changed = [item for item in report["issues"] if item["impactOnFinalResult"] in {"changed", "potentially_changed"}]
-    lines = ["# 质控结论", f"结论：{_text_scalar(report['qcConclusion'])}", f"风险方向：{_text_scalar(report['riskDirection'])}", f"原审核结论：{_text_scalar(report['originalResult'])}", f"问题数量：{len(report['issues'])}", "", "# 输入与检查范围", "案例：{}／{}／{}".format(_text_scalar(report["case"]["patientName"]), _text_scalar(report["case"]["diseaseName"]), _text_scalar(report["case"]["auditId"])), "材料：{}".format(_text_scalar("、".join(report["inputScope"]["materials"]) or "无")), f"标准格式：{_text_scalar(report['inputScope']['standardKind'])}", f"审核结果类型：{_text_scalar(report['inputScope']['auditResultKind'])}"]
+    lines = ["# 质控结论", f"结论：{_text_scalar(report['qcConclusion'])}", f"风险方向：{_text_scalar(report['riskDirection'])}", f"原审核结论：{_text_scalar(report['originalResult'])}", f"问题数量：{len(report['issues'])}", "", "# 输入与检查范围", "案例：{}／{}／{}".format(_text_scalar(report["case"]["patientName"]), _text_scalar(report["case"]["diseaseName"]), _text_scalar(report["case"]["auditId"])), "材料：{}".format(_text_scalar("、".join(report["inputScope"]["materials"]) or "无")), f"标准格式：{_text_scalar(STANDARD_KIND_LABELS[report['inputScope']['standardKind']])}", f"审核结果类型：{_text_scalar(AUDIT_RESULT_KIND_LABELS[report['inputScope']['auditResultKind']])}"]
     if "interpretationPaths" in report["inputScope"]:
         lines += _interpretation_paths_text(report["inputScope"]["interpretationPaths"])
     lines += _attestation_text(report["inputScope"])
     if report["capabilities"]:
-        lines += ["- 名称：{}；状态：{}；原因：{}".format(_text_scalar(item["name"]), _text_scalar(item["status"]), _text_scalar(item["reason"])) for item in report["capabilities"]]
+        lines += ["- 名称：{}；状态：{}；原因：{}".format(_text_scalar(item["name"]), _text_scalar(CAPABILITY_STATUS_LABELS[item["status"]]), _text_scalar(item["reason"] or "无")) for item in report["capabilities"]]
     else: lines.append("无能力检查记录")
     lines += ["", "# 影响最终结论的问题"]
     lines += [_issue_text(item) for item in changed] if changed else ["无相关问题"]
+    lines += ["", "# 建议", f"总体建议：{_text_scalar(report['recommendedAction'])}"]
+    for issue in report["issues"]: lines.append(f"- {_text_scalar(issue['recommendation'])}")
     for heading, category in SECTION_CATEGORIES:
         lines += ["", f"# {heading}"]
         lines += [_issue_text(item) for item in issue_groups[category]] if issue_groups[category] else ["无相关问题"]
     lines += ["", "# 逐规则复核"]
     if report["ruleReviews"]:
         for review in report["ruleReviews"]:
-            lines += ["- 规则：{}；结果：{}；证据状态：{}".format(_text_scalar(review["ruleCode"]), _text_scalar(review["result"]), _text_scalar(review["evidenceStatus"])), f"  模型主张：{_text_scalar(review['modelClaim'])}", f"  材料/标准证据：{_evidence_text(review['materialEvidence'])}", f"  质控发现：{_text_scalar(review['qcFinding'])}", f"  建议：{_text_scalar(review['recommendation'])}"]
+            lines += ["- 规则：{}；结果：{}；证据状态：{}".format(_text_scalar(review["ruleCode"]), _text_scalar(review["result"]), _text_scalar(EVIDENCE_STATE_LABELS[review["evidenceStatus"]])), f"  模型主张：{_text_scalar(review['modelClaim'])}", f"  材料/标准证据：{_evidence_text(review['materialEvidence'])}", f"  质控发现：{_text_scalar(review['qcFinding'])}", f"  建议：{_text_scalar(review['recommendation'])}"]
     else: lines.append("无逐规则复核")
-    lines += ["", "# 建议", f"总体建议：{_text_scalar(report['recommendedAction'])}"]
-    for issue in report["issues"]: lines.append(f"- {_text_scalar(issue['recommendation'])}")
     lines += ["", "# 未执行检查"]
     lines += ["- 名称：{}；原因：{}".format(_text_scalar(check["name"]), _text_scalar(check["reason"])) for check in report["unperformedChecks"]] if report["unperformedChecks"] else ["无未执行检查"]
     lines += ["", "# 原始输入", json.dumps(report["rawInput"], ensure_ascii=True, indent=2, sort_keys=True, allow_nan=False)]
@@ -827,9 +885,34 @@ def _evidence_html(evidence):
     return ''.join(cards)
 
 
-def _issue_html(issue):
-    tags = (("规则", issue["ruleCode"]), ("关键词", issue["keywordCode"]), ("证据状态", issue["evidenceStatus"]), ("严重度", issue["severity"]), ("风险", RISK_LABELS[issue["riskDirection"]]), ("最终影响", IMPACT_LABELS[issue["impactOnFinalResult"]]), ("置信度", issue["confidence"]))
-    return f'<article class="issue {esc(issue["severity"])}"><h3>{esc(issue["issueType"])} <span class="muted">· {esc(issue["category"])}</span></h3>' + ''.join(f'<span class="tag">{esc(key)}：{esc(value)}</span>' for key, value in tags) + f'<dl><dt>模型主张</dt><dd>{esc(issue["modelClaim"])}</dd><dt>实际材料或标准证据</dt><dd>{_evidence_html(issue["materialEvidence"])}</dd><dt>为何错误或存在问题</dt><dd>{esc(issue["qcFinding"])}</dd><dt>可能影响</dt><dd>{esc(issue["possibleImpact"])}</dd><dt>建议</dt><dd>{esc(issue["recommendation"])}</dd></dl></article>'
+def _issue_anchor(issue, index):
+    raw = issue.get("issueId") or str(index + 1)
+    safe = re.sub(r"[^A-Za-z0-9_-]+", "-", raw).strip("-") or str(index + 1)
+    return f"issue-{safe}"
+
+
+def _issue_html(issue, anchor):
+    related = "、".join(issue.get("relatedCapabilities", [])) or "无"
+    tags = (
+        ("规则", _display_optional(issue["ruleCode"])),
+        ("关键词", _display_optional(issue["keywordCode"])),
+        ("证据状态", EVIDENCE_STATE_LABELS[issue["evidenceStatus"]]),
+        ("严重度", SEVERITY_LABELS[issue["severity"]]),
+        ("风险", RISK_LABELS[issue["riskDirection"]]),
+        ("最终影响", IMPACT_LABELS[issue["impactOnFinalResult"]]),
+        ("置信度", SEVERITY_LABELS[issue["confidence"]]),
+        ("关联检查", related),
+    )
+    return (
+        f'<article id="{esc(anchor)}" class="issue {esc(issue["severity"])}">'
+        f'<h3>{esc(issue["issueType"])} <span class="muted">· {esc(issue["category"])}</span></h3>'
+        + ''.join(f'<span class="tag">{esc(key)}：{esc(value)}</span>' for key, value in tags)
+        + f'<dl><dt>模型主张</dt><dd>{esc(issue["modelClaim"])}</dd>'
+        f'<dt>实际材料或标准证据</dt><dd>{_evidence_html(issue["materialEvidence"])}</dd>'
+        f'<dt>为何错误或存在问题</dt><dd>{esc(issue["qcFinding"])}</dd>'
+        f'<dt>可能影响</dt><dd>{esc(issue["possibleImpact"])}</dd>'
+        f'<dt>建议</dt><dd>{esc(issue["recommendation"])}</dd></dl></article>'
+    )
 
 
 def _interpretation_paths_html(paths):
@@ -857,11 +940,11 @@ def _attestation_html(scope):
         ("清单摘要", confirmation["inventorySha256"]),
         ("原始输入摘要", inventory["rawInputSha256"]),
         ("用户确认", confirmation["userStatement"]),
-        ("确认结果", confirmation["outcome"]),
-        ("清点后确认", confirmation["confirmedAfterInventory"]),
+        ("确认结果", CONFIRMATION_OUTCOME_LABELS[confirmation["outcome"]]),
+        ("清点后确认", BOOLEAN_LABELS[confirmation["confirmedAfterInventory"]]),
         ("审核引用但未提供", "、".join(inventory["referencedButMissing"]) or "无"),
-        ("独立复核模式", independent["mode"]),
-        ("比较前完成", independent["completedBeforeComparison"]),
+        ("独立复核模式", REVIEW_MODE_LABELS[independent["mode"]]),
+        ("比较前完成", BOOLEAN_LABELS[independent["completedBeforeComparison"]]),
         ("冻结产物摘要", independent["artifactSha256"]),
     )
     rendered = '<div class="grid">' + ''.join(
@@ -884,27 +967,85 @@ def _template_parts():
 
 def render_qc_html(source):
     report = validate_qc_report(source)
-    changed = [item for item in report["issues"] if item["impactOnFinalResult"] in {"changed", "potentially_changed"}]
-    section = lambda heading, content: f'<section class="panel" aria-labelledby="{esc(heading)}"><h2 id="{esc(heading)}">{esc(heading)}</h2>{content}</section>'
-    scope = f'<div class="grid"><div class="field"><b>案例</b>{esc(report["case"]["patientName"])}／{esc(report["case"]["diseaseName"])}／{esc(report["case"]["auditId"])} </div><div class="field"><b>材料</b>{esc("、".join(report["inputScope"]["materials"]) or "无")}</div><div class="field"><b>标准格式</b>{esc(report["inputScope"]["standardKind"])}</div><div class="field"><b>审核结果类型</b>{esc(report["inputScope"]["auditResultKind"])}</div></div>'
+    indexed_issues = [
+        (item, _issue_anchor(item, index))
+        for index, item in enumerate(report["issues"])
+    ]
+    changed = [
+        (item, anchor)
+        for item, anchor in indexed_issues
+        if item["impactOnFinalResult"] in {"changed", "potentially_changed"}
+    ]
+
+    def section(section_id, heading, content):
+        title_id = f"{section_id}-title"
+        return (
+            f'<section id="{esc(section_id)}" class="panel report-section" aria-labelledby="{esc(title_id)}">'
+            f'<h2 id="{esc(title_id)}">{esc(heading)}</h2>{content}</section>'
+        )
+
+    scope = f'<div class="grid"><div class="field"><b>案例</b>{esc(report["case"]["patientName"])}／{esc(report["case"]["diseaseName"])}／{esc(report["case"]["auditId"])} </div><div class="field"><b>材料</b>{esc("、".join(report["inputScope"]["materials"]) or "无")}</div><div class="field"><b>标准格式</b>{esc(STANDARD_KIND_LABELS[report["inputScope"]["standardKind"]])}</div><div class="field"><b>审核结果类型</b>{esc(AUDIT_RESULT_KIND_LABELS[report["inputScope"]["auditResultKind"]])}</div></div>'
     if "interpretationPaths" in report["inputScope"]:
         scope += _interpretation_paths_html(report["inputScope"]["interpretationPaths"])
     scope += '<h3>输入与独立复核证明</h3>' + _attestation_html(report["inputScope"])
-    capabilities = ''.join(f'<div class="field"><b>{esc(item["name"])}</b><span class="status {"not-run" if item["status"] == "not_run" else ""}">{esc(item["status"])}</span><br>{esc(item["reason"])}</div>' for item in report["capabilities"]) or '<p class="empty">无能力检查记录</p>'
-    body = '<header class="page-header"><div class="header-inner"><p class="eyebrow">门诊慢特病 · 审核质控</p><h1>智能审核质控报告</h1><p class="lede">案例 ' + esc(report["case"]["auditId"]) + ' · 由同一规范对象生成文本与本报告</p></div></header><main id="qc-report-main">'
-    body += section("质控结论", f'<div class="grid"><div class="field"><b>质控结论</b>{esc(report["qcConclusion"])}</div><div class="field"><b>风险方向</b>{esc(report["riskDirection"])}</div><div class="field"><b>原审核结论</b>{esc(report["originalResult"])}</div><div class="field"><b>问题数量</b>{len(report["issues"])}</div></div>')
-    body += section("输入与检查范围", scope + '<h3>检查能力</h3><div class="grid">' + capabilities + '</div>')
-    body += section("影响最终结论的问题", ''.join(_issue_html(item) for item in changed) or '<p class="empty">无相关问题</p>')
+    capability_cards = []
+    for item in report["capabilities"]:
+        issue_count = sum(
+            issue["category"] == item["name"]
+            or item["name"] in issue.get("relatedCapabilities", [])
+            for issue in report["issues"]
+        )
+        capability_cards.append(
+            f'<article class="capability-card"><div class="capability-heading"><b>{esc(item["name"])}</b>'
+            f'<span class="status {esc(item["status"].replace("_", "-"))}">{esc(CAPABILITY_STATUS_LABELS[item["status"]])}</span></div>'
+            f'<p>{esc(item["reason"] or "检查已完整执行")}</p><p class="capability-meta">关联问题：{issue_count}</p>'
+            f'<a class="view-link" href="#{esc(CAPABILITY_SECTION_IDS[item["name"]])}">查看</a></article>'
+        )
+    capabilities = ''.join(capability_cards) or '<p class="empty">无能力检查记录</p>'
+    nav = '<nav class="section-nav" aria-label="报告目录"><strong>报告目录</strong><ol>' + ''.join(
+        f'<li><a href="#{esc(section_id)}">{esc(label)}</a></li>'
+        for section_id, label in REPORT_NAVIGATION
+    ) + '</ol></nav>'
+    body = (
+        '<a class="skip-link" href="#qc-report-main">跳至正文</a>'
+        '<header class="page-header"><div class="header-inner"><p class="eyebrow">门诊慢特病 · 审核质控</p>'
+        '<h1>智能审核质控报告</h1><p class="lede">案例 '
+        + esc(report["case"]["auditId"])
+        + ' · 由同一规范对象生成文本与本报告</p></div></header>'
+        '<div class="page-shell">' + nav + '<main id="qc-report-main">'
+    )
+    body += section("section-conclusion", "质控结论", f'<div class="grid"><div class="field"><b>质控结论</b>{esc(report["qcConclusion"])}</div><div class="field"><b>风险方向</b>{esc(report["riskDirection"])}</div><div class="field"><b>原审核结论</b>{esc(report["originalResult"])}</div><div class="field"><b>问题数量</b>{len(report["issues"])}</div></div>')
+    body += section("section-scope", "输入与检查范围", scope)
+    body += section("section-capabilities", "检查能力", '<div class="capability-grid">' + capabilities + '</div>')
+    changed_links = ''.join(
+        f'<a class="issue-reference" href="#{esc(anchor)}"><b>{esc(item["issueType"])}</b><span>{esc(IMPACT_LABELS[item["impactOnFinalResult"]])}</span></a>'
+        for item, anchor in changed
+    )
+    body += section("section-final-impact", "影响最终结论的问题", changed_links or '<p class="empty">无相关问题</p>')
+    body += section("section-recommendations", "建议", '<p><b>总体建议：</b>' + esc(report["recommendedAction"]) + '</p>' + ('<ul>' + ''.join(f'<li>{esc(item["recommendation"])}</li>' for item in report["issues"]) + '</ul>' if report["issues"] else '<p class="empty">无额外问题建议</p>'))
     for heading, category in SECTION_CATEGORIES:
-        selected = [item for item in report["issues"] if item["category"] == category]
-        body += section(heading, ''.join(_issue_html(item) for item in selected) or '<p class="empty">无相关问题</p>')
-    reviews = ''.join(f'<article class="evidence"><h3>规则 {esc(item["ruleCode"])}：{esc(item["result"])}</h3><dl><dt>证据状态</dt><dd>{esc(item["evidenceStatus"])}</dd><dt>模型主张</dt><dd>{esc(item["modelClaim"])}</dd><dt>材料或标准证据</dt><dd>{_evidence_html(item["materialEvidence"])}</dd><dt>质控发现</dt><dd>{esc(item["qcFinding"])}</dd><dt>建议</dt><dd>{esc(item["recommendation"])}</dd></dl></article>' for item in report["ruleReviews"])
-    body += section("逐规则复核", reviews or '<p class="empty">无逐规则复核</p>')
-    body += section("建议", '<p><b>总体建议：</b>' + esc(report["recommendedAction"]) + '</p>' + ('<ul>' + ''.join(f'<li>{esc(item["recommendation"])}</li>' for item in report["issues"]) + '</ul>' if report["issues"] else '<p class="empty">无额外问题建议</p>'))
-    checks = ''.join(f'<div class="field"><b>{esc(item["name"])}</b><span class="status not-run">not_run</span><br>{esc(item["reason"])}</div>' for item in report["unperformedChecks"])
-    body += section("未执行的检查", '<div class="grid">' + (checks or '<p class="empty">无未执行检查</p>') + '</div>')
+        selected = [
+            (item, anchor)
+            for item, anchor in indexed_issues
+            if item["category"] == category
+        ]
+        related = [
+            (item, anchor)
+            for item, anchor in indexed_issues
+            if category in item.get("relatedCapabilities", [])
+        ]
+        content = ''.join(_issue_html(item, anchor) for item, anchor in selected)
+        content += ''.join(
+            f'<a class="issue-reference" href="#{esc(anchor)}">关联问题：{esc(item["issueType"])}（主归属：{esc(item["category"])}）</a>'
+            for item, anchor in related
+        )
+        body += section(CAPABILITY_SECTION_IDS[category], heading, content or '<p class="empty">无相关问题</p>')
+    reviews = ''.join(f'<article class="evidence"><h3>规则 {esc(item["ruleCode"])}：{esc(item["result"])}</h3><dl><dt>证据状态</dt><dd>{esc(EVIDENCE_STATE_LABELS[item["evidenceStatus"]])}</dd><dt>模型主张</dt><dd>{esc(item["modelClaim"])}</dd><dt>材料或标准证据</dt><dd>{_evidence_html(item["materialEvidence"])}</dd><dt>质控发现</dt><dd>{esc(item["qcFinding"])}</dd><dt>建议</dt><dd>{esc(item["recommendation"])}</dd></dl></article>' for item in report["ruleReviews"])
+    body += section("section-rule-reviews", "逐规则复核", reviews or '<p class="empty">无逐规则复核</p>')
+    checks = ''.join(f'<div class="field"><b>{esc(item["name"])}</b><span class="status not-run">{esc(CAPABILITY_STATUS_LABELS["not_run"])}</span><br>{esc(item["reason"])}</div>' for item in report["unperformedChecks"])
+    body += section("section-unperformed", "未执行的检查", '<div class="grid">' + (checks or '<p class="empty">无未执行检查</p>') + '</div>')
     raw = esc(json.dumps(report["rawInput"], ensure_ascii=True, indent=2, sort_keys=True, allow_nan=False))
-    body += section("原始输入", '<details class="raw-data"><summary>展开原始输入 JSON（已转义，仅供核对）</summary><pre>' + raw + '</pre></details>') + '</main>'
+    body += section("section-raw-input", "原始输入", '<details class="raw-data"><summary>展开原始输入 JSON（已转义，仅供核对）</summary><pre>' + raw + '</pre></details>') + '</main></div>'
     before, middle, after = _template_parts()
     return before + esc("智能审核质控报告 · " + report["case"]["auditId"]) + middle + body + after
 
