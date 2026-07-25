@@ -1220,9 +1220,9 @@
           riskIsConsistent = comparison.risk === expectedRisk;
         }
         if (data.inputProfile.auditDetail === "conclusion_only") {
-          const onlyUncheckedWithoutIssue = (
+          const hasUncheckedWithoutIssue = (
             !hasIssues
-            && data.dimensions.every(
+            && data.dimensions.some(
               dimension => dimension.status === "not_checked"
             )
           );
@@ -1232,7 +1232,7 @@
           );
           riskIsConsistent = (
             riskIsConsistent
-            && onlyUncheckedWithoutIssue === uncertainUnknown
+            && hasUncheckedWithoutIssue === uncertainUnknown
           );
         }
         if (!riskIsConsistent) {
@@ -1525,7 +1525,7 @@
       };
 
       const explicitAuditSegments = content => {
-        const marker = /(?:^|\n)\s*(finalResult|最终结论|ruleResults|逐规则审核结果|advice|审核建议|rawText|引用原文)\s*[:：]\s*/g;
+        const marker = /(?:^|[\n;；])\s*(finalResult|最终结论|ruleResults|逐规则审核结果|advice|审核建议|rawText|引用原文)\s*[:：=]\s*/g;
         const matches = Array.from(content.matchAll(marker));
         if (matches.length < 2) return null;
         const labelMap = {
@@ -1555,11 +1555,16 @@
             node("h4", segment.label),
             node("p", segment.value)
           );
+          const hasExplicitRule = /(?:\b(?:TMP-)?[A-Z][A-Z0-9_-]*\b|\b\d{1,7}\b)\s+(?:不通过|通过)(?=$|[\s,，;；。])/.test(
+            segment.value
+          );
+          const extractionCodes = segment.value.match(
+            /\b\d{1,7}_\d{1,3}\b(?=\s*[:：])/g
+          ) || [];
           if (
             segment.label === "逐规则审核结果"
-            && /\b(?:TMP-)?[A-Z][A-Z0-9_-]*\b/.test(segment.value)
-            && /(?:不通过|通过)/.test(segment.value)
-            && /\b\d{4,}_\d+\b/.test(segment.value)
+            && hasExplicitRule
+            && extractionCodes.length
           ) {
             const ruleDetails = node("details");
             add(
@@ -1573,7 +1578,7 @@
               node("summary", "提取项卡"),
               node(
                 "p",
-                (segment.value.match(/\b\d{4,}_\d+\b/g) || []).join("、"),
+                extractionCodes.join("、"),
                 "detail-body"
               )
             );

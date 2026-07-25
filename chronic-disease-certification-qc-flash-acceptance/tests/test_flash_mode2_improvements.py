@@ -152,6 +152,28 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
         self.assertIn("1001_01", state["sourcesText"])
         self.assertIn(raw, state["sourcePreTexts"])
 
+    def test_plain_audit_result_structures_numeric_rule_and_extraction_codes(self):
+        raw = (
+            "finalResult=不通过；"
+            "ruleResults：1001 不通过；"
+            "1001_01: value=否；"
+            "1001_02: value=否；"
+            "advice：复核"
+        )
+        self.fixture["sourceDocuments"][2]["content"] = raw
+        state = run_qc_renderer(self.template_path, self.fixture)
+        self.assertFalse(state["shellHidden"], state["errorText"])
+        self.assertIn("结构化摘要", state["sourcesText"])
+        self.assertIn("规则明细", state["sourcesText"])
+        self.assertIn("1001 不通过", state["sourcesText"])
+        self.assertIn("提取项卡", state["sourcesText"])
+        self.assertIn("1001_01", state["sourcesText"])
+        self.assertIn("1001_02", state["sourcesText"])
+        self.assertNotIn(
+            "原审核结果无法自动结构化，以下按原文展示",
+            state["sourcesText"],
+        )
+
     def test_ambiguous_plain_audit_result_falls_back_locally(self):
         raw = "finalResult: 只有一个明确标签，其余自由叙述不作医学推断"
         self.fixture["sourceDocuments"][2]["content"] = raw
@@ -239,25 +261,21 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
         conclusion_only = json.loads(json.dumps(self.fixture, ensure_ascii=False))
         conclusion_only["inputProfile"]["auditDetail"] = "conclusion_only"
         conclusion_only["issues"] = []
-        for dimension in conclusion_only["dimensions"]:
+        for dimension in conclusion_only["dimensions"][:3]:
             dimension["status"] = "not_checked"
             dimension["notCheckedReason"] = "原审核仅提供结论"
-        conclusion_only["auditComparison"]["originalConclusion"] = "方向未明确"
+        for dimension in conclusion_only["dimensions"][3:]:
+            dimension["status"] = "passed"
+            dimension["notCheckedReason"] = ""
+        conclusion_only["auditComparison"]["originalConclusion"] = "通过"
+        conclusion_only["baseReview"]["preliminaryResult"] = "meets"
         conclusion_only["auditComparison"]["qcConclusion"] = "uncertain"
         conclusion_only["auditComparison"]["risk"] = "unknown"
         state = run_qc_renderer(self.template_path, conclusion_only)
         self.assertFalse(state["shellHidden"], state["errorText"])
 
-        checked_without_issue = json.loads(
-            json.dumps(conclusion_only, ensure_ascii=False)
-        )
-        checked_without_issue["dimensions"][3]["status"] = "passed"
-        checked_without_issue["dimensions"][3]["notCheckedReason"] = ""
-        state = run_qc_renderer(self.template_path, checked_without_issue)
-        self.assertTrue(state["shellHidden"])
-        self.assertIn("风险方向与复核结论不一致", state["errorText"])
-
         rule_issue = json.loads(json.dumps(conclusion_only, ensure_ascii=False))
+        rule_issue["auditComparison"]["originalConclusion"] = "方向未明确"
         rule_issue["dimensions"][4]["status"] = "issue"
         rule_issue["dimensions"][4]["notCheckedReason"] = ""
         rule_issue["issues"] = [
