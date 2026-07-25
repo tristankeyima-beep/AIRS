@@ -20,6 +20,27 @@ MODE1_REQUIRED_KEYS = {
     "logic",
     "confirmation",
 }
+MODE2_REQUIRED_KEYS = {
+    "schemaVersion",
+    "mode",
+    "meta",
+    "inputProfile",
+    "sourceDocuments",
+    "analysisRecord",
+    "baseReview",
+    "auditComparison",
+    "dimensions",
+    "issues",
+    "recommendations",
+    "confirmation",
+}
+MODE2_DIMENSIONS = [
+    "材料缺失判断准确性",
+    "证据提取准确性",
+    "过度推理",
+    "审核条件与结论一致性",
+    "规则维护质量",
+]
 
 
 def read(path):
@@ -261,6 +282,275 @@ def assert_valid_mode1_fixture(test_case, fixture):
     )
 
 
+def assert_string_array(test_case, value, path, allow_empty=True):
+    test_case.assertIsInstance(value, list, path)
+    if not allow_empty:
+        test_case.assertTrue(value, path)
+    for index, item in enumerate(value):
+        assert_nonempty_string(test_case, item, f"{path}[{index}]")
+
+
+def assert_valid_mode2(test_case, fixture):
+    test_case.assertIsInstance(fixture, dict)
+    test_case.assertEqual(MODE2_REQUIRED_KEYS, set(fixture))
+    test_case.assertEqual("flash-1.0", fixture["schemaVersion"])
+    test_case.assertEqual("qc", fixture["mode"])
+
+    meta = fixture["meta"]
+    test_case.assertEqual(
+        {"reportTitle", "diseaseName", "generatedAt"},
+        set(meta),
+    )
+    for field in ("reportTitle", "diseaseName", "generatedAt"):
+        assert_nonempty_string(test_case, meta[field], f"meta.{field}")
+
+    profile = fixture["inputProfile"]
+    test_case.assertEqual(
+        {"standardKind", "auditDetail", "materialsConfirmedComplete"},
+        set(profile),
+    )
+    test_case.assertIn(
+        profile["standardKind"],
+        {"structured", "natural_language", "absent"},
+    )
+    test_case.assertIn(
+        profile["auditDetail"],
+        {"detailed", "brief", "conclusion_only"},
+    )
+    test_case.assertIs(
+        profile["materialsConfirmedComplete"],
+        True,
+        "formal Mode 2 output requires confirmed-complete materials",
+    )
+
+    sources = fixture["sourceDocuments"]
+    test_case.assertIsInstance(sources, list)
+    test_case.assertTrue(sources, "sourceDocuments")
+    for index, source in enumerate(sources):
+        path = f"sourceDocuments[{index}]"
+        test_case.assertIsInstance(source, dict, path)
+        test_case.assertEqual({"name", "type", "content"}, set(source), path)
+        assert_nonempty_string(test_case, source["name"], f"{path}.name")
+        test_case.assertIn(
+            source["type"],
+            {"patient_material", "standard", "audit_result"},
+            f"{path}.type",
+        )
+        assert_nonempty_string(test_case, source["content"], f"{path}.content")
+
+    analysis = fixture["analysisRecord"]
+    test_case.assertEqual(
+        {
+            "inputSummary",
+            "interpretations",
+            "evidenceFindings",
+            "uncertainties",
+            "preliminaryConclusion",
+        },
+        set(analysis),
+    )
+    for field in (
+        "inputSummary",
+        "interpretations",
+        "evidenceFindings",
+        "uncertainties",
+    ):
+        assert_string_array(
+            test_case,
+            analysis[field],
+            f"analysisRecord.{field}",
+        )
+    assert_nonempty_string(
+        test_case,
+        analysis["preliminaryConclusion"],
+        "analysisRecord.preliminaryConclusion",
+    )
+
+    base_review = fixture["baseReview"]
+    test_case.assertEqual(
+        {"method", "materialFacts", "ruleJudgments", "preliminaryResult"},
+        set(base_review),
+    )
+    test_case.assertEqual("two_stage_non_blind", base_review["method"])
+    assert_string_array(
+        test_case,
+        base_review["materialFacts"],
+        "baseReview.materialFacts",
+    )
+    judgments = base_review["ruleJudgments"]
+    test_case.assertIsInstance(judgments, list, "baseReview.ruleJudgments")
+    for index, judgment in enumerate(judgments):
+        path = f"baseReview.ruleJudgments[{index}]"
+        test_case.assertIsInstance(judgment, dict, path)
+        test_case.assertEqual(
+            {"ruleId", "result", "evidence", "reason"},
+            set(judgment),
+            path,
+        )
+        assert_nonempty_string(test_case, judgment["ruleId"], f"{path}.ruleId")
+        test_case.assertIn(
+            judgment["result"],
+            {"met", "not_met", "unknown"},
+            f"{path}.result",
+        )
+        assert_string_array(
+            test_case,
+            judgment["evidence"],
+            f"{path}.evidence",
+        )
+        assert_nonempty_string(test_case, judgment["reason"], f"{path}.reason")
+    test_case.assertIn(
+        base_review["preliminaryResult"],
+        {"meets", "does_not_meet", "uncertain"},
+    )
+
+    comparison = fixture["auditComparison"]
+    test_case.assertEqual(
+        {"originalConclusion", "qcConclusion", "risk", "summary"},
+        set(comparison),
+    )
+    assert_nonempty_string(
+        test_case,
+        comparison["originalConclusion"],
+        "auditComparison.originalConclusion",
+    )
+    test_case.assertIn(
+        comparison["qcConclusion"],
+        {"reliable", "problematic", "uncertain"},
+    )
+    test_case.assertIn(
+        comparison["risk"],
+        {"none", "false_approval", "false_rejection", "both", "unknown"},
+    )
+    assert_nonempty_string(
+        test_case,
+        comparison["summary"],
+        "auditComparison.summary",
+    )
+
+    dimensions = fixture["dimensions"]
+    test_case.assertIsInstance(dimensions, list)
+    test_case.assertEqual(len(MODE2_DIMENSIONS), len(dimensions))
+    test_case.assertEqual(
+        MODE2_DIMENSIONS,
+        [dimension.get("name") for dimension in dimensions],
+    )
+    dimension_statuses = {}
+    for index, dimension in enumerate(dimensions):
+        path = f"dimensions[{index}]"
+        test_case.assertIsInstance(dimension, dict, path)
+        test_case.assertEqual(
+            {"name", "status", "summary", "notCheckedReason"},
+            set(dimension),
+            path,
+        )
+        test_case.assertIn(
+            dimension["status"],
+            {"passed", "issue", "not_checked"},
+            f"{path}.status",
+        )
+        assert_nonempty_string(test_case, dimension["summary"], f"{path}.summary")
+        test_case.assertIsInstance(
+            dimension["notCheckedReason"],
+            str,
+            f"{path}.notCheckedReason",
+        )
+        if dimension["status"] == "not_checked":
+            test_case.assertTrue(
+                dimension["notCheckedReason"].strip(),
+                f"{path}.notCheckedReason",
+            )
+        else:
+            test_case.assertEqual(
+                "",
+                dimension["notCheckedReason"],
+                f"{path}.notCheckedReason",
+            )
+        dimension_statuses[dimension["name"]] = dimension["status"]
+
+    issues = fixture["issues"]
+    test_case.assertIsInstance(issues, list)
+    for index, issue in enumerate(issues, start=1):
+        path = f"issues[{index - 1}]"
+        test_case.assertIsInstance(issue, dict, path)
+        test_case.assertEqual(
+            {
+                "id",
+                "dimension",
+                "severity",
+                "auditClaim",
+                "actualEvidence",
+                "sourceReference",
+                "impact",
+                "recommendation",
+            },
+            set(issue),
+            path,
+        )
+        for field in (
+            "id",
+            "dimension",
+            "severity",
+            "auditClaim",
+            "actualEvidence",
+            "sourceReference",
+            "impact",
+            "recommendation",
+        ):
+            assert_nonempty_string(test_case, issue[field], f"{path}.{field}")
+        test_case.assertEqual(f"I{index:03d}", issue["id"], f"{path}.id")
+        test_case.assertIn(issue["dimension"], MODE2_DIMENSIONS, f"{path}.dimension")
+        test_case.assertEqual(
+            "issue",
+            dimension_statuses[issue["dimension"]],
+            f"{path}.dimension must identify an issue dimension",
+        )
+        test_case.assertIn(
+            issue["severity"],
+            {"high", "medium", "low"},
+            f"{path}.severity",
+        )
+
+    assert_string_array(
+        test_case,
+        fixture["recommendations"],
+        "recommendations",
+    )
+
+    confirmation = fixture["confirmation"]
+    test_case.assertEqual(
+        {"confirmed", "inventoryShown", "userResponse"},
+        set(confirmation),
+    )
+    test_case.assertIs(confirmation["confirmed"], True)
+    assert_string_array(
+        test_case,
+        confirmation["inventoryShown"],
+        "confirmation.inventoryShown",
+        allow_empty=False,
+    )
+    assert_nonempty_string(
+        test_case,
+        confirmation["userResponse"],
+        "confirmation.userResponse",
+    )
+
+    if profile["standardKind"] == "absent":
+        test_case.assertEqual([], judgments)
+        test_case.assertEqual("uncertain", base_review["preliminaryResult"])
+        rule_dimension = dimensions[MODE2_DIMENSIONS.index("规则维护质量")]
+        test_case.assertEqual("not_checked", rule_dimension["status"])
+
+    if profile["standardKind"] == "natural_language":
+        for judgment in judgments:
+            test_case.assertRegex(judgment["ruleId"], r"^TMP-R\d{3}$")
+
+    if profile["auditDetail"] == "conclusion_only":
+        for name in ("证据提取准确性", "审核条件与结论一致性"):
+            dimension = dimensions[MODE2_DIMENSIONS.index(name)]
+            test_case.assertEqual("not_checked", dimension["status"])
+
+
 class OpenAIYamlParserTests(unittest.TestCase):
     def test_rejects_malformed_missing_and_misplaced_interface_fields(self):
         invalid_documents = (
@@ -500,6 +790,194 @@ class Mode1DocumentationTests(unittest.TestCase):
 
         self.assertEqual(fixture, contract_example)
         assert_valid_mode1_fixture(self, contract_example)
+
+
+class Mode2FixtureContractTests(unittest.TestCase):
+    def setUp(self):
+        fixture_path = ACCEPTANCE_ROOT / "fixtures" / "valid-mode2.json"
+        self.fixture = json.loads(read(fixture_path))
+
+    def test_valid_mode2_fixture_has_canonical_contract(self):
+        assert_valid_mode2(self, self.fixture)
+        self.assertEqual(
+            [
+                {
+                    "name": "患者材料",
+                    "type": "patient_material",
+                    "content": "患者材料明确记载证据 A。",
+                },
+                {
+                    "name": "认定标准",
+                    "type": "standard",
+                    "content": "认定标准要求满足证据 A。",
+                },
+                {
+                    "name": "原审核结果",
+                    "type": "audit_result",
+                    "content": "原审核认定证据 A 缺失，结论为不通过。",
+                },
+            ],
+            self.fixture["sourceDocuments"],
+        )
+
+    def test_rejects_invalid_nested_mode2_mutations(self):
+        mutations = {}
+
+        extra_meta = copy.deepcopy(self.fixture)
+        extra_meta["meta"]["extra"] = "not allowed"
+        mutations["extra nested key"] = extra_meta
+
+        missing_comparison_key = copy.deepcopy(self.fixture)
+        del missing_comparison_key["auditComparison"]["summary"]
+        mutations["missing nested key"] = missing_comparison_key
+
+        wrong_enum = copy.deepcopy(self.fixture)
+        wrong_enum["auditComparison"]["risk"] = "maybe"
+        mutations["wrong enum"] = wrong_enum
+
+        duplicate_dimension = copy.deepcopy(self.fixture)
+        duplicate_dimension["dimensions"][1]["name"] = MODE2_DIMENSIONS[0]
+        mutations["duplicate dimension"] = duplicate_dimension
+
+        missing_dimension = copy.deepcopy(self.fixture)
+        missing_dimension["dimensions"].pop()
+        mutations["missing dimension"] = missing_dimension
+
+        missing_not_checked_reason = copy.deepcopy(self.fixture)
+        missing_not_checked_reason["dimensions"][2]["status"] = "not_checked"
+        mutations["not_checked missing reason"] = missing_not_checked_reason
+
+        issue_bad_dimension = copy.deepcopy(self.fixture)
+        issue_bad_dimension["issues"][0]["dimension"] = "不存在的维度"
+        mutations["issue bad dimension"] = issue_bad_dimension
+
+        issue_bad_severity = copy.deepcopy(self.fixture)
+        issue_bad_severity["issues"][0]["severity"] = "critical"
+        mutations["issue bad severity"] = issue_bad_severity
+
+        issue_bad_id = copy.deepcopy(self.fixture)
+        issue_bad_id["issues"][0]["id"] = "I009"
+        mutations["issue bad ID"] = issue_bad_id
+
+        invalid_method = copy.deepcopy(self.fixture)
+        invalid_method["baseReview"]["method"] = "strict_blind"
+        mutations["invalid method"] = invalid_method
+
+        wrong_analysis_type = copy.deepcopy(self.fixture)
+        wrong_analysis_type["analysisRecord"]["evidenceFindings"] = "证据 A"
+        mutations["wrong analysis type"] = wrong_analysis_type
+
+        empty_confirmation_inventory = copy.deepcopy(self.fixture)
+        empty_confirmation_inventory["confirmation"]["inventoryShown"] = []
+        mutations["empty confirmation inventory"] = empty_confirmation_inventory
+
+        for name, mutation in mutations.items():
+            with self.subTest(mutation=name):
+                with self.assertRaises(AssertionError):
+                    assert_valid_mode2(self, mutation)
+
+    def test_rejects_conclusion_only_output_that_claims_detailed_checks(self):
+        mutation = copy.deepcopy(self.fixture)
+        mutation["inputProfile"]["auditDetail"] = "conclusion_only"
+
+        with self.assertRaises(AssertionError):
+            assert_valid_mode2(self, mutation)
+
+
+class Mode2DocumentationTests(unittest.TestCase):
+    def test_skill_declares_gated_two_stage_mode2_workflow(self):
+        skill = read(SKILL_ROOT / "SKILL.md")
+        section_match = re.search(
+            r"^## 模式 2：生成智能审核质控报告\s*$"
+            r"(?P<body>.*?)(?=^## |\Z)",
+            skill,
+            re.MULTILINE | re.DOTALL,
+        )
+        self.assertIsNotNone(section_match, "missing exact Mode 2 heading")
+        section = section_match.group("body")
+
+        markers = (
+            "references/mode2-contract.md",
+            "references/output-checklist.md",
+            "assets/qc-report-template.html",
+            "是否遗漏任何内容",
+            "用户确认",
+            "baseReview",
+            "auditComparison",
+            "two_stage_non_blind",
+            "五个质控维度",
+            "JSON 和 HTML",
+        )
+        for marker in markers:
+            self.assertIn(marker, section)
+        self.assertNotIn("references/mode1-contract.md", section)
+        self.assertLess(section.index("用户确认"), section.index("baseReview"))
+        self.assertLess(section.index("baseReview"), section.index("auditComparison"))
+        self.assertIn("已序列化并通过校验的 JSON 文本", section)
+        self.assertIn("只替换该序列化文本", section)
+
+        steps = re.findall(r"(?m)^(\d+)\. ", section)
+        self.assertEqual([str(index) for index in range(1, 12)], steps)
+
+    def test_mode2_contract_documents_complete_flash_schema(self):
+        contract = read(SKILL_ROOT / "references" / "mode2-contract.md")
+
+        for field in MODE2_REQUIRED_KEYS:
+            self.assertIn(field, contract)
+        for marker in (
+            "reportTitle",
+            "diseaseName",
+            "generatedAt",
+            "standardKind",
+            "structured",
+            "natural_language",
+            "absent",
+            "auditDetail",
+            "detailed",
+            "brief",
+            "conclusion_only",
+            "materialsConfirmedComplete",
+            "patient_material",
+            "standard",
+            "audit_result",
+            "two_stage_non_blind",
+            "met",
+            "not_met",
+            "unknown",
+            "meets",
+            "does_not_meet",
+            "uncertain",
+            "reliable",
+            "problematic",
+            "false_approval",
+            "false_rejection",
+            "both",
+            "not_checked",
+            "high",
+            "medium",
+            "low",
+            "I001",
+            "TMP-R001",
+            "完整原文",
+            "不得编造",
+            "<病种>-审核质控-flash-<日期>.json",
+            "<病种>-审核质控-flash-<日期>.html",
+        ):
+            self.assertIn(marker, contract)
+        for dimension in MODE2_DIMENSIONS:
+            self.assertIn(dimension, contract)
+
+    def test_mode2_contract_example_matches_canonical_fixture(self):
+        contract = read(SKILL_ROOT / "references" / "mode2-contract.md")
+        match = re.search(r"```json\s*(\{.*?\})\s*```", contract, re.DOTALL)
+        self.assertIsNotNone(match, "Mode 2 contract must contain a JSON example")
+        contract_example = json.loads(match.group(1))
+        fixture = json.loads(
+            read(ACCEPTANCE_ROOT / "fixtures" / "valid-mode2.json")
+        )
+
+        self.assertEqual(fixture, contract_example)
+        assert_valid_mode2(self, contract_example)
 
 
 class FlashCertificationTemplateTests(unittest.TestCase):
