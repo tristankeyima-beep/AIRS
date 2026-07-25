@@ -16,6 +16,10 @@ from contextlib import redirect_stderr
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "render_qc_html.py"
 FIXTURE = ROOT / "tests" / "fixtures" / "valid-qc-report.json"
+MODE2_FIXTURES = (
+    ROOT / "tests" / "fixtures" / "valid-qc-report-mode2-structured-complete-external.json",
+    ROOT / "tests" / "fixtures" / "valid-qc-report-mode2-structured-incomplete.json",
+)
 
 
 def load_renderer():
@@ -162,6 +166,79 @@ class QcRendererTests(unittest.TestCase):
             self.assertIn(value, text)
         self.assertNotIn("http://", rendered)
         self.assertNotIn("https://", rendered)
+
+    def test_mode2_external_and_incomplete_baselines_validate_and_render(self):
+        for fixture in MODE2_FIXTURES:
+            with self.subTest(fixture=fixture.name):
+                report = self.renderer.validate_qc_report(fixture)
+                self.assertIn(
+                    report["inputScope"]["standardKind"],
+                    {"structured_complete", "structured_incomplete"},
+                )
+                self.assertIn("<!doctype html>", self.renderer.render_qc_html(fixture))
+
+    def test_eleven_single_mutation_regressions_have_local_errors(self):
+        cases = []
+
+        candidate = copy.deepcopy(self.report)
+        candidate["issues"][0]["evidenceStatus"] = "NOT_FOUND"
+        cases.append(("notfound_nonempty", candidate, r"must be \[\]"))
+
+        candidate = copy.deepcopy(self.report)
+        candidate["issues"][0]["materialEvidence"] = {}
+        cases.append(("issue_evidence_dict", candidate, "must be an array"))
+
+        candidate = copy.deepcopy(self.report)
+        candidate["ruleReviews"] = [{
+            "ruleCode": "R001",
+            "result": "满足",
+            "modelClaim": "满足",
+            "evidenceStatus": "SUPPORTED",
+            "materialEvidence": {},
+            "qcFinding": "测试",
+            "recommendation": "测试",
+        }]
+        cases.append(("review_evidence_dict", candidate, "must be an array"))
+
+        candidate = copy.deepcopy(self.report)
+        candidate["inputScope"]["inventory"]["rawInputSha256"] = "0" * 64
+        cases.append(("raw_hash", candidate, "rawInputSha256"))
+
+        candidate = copy.deepcopy(self.report)
+        candidate["inputScope"]["confirmation"]["inventorySha256"] = "0" * 64
+        cases.append(("inventory_hash", candidate, "inventorySha256"))
+
+        candidate = copy.deepcopy(self.report)
+        candidate["inputScope"]["independentReview"]["artifactSha256"] = "0" * 64
+        cases.append(("artifact_hash", candidate, "artifactSha256"))
+
+        candidate = copy.deepcopy(self.report)
+        candidate["capabilities"][4] = {"name": "规则维护质量", "status": "not_run", "reason": "甲"}
+        candidate["unperformedChecks"] = [{"name": "规则维护质量", "reason": "乙"}]
+        cases.append(("reason_diff", candidate, "capability='甲'"))
+
+        candidate = copy.deepcopy(self.report)
+        candidate["rawInput"]["materials"][0]["materialContent"] = candidate["rawInput"]["materials"][0].pop("content")
+        self.rebind_attestations(candidate)
+        cases.append(("content_key", candidate, r"rawInput\.materials\[\]\.content"))
+
+        candidate = copy.deepcopy(self.report)
+        self.set_capability_status(candidate, "材料缺失判断准确性", "not_run", "未执行")
+        cases.append(("category_not_run", candidate, "either remove this issue"))
+
+        candidate = copy.deepcopy(self.report)
+        candidate["inputScope"]["confirmation"]["userStatement"] = "好的，确认完整"
+        cases.append(("confirmation", candidate, "userStatement"))
+
+        candidate = copy.deepcopy(self.report)
+        candidate["unexpected"] = True
+        cases.append(("extra_root", candidate, "unexpected field"))
+
+        self.assertEqual(len(cases), 11)
+        for name, report, message in cases:
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(ValueError, message):
+                    self.renderer.validate_qc_report(report)
 
     def test_unconfirmed_input_blocks_every_formal_output(self):
         report = copy.deepcopy(self.report)
@@ -328,6 +405,102 @@ class QcRendererTests(unittest.TestCase):
         for impact in ("changed", "potentially_changed"):
             report = copy.deepcopy(self.report); report["issues"][0]["impactOnFinalResult"] = impact; report["issues"][0]["severity"] = "medium"
             with self.assertRaises(ValueError): self.renderer.validate_qc_report(report)
+
+    def test_material_evidence_errors_explain_array_and_state_requirements_once(self):
+        report = copy.deepcopy(self.report)
+        report["issues"][0]["evidenceStatus"] = "NOT_FOUND"
+        report["issues"][0]["materialEvidence"] = {
+            "materialId": "",
+            "materialName": "",
+        }
+        with self.assertRaisesRegex(
+            ValueError,
+            r"must be an array; use \[\] for NOT_FOUND/NOT_APPLICABLE",
+        ):
+            self.renderer.validate_qc_report(report)
+
+        report = copy.deepcopy(self.report)
+        report["issues"][0]["evidenceStatus"] = "NOT_FOUND"
+        with self.assertRaisesRegex(ValueError, r"must be \[\] \(empty array\)"):
+            self.renderer.validate_qc_report(report)
+
+    def test_hash_mismatch_errors_show_actual_and_expected_values(self):
+        report = self.bound_report()
+        cases = (
+            (
+                ("inputScope", "inventory", "rawInputSha256"),
+                self.renderer.compute_raw_input_sha256(report["rawInput"]),
+            ),
+            (
+                ("inputScope", "confirmation", "inventorySha256"),
+                self.renderer.compute_inventory_sha256(report["inputScope"]["inventory"]),
+            ),
+            (
+                ("inputScope", "independentReview", "artifactSha256"),
+                self.renderer.compute_independent_review_sha256(
+                    report["inputScope"]["independentReview"]["artifact"]
+                ),
+            ),
+        )
+        for path, expected in cases:
+            with self.subTest(path=path):
+                invalid = copy.deepcopy(report)
+                target = invalid
+                for part in path[:-1]:
+                    target = target[part]
+                target[path[-1]] = "0" * 64
+                with self.assertRaisesRegex(
+                    ValueError,
+                    rf"actual={'0' * 64}.*expected={expected}",
+                ):
+                    self.renderer.validate_qc_report(invalid)
+
+    def test_reason_content_and_category_errors_are_actionable(self):
+        report = copy.deepcopy(self.report)
+        report["capabilities"][4] = {
+            "name": "规则维护质量",
+            "status": "not_run",
+            "reason": "能力原因",
+        }
+        report["unperformedChecks"] = [{"name": "规则维护质量", "reason": "检查原因"}]
+        with self.assertRaisesRegex(
+            ValueError,
+            "capability='能力原因'.*unperformed='检查原因'",
+        ):
+            self.renderer.validate_qc_report(report)
+
+        report = copy.deepcopy(self.report)
+        report["rawInput"]["materials"][0]["materialContent"] = report["rawInput"]["materials"][0].pop("content")
+        self.rebind_attestations(report)
+        with self.assertRaisesRegex(ValueError, r"rawInput\.materials\[\]\.content"):
+            self.renderer.validate_qc_report(report)
+
+        report = copy.deepcopy(self.report)
+        self.set_capability_status(report, "材料缺失判断准确性", "not_run", "未执行")
+        with self.assertRaisesRegex(
+            ValueError,
+            "either remove this issue or set that capability status",
+        ):
+            self.renderer.validate_qc_report(report)
+
+    def test_cli_explain_prints_stable_constraint_summary_without_input(self):
+        completed = subprocess.run(
+            [sys.executable, str(SCRIPT), "--explain"],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        for value in (
+            "materialEvidence",
+            "NOT_FOUND",
+            "rawInput.materials[].content",
+            "rawInputSha256",
+            "inventorySha256",
+            "artifactSha256",
+        ):
+            self.assertIn(value, completed.stdout)
+        self.assertNotIn("Traceback", completed.stderr)
 
     def test_outcome_changing_interpretation_paths_are_validated_rendered_and_safe(self):
         report = copy.deepcopy(self.report)

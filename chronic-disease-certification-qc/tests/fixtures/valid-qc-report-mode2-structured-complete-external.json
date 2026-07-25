@@ -1,0 +1,105 @@
+{
+  "case": {
+    "patientName": "测试患者",
+    "diseaseName": "外部四位编码病种",
+    "auditId": "QC-EXTERNAL-001"
+  },
+  "inputScope": {
+    "confirmedByUser": true,
+    "materials": ["材料1"],
+    "standardKind": "structured_complete",
+    "auditResultKind": "detailed",
+    "inventory": {
+      "revision": 1,
+      "materials": ["材料1"],
+      "standardKind": "structured_complete",
+      "auditResultKind": "detailed",
+      "hasAuditProcess": true,
+      "hasFinalConclusion": true,
+      "referencedButMissing": [],
+      "rawInputSha256": "c1406ba13a5c20ad213552b00b20e408728b14d8f67a8cef2c9c21cfe82a10c2"
+    },
+    "confirmation": {
+      "confirmedRevision": 1,
+      "inventorySha256": "9b4c4b4aead0fc0757b21033d732fc8115a956dffeec96ab579c5abe1556a657",
+      "userStatement": "确认完整",
+      "outcome": "confirmed_complete",
+      "confirmedAfterInventory": true
+    },
+    "independentReview": {
+      "mode": "isolated_blind",
+      "completedBeforeComparison": true,
+      "artifact": {
+        "materialFacts": [{"materialId": "M001", "fact": "患者材料"}],
+        "standardKind": "structured_complete",
+        "ruleResults": [{"ruleCode": "1001", "result": "满足"}],
+        "finalResult": "满足"
+      },
+      "artifactSha256": "20a651cb0fc16bf1b5ca0b06bfb785b41be35f58e256749207738692b227cf6c"
+    }
+  },
+  "capabilities": [
+    {"name": "材料缺失判断准确性", "status": "completed", "reason": ""},
+    {"name": "证据提取准确性", "status": "completed", "reason": ""},
+    {"name": "过度推理", "status": "completed", "reason": ""},
+    {"name": "审核条件与结论一致性", "status": "completed", "reason": ""},
+    {"name": "规则维护质量", "status": "completed", "reason": ""}
+  ],
+  "originalResult": "通过",
+  "qcConclusion": "可靠",
+  "riskDirection": "未发现明显风险",
+  "recommendedAction": "维持原审核结论",
+  "issues": [],
+  "ruleReviews": [
+    {
+      "ruleCode": "1001",
+      "result": "满足",
+      "modelClaim": "规则满足",
+      "evidenceStatus": "SUPPORTED",
+      "materialEvidence": [
+        {
+          "materialId": "M001",
+          "materialName": "材料1",
+          "page": 1,
+          "section": "正文",
+          "rawText": "患者材料",
+          "normalizedText": "患者材料",
+          "location": {"start": 0, "end": 4}
+        }
+      ],
+      "qcFinding": "证据与规则结论一致",
+      "recommendation": "维持原判断"
+    }
+  ],
+  "unperformedChecks": [],
+  "rawInput": {
+    "materials": [
+      {
+        "materialId": "M001",
+        "materialName": "材料1",
+        "content": "患者材料"
+      }
+    ],
+    "standard": {
+      "ruleRepository": [
+        {
+          "ruleCode": "1001",
+          "ruleContent": "认定条件",
+          "ruleSource": "外部系统标准",
+          "ruleKeywordGuide": [
+            {"keywordContent": "提取项", "dataType": "enum", "enumOptions": ["是", "否"]}
+          ]
+        }
+      ],
+      "logicTopology": {
+        "type": "GROUP",
+        "operator": "AND",
+        "children": [{"type": "RULE_REF", "ruleCode": "1001"}]
+      }
+    },
+    "auditResult": {
+      "finalResult": "通过",
+      "ruleResults": [{"ruleCode": "1001", "result": "满足"}]
+    }
+  }
+}

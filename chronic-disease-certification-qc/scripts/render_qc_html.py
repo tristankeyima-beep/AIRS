@@ -41,6 +41,12 @@ ISSUE_CAPABILITY_BY_CATEGORY = {name: name for name in CATEGORIES}
 SECTION_CATEGORIES = (("材料缺失复核", "材料缺失判断准确性"), ("证据准确性", "证据提取准确性"), ("过度推理", "过度推理"), ("条件一致性", "审核条件与结论一致性"), ("规则维护质量", "规则维护质量"))
 RISK_LABELS = {"false_approval": "错误放行风险", "false_rejection": "错误拒绝风险", "both": "错误放行与错误拒绝风险", "none": "未发现明显风险"}
 IMPACT_LABELS = {"changed": "已改变最终结论", "potentially_changed": "可能改变最终结论", "unchanged": "未改变最终结论", "unknown": "最终影响暂无法判断"}
+EXPLAIN_TEXT = """质控报告对象关键约束
+- materialEvidence 必须是数组；NOT_FOUND/NOT_APPLICABLE 使用 []，其他证据状态使用非空数组。
+- 原始材料正文必须放在 rawInput.materials[].content。
+- rawInputSha256、inventorySha256、artifactSha256 使用规范 JSON 的 SHA-256，建议由 prepare_qc_report.py 自动生成。
+- unperformedChecks 只能对应 capabilities 中 status=not_run 的项目。
+"""
 _SENSITIVE_VALUE_RE = re.compile(
     r"\b(?:authorization\s*[:=]\s*)?bearer\s+[A-Za-z0-9._~+/=-]{12,}"
     r"|\b(?:cookie|session(?:id)?)\s*[:=]\s*[A-Za-z0-9._~+/=-]{8,}",
@@ -324,14 +330,21 @@ def _evidence(items, path, material_sources):
         start, end = location["start"], location["end"]
         if type(start) is not int or type(end) is not int or start < 0 or end < 0 or start >= end:
             _error(f"{point}.location", "start/end must be nonnegative integers with start < end")
+        if material_sources is None:
+            continue
         source = material_sources.get(item["materialId"])
-        if source is not None and (end > len(source) or source[start:end] != item["rawText"]):
+        if source is None:
+            _error(
+                f"{point}.materialId",
+                "no matching material with text in rawInput.materials[].content; normalize the material text key to content",
+            )
+        if end > len(source) or source[start:end] != item["rawText"]:
             _error(f"{point}.location", "must locate rawText in the source material")
 
 
 def _material_sources(raw_input):
     if not isinstance(raw_input, dict) or not isinstance(raw_input.get("materials"), list):
-        return {}
+        return None
     sources = {}
     for item in raw_input["materials"]:
         if isinstance(item, dict) and isinstance(item.get("materialId"), str):
@@ -342,10 +355,15 @@ def _material_sources(raw_input):
 
 
 def _validate_evidence_state(status, evidence, path):
+    if not isinstance(evidence, list):
+        _error(
+            path,
+            "materialEvidence must be an array; use [] for NOT_FOUND/NOT_APPLICABLE, or a non-empty array for SUPPORTED/CONTRADICTED/INSUFFICIENT/CONFLICTED",
+        )
     if status in {"SUPPORTED", "CONTRADICTED", "INSUFFICIENT", "CONFLICTED"} and not evidence:
-        _error(path, "requires at least one materialEvidence")
+        _error(path, f"materialEvidence must contain at least one object when evidenceStatus is {status}")
     if status in {"NOT_FOUND", "NOT_APPLICABLE"} and evidence:
-        _error(path, "requires empty materialEvidence")
+        _error(path, "materialEvidence must be [] (empty array) when evidenceStatus is NOT_FOUND or NOT_APPLICABLE")
 
 
 def _validate_interpretation_paths(input_scope, qc_conclusion, recommended_action):
@@ -444,8 +462,12 @@ def _validate_input_scope(input_scope, raw_input):
     for index, item in enumerate(inventory["referencedButMissing"]):
         _text(item, f"inputScope.inventory.referencedButMissing[{index}]")
     _sha256(inventory["rawInputSha256"], "inputScope.inventory.rawInputSha256")
-    if inventory["rawInputSha256"] != compute_raw_input_sha256(raw_input):
-        _error("inputScope.inventory.rawInputSha256", "must match report.rawInput")
+    expected_raw_input_sha256 = compute_raw_input_sha256(raw_input)
+    if inventory["rawInputSha256"] != expected_raw_input_sha256:
+        _error(
+            "inputScope.inventory.rawInputSha256",
+            f"hash mismatch: actual={inventory['rawInputSha256']} expected={expected_raw_input_sha256}; recompute from canonical rawInput",
+        )
     if input_scope["auditResultKind"] == "detailed" and not inventory["hasAuditProcess"]:
         _error("inputScope.inventory.hasAuditProcess", "must be true for detailed audit result")
     if input_scope["auditResultKind"] in {"brief", "conclusion_only"} and inventory["hasAuditProcess"]:
@@ -458,8 +480,12 @@ def _validate_input_scope(input_scope, raw_input):
     if confirmation["confirmedRevision"] != inventory["revision"]:
         _error("inputScope.confirmation.confirmedRevision", "must match current inventory revision")
     _sha256(confirmation["inventorySha256"], "inputScope.confirmation.inventorySha256")
-    if confirmation["inventorySha256"] != compute_inventory_sha256(inventory):
-        _error("inputScope.confirmation.inventorySha256", "must match current inventory")
+    expected_inventory_sha256 = compute_inventory_sha256(inventory)
+    if confirmation["inventorySha256"] != expected_inventory_sha256:
+        _error(
+            "inputScope.confirmation.inventorySha256",
+            f"hash mismatch: actual={confirmation['inventorySha256']} expected={expected_inventory_sha256}; recompute from canonical inventory",
+        )
     _text(confirmation["userStatement"], "inputScope.confirmation.userStatement")
     if not _valid_confirmation_statement(confirmation["userStatement"]):
         _error("inputScope.confirmation.userStatement", "must explicitly confirm completeness after inventory")
@@ -492,8 +518,12 @@ def _validate_input_scope(input_scope, raw_input):
         artifact_rule_codes.add(rule_result["ruleCode"])
     _enum(artifact["finalResult"], "inputScope.independentReview.artifact.finalResult", RULE_RESULTS)
     _sha256(independent["artifactSha256"], "inputScope.independentReview.artifactSha256")
-    if independent["artifactSha256"] != compute_independent_review_sha256(artifact):
-        _error("inputScope.independentReview.artifactSha256", "must match frozen artifact")
+    expected_artifact_sha256 = compute_independent_review_sha256(artifact)
+    if independent["artifactSha256"] != expected_artifact_sha256:
+        _error(
+            "inputScope.independentReview.artifactSha256",
+            f"hash mismatch: actual={independent['artifactSha256']} expected={expected_artifact_sha256}; recompute from canonical artifact",
+        )
 
 
 def _validate_capability_matrix(capabilities, input_scope, rule_reviews):
@@ -632,7 +662,10 @@ def _validate_report(report):
                 _error(f"{point}.relatedCapabilities", "must not repeat the primary category")
         capability = capabilities_by_name.get(ISSUE_CAPABILITY_BY_CATEGORY[issue["category"]])
         if capability and capability["status"] == "not_run":
-            _error(f"{point}.category", "cannot contain issues when its capability is not_run")
+            _error(
+                f"{point}.category",
+                f"category {issue['category']!r} has capability status=not_run; either remove this issue or set that capability status to partial/completed",
+            )
         if not isinstance(issue["ruleCode"], str):
             _error(f"{point}.ruleCode", "must be a string")
         for field in ("modelClaim", "qcFinding", "possibleImpact", "recommendation"):
@@ -662,7 +695,10 @@ def _validate_report(report):
     if set(not_run) != set(unperformed_by_name): _error("unperformedChecks", "must exactly match not_run capability names")
     for name, capability in not_run.items():
         if capability["reason"] != unperformed_by_name[name]["reason"]:
-            _error("unperformedChecks", f"reason must match capability {name}")
+            _error(
+                "unperformedChecks",
+                f"reason for {name!r} must exactly match: capability={capability['reason']!r} unperformed={unperformed_by_name[name]['reason']!r}",
+            )
     _validate_capability_matrix(report["capabilities"], report["inputScope"], report["ruleReviews"])
     _validate_independent_artifact_requirements(report["inputScope"], capabilities_by_name)
     _validate_outcome_risk(report)
@@ -961,10 +997,16 @@ def _write_outputs_atomically(outputs):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("input", type=Path, help="QC report JSON input")
-    parser.add_argument("output", type=Path, help="HTML output")
+    parser.add_argument("input", type=Path, nargs="?", help="QC report JSON input")
+    parser.add_argument("output", type=Path, nargs="?", help="HTML output")
     parser.add_argument("--text-output", type=Path, help="optional text report output")
+    parser.add_argument("--explain", action="store_true", help="print a stable constraint summary and exit")
     args = parser.parse_args(argv)
+    if args.explain:
+        print(EXPLAIN_TEXT.rstrip("\n"))
+        return 0
+    if args.input is None or args.output is None:
+        parser.error("input and output are required unless --explain is used")
     try:
         paths = _reject_output_collisions(args.input, args.output, args.text_output)
         report = validate_qc_report(paths["input"]); rendered = render_qc_html(report); text = render_qc_text(report)
