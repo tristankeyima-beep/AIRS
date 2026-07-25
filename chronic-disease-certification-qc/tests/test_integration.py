@@ -288,6 +288,7 @@ class IntegrationTests(unittest.TestCase):
         cls.validator = load("validate_certification")
         cls.certification_renderer = load("render_certification_html")
         cls.qc_renderer = load("render_qc_html")
+        cls.qc_preparer = load("prepare_qc_report")
 
     def _brain_draft(self):
         source_path = FIXTURES / "brain-infarction-standard.txt"
@@ -565,6 +566,31 @@ class IntegrationTests(unittest.TestCase):
             self.assertEqual(cli_text, text_report.rstrip("\n") + "\n")
             assert_offline_html(self, cli_html)
         self.assertEqual(source.read_bytes(), source_before)
+
+    def test_external_four_digit_standard_prepares_and_renders_as_complete_qc(self):
+        fixture = FIXTURES / "valid-qc-report-mode2-structured-complete-external.json"
+        draft = json.loads(fixture.read_text(encoding="utf-8"))
+        standard = draft["rawInput"]["standard"]
+        inspection = self.inspector.inspect_standard(standard, profile="qc")
+        self.assertEqual(inspection["kind"], "structured_complete")
+        self.assertTrue(inspection["completeness"]["executable"])
+        self.assertEqual(standard["ruleRepository"][0]["ruleCode"], "1001")
+
+        material = draft["rawInput"]["materials"][0]
+        material["materialContent"] = material.pop("content")
+        draft["inputScope"]["inventory"]["rawInputSha256"] = "0" * 64
+        draft["inputScope"]["confirmation"]["inventorySha256"] = "0" * 64
+        draft["inputScope"]["independentReview"]["artifactSha256"] = "0" * 64
+        prepared = self.qc_preparer.prepare_report(draft)
+        html_report = self.qc_renderer.render_qc_html(prepared)
+        text_report = self.qc_renderer.render_qc_text(prepared)
+
+        self.assertEqual(prepared["inputScope"]["standardKind"], "structured_complete")
+        self.assertIn("完整结构化标准", html_report)
+        self.assertIn("完整结构化标准", text_report)
+        self.assertIn('<nav class="section-nav"', html_report)
+        self.assertIn('href="#section-evidence-accuracy"', html_report)
+        assert_offline_html(self, html_report)
 
     def test_unconfirmed_qc_mutation_is_rejected_by_all_formal_outputs(self):
         report = json.loads(

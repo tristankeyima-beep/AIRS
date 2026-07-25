@@ -254,6 +254,36 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("审核结果已经可见", mode_2)
         self.assertIn("不能跳过", mode_2)
 
+    def test_mode_2_uses_qc_profile_preparer_single_root_cause_and_business_report_order(self):
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        mode_2, steps = self.mode_2_steps(skill_text)
+        adapters = (SKILL_ROOT / "references" / "input-adapters.md").read_text(encoding="utf-8")
+        rubric = (SKILL_ROOT / "references" / "qc-rubric.md").read_text(encoding="utf-8")
+        contract = (SKILL_ROOT / "references" / "report-contract.md").read_text(encoding="utf-8")
+        constraints = (SKILL_ROOT / "references" / "render-qc-html-constraints.md").read_text(encoding="utf-8")
+
+        self.assertIn("inspect_standard.py", mode_2)
+        self.assertIn("--profile qc", mode_2)
+        self.assertIn("prepare_qc_report.py", mode_2)
+        self.assertIn("一处根因只", mode_2)
+        self.assertIn("四位", adapters)
+        self.assertIn("五位", adapters)
+        self.assertIn("不混用", adapters)
+        self.assertIn("证据溯源", rubric)
+        self.assertIn("一处根因只", rubric)
+        self.assertIn("relatedCapabilities", contract)
+        self.assertIn("issueId", contract)
+        self.assertIn("materialEvidence", constraints)
+        report_order = next(
+            line for line in contract.splitlines()
+            if line.startswith("文本和 HTML 按如下顺序：")
+        )
+        self.assertLess(report_order.index("影响最终结论的问题"), report_order.index("建议"))
+        self.assertLess(report_order.index("建议"), report_order.index("材料缺失复核"))
+        renderer_step = self.mode_2_step_number(steps, "render_qc_html.py")
+        preparer_step = self.mode_2_step_number(steps, "prepare_qc_report.py")
+        self.assertLess(preparer_step, renderer_step)
+
     def test_mode_2_requires_all_dimensions_traceable_issues_and_safe_evidence_rules(self):
         skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
         _, steps = self.mode_2_steps(skill_text)
