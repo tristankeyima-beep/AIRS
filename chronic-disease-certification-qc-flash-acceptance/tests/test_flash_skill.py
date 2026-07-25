@@ -596,9 +596,6 @@ def assert_valid_mode2(test_case, fixture):
             ],
             [judgment["ruleId"] for judgment in judgments],
         )
-        if analysis["uncertainties"]:
-            test_case.assertEqual("uncertain", qc_conclusion)
-            test_case.assertEqual("unknown", risk)
 
     if profile["auditDetail"] == "conclusion_only":
         for name in MODE2_DIMENSIONS[:4]:
@@ -1167,6 +1164,22 @@ class Mode2FixtureContractTests(unittest.TestCase):
 
     def test_accepts_consecutive_natural_language_temp_rule_ids(self):
         assert_valid_mode2(self, self.natural_language_fixture())
+
+    def test_accepts_non_conclusion_uncertainty_with_definite_qc_result(self):
+        fixture = self.natural_language_fixture()
+        fixture["analysisRecord"]["uncertainties"] = [
+            "来源材料的页码标注不清晰，但不影响证据 A 的认定"
+        ]
+
+        self.assertEqual(
+            "problematic",
+            fixture["auditComparison"]["qcConclusion"],
+        )
+        self.assertEqual(
+            "false_rejection",
+            fixture["auditComparison"]["risk"],
+        )
+        assert_valid_mode2(self, fixture)
 
     def test_rejects_duplicate_or_nonsequential_natural_language_temp_ids(self):
         duplicate = self.natural_language_fixture()
