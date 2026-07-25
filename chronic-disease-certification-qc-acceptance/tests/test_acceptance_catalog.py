@@ -574,6 +574,102 @@ def parse_offline_html(rendered):
     return parser
 
 
+def assert_runtime_navigation_contract(testcase, script):
+    # CSP is defense in depth; it does not replace explicit navigation-sink gates.
+    navigation_patterns = {
+        "bare-open": r"(?<![\w$.])open\s*\(",
+        "window-open": r"\bwindow\s*\.\s*open\s*\(",
+        "bare-location-assignment": r"(?<![\w$.])location\s*=",
+        "scoped-location-assignment": (
+            r"\b(?:window|document|globalThis)\s*\.\s*location\s*="
+        ),
+        "location-href": (
+            r"\b(?:(?:window|document|globalThis)\s*\.\s*)?"
+            r"location\s*\.\s*href\s*="
+        ),
+        "location-method": (
+            r"\b(?:(?:window|document|globalThis)\s*\.\s*)?"
+            r"location\s*\.\s*(?:assign|replace|reload)\s*\("
+        ),
+        "href-set-attribute": (
+            r"\.\s*setAttribute\s*\(\s*[\"']href[\"']\s*,"
+        ),
+    }
+    for label, pattern in navigation_patterns.items():
+        testcase.assertIsNone(
+            re.search(pattern, script, flags=re.IGNORECASE),
+            label,
+        )
+
+    export_match = re.search(
+        r"(function exportResults\(\) \{.*?\n\})\n\n"
+        r"async function importResults",
+        script,
+        flags=re.DOTALL,
+    )
+    testcase.assertIsNotNone(export_match)
+    export_function = export_match.group(1)
+    ordered_export_fragments = (
+        'const blob = new Blob([serialized], { type: "application/json;charset=utf-8" });',
+        'const link = createElement("a");',
+        "const objectUrl = URL.createObjectURL(blob);",
+        "link.href = objectUrl;",
+        'link.download = "慢特病Skill验收结果-" + stamp + ".json";',
+        "link.click();",
+        "URL.revokeObjectURL(objectUrl);",
+    )
+    positions = []
+    for fragment in ordered_export_fragments:
+        testcase.assertEqual(export_function.count(fragment), 1, fragment)
+        positions.append(export_function.index(fragment))
+    testcase.assertEqual(positions, sorted(positions))
+
+    testcase.assertEqual(
+        len(
+            re.findall(
+                r"\bcreateElement\s*\(\s*[\"']a[\"']\s*\)",
+                script,
+                flags=re.IGNORECASE,
+            )
+        ),
+        1,
+    )
+    testcase.assertEqual(
+        len(re.findall(r"\.\s*href\s*=", script, flags=re.IGNORECASE)),
+        1,
+    )
+    testcase.assertEqual(
+        len(
+            re.findall(
+                r"\blink\s*\.\s*href\s*=\s*objectUrl\s*;",
+                export_function,
+            )
+        ),
+        1,
+    )
+    testcase.assertEqual(script.count("URL.createObjectURL(blob)"), 1)
+    testcase.assertEqual(script.count("URL.revokeObjectURL(objectUrl)"), 1)
+
+    testcase.assertEqual(
+        len(re.findall(r"\.\s*click\s*\(\s*\)", script)),
+        2,
+    )
+    testcase.assertEqual(
+        len(re.findall(r"\blink\s*\.\s*click\s*\(\s*\)", export_function)),
+        1,
+    )
+    testcase.assertEqual(
+        len(
+            re.findall(
+                r"document\s*\.\s*getElementById\s*\(\s*"
+                r"[\"']result-file[\"']\s*\)\s*\.\s*click\s*\(\s*\)",
+                script,
+            )
+        ),
+        1,
+    )
+
+
 def assert_runtime_offline_contract(testcase, script):
     prohibited_patterns = {
         "resource-element": (
@@ -589,7 +685,7 @@ def assert_runtime_offline_contract(testcase, script):
         ),
         "resource-set-attribute": (
             r"\.\s*setAttribute\s*\(\s*[\"']"
-            r"(?:src|srcset|srcdoc|poster|data|background|ping|action|formaction|"
+            r"(?:href|src|srcset|srcdoc|poster|data|background|ping|action|formaction|"
             r"xlink:href|xml:base)"
             r"[\"']"
         ),
@@ -656,6 +752,7 @@ def assert_runtime_offline_contract(testcase, script):
     testcase.assertIn('const link = createElement("a");', script)
     testcase.assertIn("link.download =", script)
     testcase.assertIn("URL.revokeObjectURL(objectUrl);", script)
+    assert_runtime_navigation_contract(testcase, script)
 
 
 def load_builder_module():
@@ -1986,6 +2083,43 @@ class AcceptanceCatalogTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(syntax.returncode, 0, syntax.stderr)
+
+    def test_runtime_navigation_mutations_are_rejected_independently_of_csp(self):
+        script = parse_offline_html(
+            BUILDER_MODULE.render_acceptance_html(
+                BUILDER_MODULE.load_catalog(CATALOG)
+            )
+        ).runtime_script
+        assert_runtime_navigation_contract(self, script)
+        mutation_groups = {
+            "open-functions": (
+                'open\n("https:" + "//invalid.example/bare");',
+                'window\n.\nopen("https:" + "//invalid.example/window");',
+            ),
+            "location-sinks": (
+                'location = "https:" + "//invalid.example/one";',
+                'window\n.\nlocation = "https:" + "//invalid.example/two";',
+                'document\n.\nlocation = "https:" + "//invalid.example/three";',
+                'location\n.\nhref = "https:" + "//invalid.example/four";',
+                'location\n.\nassign("https:" + "//invalid.example/five");',
+                'location\n.\nreplace("https:" + "//invalid.example/six");',
+                "location\n.\nreload();",
+            ),
+            "href-sinks": (
+                "candidate\n.\nsetAttribute\n('href', target);",
+                "candidate\n.\nhref = target;",
+            ),
+            "extra-click": ("dynamicAnchor\n.\nclick();",),
+            "extra-anchor": ("const dynamicAnchor = createElement\n('a');",),
+        }
+        for label, mutations in mutation_groups.items():
+            for index, mutation in enumerate(mutations):
+                with self.subTest(label=label, mutation=index):
+                    with self.assertRaises(AssertionError):
+                        assert_runtime_navigation_contract(
+                            self,
+                            script + "\n" + mutation,
+                        )
 
     def test_normalize_imported_results_is_pure_exact_and_prototype_safe(self):
         self.require_node()
