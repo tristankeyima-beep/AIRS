@@ -1,12 +1,17 @@
+import errno
 import importlib.util
 import hashlib
 import json
+import os
 import re
+import stat
 import subprocess
 import sys
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -392,12 +397,26 @@ class AcceptanceCatalogTests(unittest.TestCase):
         )
         return path
 
-    def run_cli(self, catalog=None):
-        command = [sys.executable, str(BUILDER)]
+    def run_cli(
+        self,
+        catalog=None,
+        output=None,
+        forbidden_terms=(),
+        cwd=None,
+        builder=BUILDER,
+        extra_args=(),
+    ):
+        command = [sys.executable, str(builder)]
         if catalog is not None:
             command.extend(["--catalog", str(catalog)])
+        if output is not None:
+            command.extend(["--output", str(output)])
+        for term in forbidden_terms:
+            command.extend(["--forbid", term])
+        command.extend(extra_args)
         return subprocess.run(
             command,
+            cwd=cwd,
             capture_output=True,
             text=True,
             check=False,
@@ -1217,12 +1236,473 @@ class AcceptanceCatalogTests(unittest.TestCase):
             str(caught.exception),
         )
 
+    def test_validate_catalog_accepts_the_exact_repository_contract(self):
+        catalog = BUILDER_MODULE.load_catalog(CATALOG)
+
+        validated = BUILDER_MODULE.validate_catalog(catalog)
+
+        self.assertIs(validated, catalog)
+        self.assertEqual(tuple(case["id"] for case in catalog["cases"]), EXPECTED_IDS)
+        self.assertEqual(BUILDER_MODULE.CASE_FIELDS, frozenset(CASE_FIELDS))
+        self.assertEqual(BUILDER_MODULE.INPUT_FIELDS, frozenset(INPUT_FIELDS))
+        self.assertEqual(BUILDER_MODULE.STEP_FIELDS, frozenset(STEP_FIELDS))
+
+    def test_validate_catalog_rejects_count_id_set_duplicates_and_order(self):
+        mutations = {}
+        too_few = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        too_few["cases"].pop()
+        mutations["count"] = too_few
+        duplicate = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        duplicate["cases"][1]["id"] = duplicate["cases"][0]["id"]
+        mutations["duplicate"] = duplicate
+        unknown = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        unknown["cases"][0]["id"] = "PRIVATE-UNKNOWN-ID"
+        mutations["unknown"] = unknown
+        out_of_order = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        out_of_order["cases"][0], out_of_order["cases"][1] = (
+            out_of_order["cases"][1],
+            out_of_order["cases"][0],
+        )
+        mutations["order"] = out_of_order
+
+        for label, catalog in mutations.items():
+            with self.subTest(label=label):
+                with self.assertRaises(BUILDER_MODULE.CatalogError) as caught:
+                    BUILDER_MODULE.validate_catalog(catalog)
+                self.assertNotIn("PRIVATE-UNKNOWN-ID", str(caught.exception))
+
+    def test_validate_catalog_rejects_unknown_or_missing_nested_fields(self):
+        mutations = {}
+        unknown_case = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        unknown_case["cases"][0]["private-business-content"] = "secret"
+        mutations["unknown-case"] = unknown_case
+        missing_case = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        missing_case["cases"][0].pop("notes")
+        mutations["missing-case"] = missing_case
+        unknown_input = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        unknown_input["cases"][0]["inputs"][0]["private-business-content"] = "secret"
+        mutations["unknown-input"] = unknown_input
+        unknown_step = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        unknown_step["cases"][0]["steps"][0]["private-business-content"] = "secret"
+        mutations["unknown-step"] = unknown_step
+
+        for label, catalog in mutations.items():
+            with self.subTest(label=label):
+                with self.assertRaises(BUILDER_MODULE.CatalogError) as caught:
+                    BUILDER_MODULE.validate_catalog(catalog)
+                self.assertNotIn("private-business-content", str(caught.exception))
+
+    def test_validate_catalog_rejects_empty_inputs_steps_and_checks(self):
+        mutations = {}
+        for field in ("inputs", "steps", "acceptanceChecks"):
+            catalog = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+            catalog["cases"][0][field] = []
+            mutations[f"empty-{field}"] = catalog
+        blank_check = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        blank_check["cases"][0]["acceptanceChecks"][0] = " \t "
+        mutations["blank-check"] = blank_check
+        blank_input = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        blank_input["cases"][0]["inputs"][0]["content"] = ""
+        mutations["blank-input"] = blank_input
+        blank_step = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        blank_step["cases"][0]["steps"][0]["expected"] = "\n"
+        mutations["blank-step"] = blank_step
+
+        for label, catalog in mutations.items():
+            with self.subTest(label=label):
+                with self.assertRaises(BUILDER_MODULE.CatalogError):
+                    BUILDER_MODULE.validate_catalog(catalog)
+
+    def test_validate_catalog_rejects_illegal_enums_and_exact_type_errors(self):
+        mutations = {}
+        illegal_mode = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        illegal_mode["cases"][0]["mode"] = "PRIVATE-MODE"
+        mutations["mode"] = illegal_mode
+        illegal_priority = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        illegal_priority["cases"][0]["priority"] = "PRIVATE-PRIORITY"
+        mutations["priority"] = illegal_priority
+        bool_for_text = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        bool_for_text["cases"][0]["title"] = True
+        mutations["bool-text"] = bool_for_text
+        bool_for_list = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        bool_for_list["cases"][0]["inputs"] = True
+        mutations["bool-list"] = bool_for_list
+        integer_for_priority = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        integer_for_priority["cases"][0]["priority"] = 1
+        mutations["integer-priority"] = integer_for_priority
+
+        for label, catalog in mutations.items():
+            with self.subTest(label=label):
+                with self.assertRaises(BUILDER_MODULE.CatalogError) as caught:
+                    BUILDER_MODULE.validate_catalog(catalog)
+                self.assertNotIn("PRIVATE-", str(caught.exception))
+
+    def test_validate_catalog_rejects_non_json_nan_and_excessive_depth(self):
+        class PrivateValue:
+            pass
+
+        mutations = {}
+        non_json = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        non_json["cases"][0]["inputs"][0]["content"] = PrivateValue()
+        mutations["non-json"] = non_json
+        nan_value = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        nan_value["cases"][0]["inputs"][0]["content"] = float("nan")
+        mutations["nan"] = nan_value
+        too_deep = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        nested = "private-business-content"
+        for _ in range(65):
+            nested = [nested]
+        too_deep["cases"][0]["inputs"][0]["content"] = nested
+        mutations["depth"] = too_deep
+
+        for label, catalog in mutations.items():
+            with self.subTest(label=label):
+                with self.assertRaises(BUILDER_MODULE.CatalogError) as caught:
+                    BUILDER_MODULE.validate_catalog(catalog)
+                self.assertNotIn("private-business-content", str(caught.exception))
+                self.assertNotIn("nan", str(caught.exception).casefold())
+                if label == "depth":
+                    self.assertEqual(str(caught.exception), "catalog_depth_error")
+
+    def test_forbidden_terms_are_external_repeatable_and_not_hardcoded(self):
+        catalog = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        term = catalog["cases"][0]["title"][:4]
+
+        with self.assertRaises(BUILDER_MODULE.CatalogError) as caught:
+            BUILDER_MODULE.validate_catalog(
+                catalog,
+                forbidden_terms=("term-not-present", term.swapcase()),
+            )
+        self.assertNotIn(term, str(caught.exception))
+
+        forbidden = "".join(chr(code) for code in (100, 105, 102, 121))
+        for path in ROOT.glob("*"):
+            if path.suffix in {".json", ".py", ".html"}:
+                with self.subTest(path=path.name):
+                    self.assertNotIn(
+                        forbidden,
+                        path.read_text(encoding="utf-8").casefold(),
+                    )
+
+    def test_safe_json_for_script_blocks_script_html_and_unicode_breakouts(self):
+        malicious = {
+            "payload": "</script><script>alert('&')</script>\u2028\u2029",
+            "markup": "<img src=x onerror=alert(1)>",
+        }
+
+        encoded = BUILDER_MODULE.safe_json_for_script(malicious)
+
+        self.assertNotIn("<", encoded)
+        self.assertNotIn(">", encoded)
+        self.assertNotIn("&", encoded)
+        self.assertNotIn("\u2028", encoded)
+        self.assertNotIn("\u2029", encoded)
+        self.assertIn("\\u003c", encoded)
+        self.assertIn("\\u003e", encoded)
+        self.assertIn("\\u0026", encoded)
+        self.assertIn("\\u2028", encoded)
+        self.assertIn("\\u2029", encoded)
+        self.assertEqual(json.loads(encoded), malicious)
+
+    def test_safe_json_for_script_uses_the_exact_canonical_json_contract(self):
+        value = {"z": "local/path", "a": ["甲", 1]}
+        expected = (
+            json.dumps(
+                value,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+            .replace("&", "\\u0026")
+            .replace("<", "\\u003c")
+            .replace(">", "\\u003e")
+            .replace("\u2028", "\\u2028")
+            .replace("\u2029", "\\u2029")
+        )
+
+        self.assertEqual(BUILDER_MODULE.safe_json_for_script(value), expected)
+
+    def test_render_acceptance_html_is_complete_static_and_safely_embedded(self):
+        catalog = BUILDER_MODULE.load_catalog(CATALOG)
+
+        rendered = BUILDER_MODULE.render_acceptance_html(catalog)
+
+        self.assertIn(catalog["title"], rendered)
+        self.assertIn("共 40 条", rendered)
+        self.assertEqual(rendered.count('class="acceptance-case"'), 40)
+        for case in catalog["cases"]:
+            with self.subTest(case=case["id"]):
+                self.assertIn(case["id"], rendered)
+                self.assertIn(case["title"], rendered)
+                self.assertIn(case["mode"], rendered)
+                self.assertIn(case["priority"], rendered)
+        match = re.search(
+            r'<script id="catalog-data" type="application/json">(.*?)</script>',
+            rendered,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(match)
+        self.assertEqual(json.loads(match.group(1)), catalog)
+        self.assertIn(
+            'JSON.parse(document.getElementById("catalog-data").textContent)',
+            rendered,
+        )
+
+    def test_render_acceptance_html_never_executes_or_injects_user_data(self):
+        catalog = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        malicious = "</script><script>PRIVATE_ATTACK()</script>\u2028\u2029"
+        catalog["title"] = malicious
+        catalog["cases"][0]["inputs"][0]["content"] = (
+            '<img src=x onerror="PRIVATE_ATTACK()"> & private'
+        )
+
+        rendered = BUILDER_MODULE.render_acceptance_html(catalog)
+
+        self.assertNotIn("</script><script>", rendered)
+        self.assertNotIn("<img src=x", rendered)
+        self.assertNotIn("\u2028", rendered)
+        self.assertNotIn("\u2029", rendered)
+        for sink in (
+            "innerHTML",
+            "outerHTML",
+            "insertAdjacentHTML",
+            "document.write",
+            "eval(",
+            "Function(",
+        ):
+            with self.subTest(sink=sink):
+                self.assertNotIn(sink, rendered)
+
+    def test_render_acceptance_html_has_no_external_dependency_or_secret_shape(self):
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+
+        for prohibited in (
+            "http://",
+            "https://",
+            "fetch(",
+            "XMLHttpRequest",
+            "WebSocket",
+            "sendBeacon",
+            "<script src=",
+            "import(",
+        ):
+            with self.subTest(prohibited=prohibited):
+                self.assertNotIn(prohibited.casefold(), rendered.casefold())
+        secret_patterns = (
+            re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"),
+            re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+            re.compile(r"\bBearer\s+[A-Za-z0-9._~+/-]{20,}\b"),
+        )
+        for pattern in secret_patterns:
+            with self.subTest(pattern=pattern.pattern):
+                self.assertIsNone(pattern.search(rendered))
+
+    def test_write_text_atomically_normalizes_lf_and_sets_mode(self):
+        destination = self.temp_path / "output.html"
+
+        BUILDER_MODULE.write_text_atomically(destination, "甲\r\n乙\r丙\n\n")
+
+        self.assertEqual(destination.read_bytes(), "甲\n乙\n丙\n".encode("utf-8"))
+        self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o644)
+        self.assertEqual(list(self.temp_path.glob(".output.html.*.tmp")), [])
+
+    def test_write_text_atomically_rejects_missing_parent_and_output_symlink(self):
+        missing_parent = self.temp_path / "missing" / "output.html"
+        with self.assertRaises(BUILDER_MODULE.CatalogError):
+            BUILDER_MODULE.write_text_atomically(missing_parent, "new")
+
+        target = self.temp_path / "target.html"
+        target.write_text("old", encoding="utf-8")
+        link = self.temp_path / "output.html"
+        try:
+            os.symlink(target, link)
+        except OSError as error:
+            supported_skip = {
+                errno.EACCES,
+                errno.EPERM,
+                getattr(errno, "ENOTSUP", -1),
+                getattr(errno, "EOPNOTSUPP", -1),
+            }
+            if error.errno in supported_skip:
+                self.skipTest(f"symlink unavailable: errno {error.errno}")
+            raise
+
+        with self.assertRaises(BUILDER_MODULE.CatalogError):
+            BUILDER_MODULE.write_text_atomically(link, "new")
+        self.assertEqual(target.read_text(encoding="utf-8"), "old")
+        self.assertTrue(link.is_symlink())
+
+    def test_write_text_atomically_rejects_same_path_and_relative_alias(self):
+        source = self.temp_path / "catalog.json"
+        source.write_text("old", encoding="utf-8")
+
+        with self.assertRaises(BUILDER_MODULE.CatalogError):
+            BUILDER_MODULE.write_text_atomically(
+                source,
+                "new",
+                source_paths=(source,),
+            )
+
+        previous_cwd = Path.cwd()
+        try:
+            os.chdir(self.temp_path)
+            with self.assertRaises(BUILDER_MODULE.CatalogError):
+                BUILDER_MODULE.write_text_atomically(
+                    Path("catalog.json"),
+                    "new",
+                    source_paths=(Path(".") / "catalog.json",),
+                )
+        finally:
+            os.chdir(previous_cwd)
+        self.assertEqual(source.read_text(encoding="utf-8"), "old")
+
+    def test_write_text_atomically_rejects_hardlink_and_source_symlink_aliases(self):
+        source = self.temp_path / "catalog.json"
+        source.write_text("old", encoding="utf-8")
+        hardlink = self.temp_path / "hardlink.html"
+        symlink = self.temp_path / "source-alias.json"
+        supported_skip = {
+            errno.EACCES,
+            errno.EPERM,
+            getattr(errno, "ENOTSUP", -1),
+            getattr(errno, "EOPNOTSUPP", -1),
+        }
+        try:
+            os.link(source, hardlink)
+            os.symlink(source, symlink)
+        except OSError as error:
+            if error.errno in supported_skip:
+                self.skipTest(f"links unavailable: errno {error.errno}")
+            raise
+
+        with self.assertRaises(BUILDER_MODULE.CatalogError):
+            BUILDER_MODULE.write_text_atomically(
+                hardlink,
+                "new",
+                source_paths=(source,),
+            )
+        with self.assertRaises(BUILDER_MODULE.CatalogError):
+            BUILDER_MODULE.write_text_atomically(
+                source,
+                "new",
+                source_paths=(symlink,),
+            )
+        self.assertEqual(source.read_text(encoding="utf-8"), "old")
+
+    def test_atomic_write_failures_preserve_existing_bytes_mode_and_cleanup(self):
+        real_fdopen = os.fdopen
+
+        class WriteFailingHandle:
+            def __init__(self, descriptor, *args, **kwargs):
+                self._handle = real_fdopen(descriptor, *args, **kwargs)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return self._handle.__exit__(exc_type, exc_value, traceback)
+
+            def write(self, value):
+                del value
+                raise OSError("private-write")
+
+        failure_patches = (
+            ("write", mock.patch("os.fdopen", side_effect=WriteFailingHandle)),
+            ("fsync", mock.patch("os.fsync", side_effect=OSError("private-fsync"))),
+            ("replace", mock.patch("os.replace", side_effect=OSError("private-replace"))),
+        )
+        for label, failure_patch in failure_patches:
+            with self.subTest(label=label):
+                case_dir = self.temp_path / label
+                case_dir.mkdir()
+                destination = case_dir / "output.html"
+                original = b"private-old\r\nbytes"
+                destination.write_bytes(original)
+                destination.chmod(0o600)
+
+                with failure_patch:
+                    with self.assertRaises(BUILDER_MODULE.CatalogError) as caught:
+                        BUILDER_MODULE.write_text_atomically(destination, "new")
+
+                self.assertNotIn("private-", str(caught.exception))
+                self.assertEqual(destination.read_bytes(), original)
+                self.assertEqual(
+                    stat.S_IMODE(destination.stat().st_mode),
+                    0o600,
+                )
+                self.assertEqual(
+                    list(case_dir.glob(".output.html.*.tmp")),
+                    [],
+                )
+
+    def test_render_and_atomic_write_are_byte_deterministic(self):
+        catalog = BUILDER_MODULE.load_catalog(CATALOG)
+        rendered = BUILDER_MODULE.render_acceptance_html(catalog)
+        destination = self.temp_path / "output.html"
+
+        BUILDER_MODULE.write_text_atomically(
+            destination,
+            rendered,
+            source_paths=(CATALOG,),
+        )
+        first = hashlib.sha256(destination.read_bytes()).hexdigest()
+        BUILDER_MODULE.write_text_atomically(
+            destination,
+            BUILDER_MODULE.render_acceptance_html(catalog),
+            source_paths=(CATALOG,),
+        )
+        second = hashlib.sha256(destination.read_bytes()).hexdigest()
+
+        self.assertEqual(first, second)
+
     def test_cli_success(self):
-        result = self.run_cli(CATALOG)
+        output = self.temp_path / EXPECTED_GENERATED_FILE
+        result = self.run_cli(CATALOG, output=output)
 
         self.assertEqual(result.returncode, 0)
-        self.assertEqual(result.stdout.strip(), "catalog_valid")
+        self.assertEqual(result.stdout.strip(), "catalog_built")
         self.assertEqual(result.stderr, "")
+        self.assertTrue(output.is_file())
+        self.assertIn("M1-001", output.read_text(encoding="utf-8"))
+
+    def test_cli_defaults_are_relative_to_script_across_cwd(self):
+        script_dir = self.temp_path / "script"
+        other_dir = self.temp_path / "other"
+        script_dir.mkdir()
+        other_dir.mkdir()
+        copied_builder = script_dir / BUILDER.name
+        copied_catalog = script_dir / CATALOG.name
+        copied_builder.write_bytes(BUILDER.read_bytes())
+        copied_catalog.write_bytes(CATALOG.read_bytes())
+
+        result = self.run_cli(cwd=other_dir, builder=copied_builder)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "catalog_built")
+        self.assertEqual(result.stderr, "")
+        output = script_dir / EXPECTED_GENERATED_FILE
+        self.assertTrue(output.is_file())
+        self.assertIn("SAFE-006", output.read_text(encoding="utf-8"))
+
+    def test_cli_forbidden_terms_are_repeatable_and_failure_is_generic(self):
+        catalog = BUILDER_MODULE.load_catalog(CATALOG)
+        sensitive_term = catalog["cases"][0]["title"][:4]
+        output = self.temp_path / "output.html"
+
+        result = self.run_cli(
+            CATALOG,
+            output=output,
+            forbidden_terms=("term-not-present", sensitive_term),
+        )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(result.stderr.strip(), "catalog_error")
+        self.assertNotIn(sensitive_term, result.stderr)
+        self.assertFalse(output.exists())
 
     def test_cli_catalog_error_is_generic_and_has_no_traceback(self):
         invalid = self.temp_path / "private-business-content.json"
@@ -1287,10 +1767,13 @@ class AcceptanceCatalogTests(unittest.TestCase):
         self.assertNotIn(SENSITIVE_RECURSIVE_VALUE, result.stderr)
 
     def test_cli_argument_error_exits_two_without_traceback(self):
-        result = self.run_cli()
+        sensitive_argument = "--PRIVATE-SECRET-ARGUMENT"
+        result = self.run_cli(extra_args=(sensitive_argument,))
 
         self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stderr.strip(), "catalog_error")
         self.assertNotIn("Traceback", result.stderr)
+        self.assertNotIn(sensitive_argument, result.stderr)
 
 
 if __name__ == "__main__":
