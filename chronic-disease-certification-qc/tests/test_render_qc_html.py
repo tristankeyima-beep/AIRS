@@ -463,6 +463,57 @@ class QcRendererTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "riskDirection"):
             self.renderer.validate_qc_report(invalid)
 
+    def test_issue_identity_and_related_capabilities_are_optional_and_validated(self):
+        legacy = copy.deepcopy(self.report)
+        self.renderer.validate_qc_report(legacy)
+
+        report = copy.deepcopy(self.report)
+        report["issues"][0].update({
+            "issueId": "ISSUE-001",
+            "relatedCapabilities": ["证据提取准确性"],
+        })
+        normalized = self.renderer.validate_qc_report(report)
+        self.assertEqual(normalized["issues"][0]["issueId"], "ISSUE-001")
+        self.assertEqual(len(normalized["issues"]), 1)
+
+        duplicate_id = copy.deepcopy(report)
+        duplicate_id["issues"].append(copy.deepcopy(duplicate_id["issues"][0]))
+        with self.assertRaisesRegex(ValueError, "issueId"):
+            self.renderer.validate_qc_report(duplicate_id)
+
+        duplicate_related = copy.deepcopy(report)
+        duplicate_related["issues"][0]["relatedCapabilities"] = [
+            "证据提取准确性",
+            "证据提取准确性",
+        ]
+        with self.assertRaisesRegex(ValueError, "relatedCapabilities"):
+            self.renderer.validate_qc_report(duplicate_related)
+
+        includes_primary = copy.deepcopy(report)
+        includes_primary["issues"][0]["relatedCapabilities"] = ["材料缺失判断准确性"]
+        with self.assertRaisesRegex(ValueError, "relatedCapabilities"):
+            self.renderer.validate_qc_report(includes_primary)
+
+    def test_non_rule_issue_may_use_empty_codes_and_medium_issue_has_visible_root_risk(self):
+        report = copy.deepcopy(self.report)
+        report["issues"][0].update({
+            "ruleCode": "",
+            "keywordCode": "",
+            "severity": "medium",
+            "impactOnFinalResult": "unchanged",
+            "riskDirection": "none",
+        })
+        report.update({
+            "qcConclusion": "基本可靠",
+            "riskDirection": "局部判断错误",
+        })
+        self.renderer.validate_qc_report(report)
+
+        invalid = copy.deepcopy(report)
+        invalid["riskDirection"] = "未发现明显风险"
+        with self.assertRaisesRegex(ValueError, "未发现明显风险"):
+            self.renderer.validate_qc_report(invalid)
+
     def test_brief_and_conclusion_only_use_distinct_capability_matrices(self):
         brief = copy.deepcopy(self.report)
         brief["inputScope"]["auditResultKind"] = "brief"

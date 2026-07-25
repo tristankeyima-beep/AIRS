@@ -541,6 +541,14 @@ def _validate_capability_matrix(capabilities, input_scope, rule_reviews):
 
 def _validate_outcome_risk(report):
     changing = [item for item in report["issues"] if item["impactOnFinalResult"] in {"changed", "potentially_changed"}]
+    if (
+        report["riskDirection"] == "未发现明显风险"
+        and any(item["severity"] in {"medium", "high"} for item in report["issues"])
+    ):
+        _error(
+            "riskDirection",
+            "cannot be 未发现明显风险 when medium/high issues exist; use a visible risk direction such as 局部判断错误",
+        )
     if not changing:
         return
     if report["qcConclusion"] in {"可靠", "基本可靠"}:
@@ -599,13 +607,35 @@ def _validate_report(report):
     material_sources = _material_sources(report["rawInput"])
     if not isinstance(report["issues"], list): _error("issues", "must be an array")
     issue_fields = {"category", "issueType", "severity", "ruleCode", "keywordCode", "modelClaim", "evidenceStatus", "materialEvidence", "qcFinding", "possibleImpact", "impactOnFinalResult", "riskDirection", "recommendation", "confidence"}
+    optional_issue_fields = {"issueId", "relatedCapabilities"}
+    issue_ids = set()
     for index, issue in enumerate(report["issues"]):
         point = f"issues[{index}]"; _object(issue, point, issue_fields)
+        extra = set(issue) - issue_fields - optional_issue_fields
+        if extra:
+            _error(point, f"unexpected field {sorted(extra)[0]}")
+        if "issueId" in issue:
+            _text(issue["issueId"], f"{point}.issueId")
+            if issue["issueId"] in issue_ids:
+                _error(f"{point}.issueId", "must be unique")
+            issue_ids.add(issue["issueId"])
         _enum(issue["category"], f"{point}.category", CATEGORIES); _text(issue["issueType"], f"{point}.issueType")
+        if "relatedCapabilities" in issue:
+            related = issue["relatedCapabilities"]
+            if not isinstance(related, list):
+                _error(f"{point}.relatedCapabilities", "must be an array")
+            if len(related) != len(set(related)):
+                _error(f"{point}.relatedCapabilities", "must not contain duplicates")
+            for related_index, name in enumerate(related):
+                _enum(name, f"{point}.relatedCapabilities[{related_index}]", CANONICAL_CAPABILITIES)
+            if issue["category"] in related:
+                _error(f"{point}.relatedCapabilities", "must not repeat the primary category")
         capability = capabilities_by_name.get(ISSUE_CAPABILITY_BY_CATEGORY[issue["category"]])
         if capability and capability["status"] == "not_run":
             _error(f"{point}.category", "cannot contain issues when its capability is not_run")
-        for field in ("ruleCode", "modelClaim", "qcFinding", "possibleImpact", "recommendation"):
+        if not isinstance(issue["ruleCode"], str):
+            _error(f"{point}.ruleCode", "must be a string")
+        for field in ("modelClaim", "qcFinding", "possibleImpact", "recommendation"):
             _text(issue[field], f"{point}.{field}")
         if not isinstance(issue["keywordCode"], str): _error(f"{point}.keywordCode", "must be a string")
         _enum(issue["severity"], f"{point}.severity", SEVERITIES); _enum(issue["confidence"], f"{point}.confidence", CONFIDENCES); _enum(issue["impactOnFinalResult"], f"{point}.impactOnFinalResult", IMPACTS); _enum(issue["riskDirection"], f"{point}.riskDirection", ISSUE_RISKS); _enum(issue["evidenceStatus"], f"{point}.evidenceStatus", EVIDENCE_STATES)
