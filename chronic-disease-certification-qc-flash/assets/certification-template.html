@@ -2,9 +2,823 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <title>Flash 模板</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>门诊慢特病认定标准 Flash · 离线报告</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f1ec;
+      --surface: #fffdf8;
+      --surface-2: #f7f9fc;
+      --ink: #18212f;
+      --muted: #637083;
+      --line: #d9dee7;
+      --brand: #2d5b9e;
+      --brand-soft: #e8eff9;
+      --status-confirmed-bg: #e7f3ec;
+      --status-confirmed-ink: #1d6844;
+      --status-pending-bg: #fff3dc;
+      --status-pending-ink: #805300;
+      --status-error-bg: #fff0ef;
+      --status-error-ink: #a12a24;
+      --type-xs: 0.75rem;
+      --type-sm: 0.875rem;
+      --type-base: 1rem;
+      --type-lg: 1.25rem;
+      --type-xl: clamp(1.75rem, 3vw, 2.5rem);
+      --radius-sm: 0.5rem;
+      --radius-md: 0.875rem;
+      --radius-lg: 1.25rem;
+      --shadow: 0 16px 42px rgba(26, 40, 62, 0.08);
+      --motion: 180ms ease;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(135deg, rgba(45, 91, 158, 0.04), transparent 32rem),
+        var(--bg);
+      font: var(--type-base)/1.68 system-ui, -apple-system, "Segoe UI",
+        "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    button,
+    a {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    :focus-visible {
+      outline: 3px solid var(--brand);
+      outline-offset: 3px;
+      border-radius: var(--radius-sm);
+    }
+
+    .skip-link {
+      position: fixed;
+      top: 0.75rem;
+      left: 0.75rem;
+      z-index: 20;
+      padding: 0.65rem 0.9rem;
+      color: var(--surface);
+      background: var(--brand);
+      border-radius: var(--radius-sm);
+      transform: translateY(-180%);
+      transition: transform var(--motion);
+    }
+
+    .skip-link:focus {
+      transform: translateY(0);
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      gap: 1.5rem;
+      width: min(100%, 1440px);
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    .side-nav {
+      position: sticky;
+      top: 1.5rem;
+      align-self: start;
+      max-height: calc(100vh - 3rem);
+      overflow: auto;
+      padding: 1.15rem 0.75rem;
+      background: rgba(255, 253, 248, 0.92);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+    }
+
+    .rail-kicker {
+      margin: 0 0.75rem 0.15rem;
+      color: var(--brand);
+      font-size: var(--type-xs);
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .rail-title {
+      margin: 0 0.75rem 1rem;
+      font-size: var(--type-lg);
+      line-height: 1.35;
+    }
+
+    .side-nav nav {
+      display: grid;
+      gap: 0.18rem;
+    }
+
+    .side-nav a {
+      display: block;
+      min-height: 2.75rem;
+      padding: 0.58rem 0.75rem;
+      color: var(--muted);
+      border-left: 3px solid transparent;
+      text-decoration: none;
+      transition:
+        color var(--motion),
+        background var(--motion),
+        border-color var(--motion);
+    }
+
+    .side-nav a:hover {
+      color: var(--ink);
+      background: var(--surface-2);
+    }
+
+    .side-nav a.active {
+      color: var(--brand);
+      background: var(--brand-soft);
+      border-left-color: var(--brand);
+      font-weight: 750;
+    }
+
+    .nav-toggle {
+      display: none;
+      min-height: 2.75rem;
+      color: var(--ink);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      font: inherit;
+      font-weight: 750;
+      cursor: pointer;
+    }
+
+    main {
+      min-width: 0;
+    }
+
+    section {
+      scroll-margin-top: 1.5rem;
+      margin-bottom: 1.1rem;
+      padding: clamp(1.15rem, 3vw, 2rem);
+      overflow: hidden;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      position: relative;
+      padding-top: clamp(1.6rem, 4vw, 3.4rem);
+      border-top: 5px solid var(--brand);
+    }
+
+    .eyebrow {
+      margin: 0 0 0.4rem;
+      color: var(--brand);
+      font-size: var(--type-xs);
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 0;
+      line-height: 1.3;
+      text-wrap: balance;
+    }
+
+    h1 {
+      max-width: 24ch;
+      margin-bottom: 0.5rem;
+      font-size: var(--type-xl);
+      letter-spacing: -0.025em;
+    }
+
+    h2 {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      margin-bottom: 1.25rem;
+      font-size: var(--type-lg);
+    }
+
+    h2::before {
+      width: 0.3rem;
+      height: 1.1em;
+      content: "";
+      background: var(--brand);
+      border-radius: 999px;
+    }
+
+    h3 {
+      margin-bottom: 0.55rem;
+      font-size: 1rem;
+    }
+
+    p {
+      margin: 0.4rem 0 0.9rem;
+    }
+
+    .lede {
+      max-width: 70ch;
+      margin-bottom: 1.4rem;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+      gap: 0.75rem;
+    }
+
+    .card {
+      min-width: 0;
+      padding: 1rem;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+    }
+
+    .card > strong:first-child {
+      display: block;
+      margin-bottom: 0.35rem;
+      color: var(--muted);
+      font-size: var(--type-sm);
+    }
+
+    .card > div {
+      overflow-wrap: anywhere;
+    }
+
+    .rule-grid,
+    .extraction-grid,
+    .source-list {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    .rule-card,
+    .extraction-card {
+      padding: 1.1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+    }
+
+    .rule-card {
+      border-left: 4px solid var(--brand);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 1.75rem;
+      margin-bottom: 0.6rem;
+      padding: 0.15rem 0.6rem;
+      color: var(--brand);
+      background: var(--brand-soft);
+      border-radius: 999px;
+      font-size: var(--type-xs);
+      font-weight: 800;
+      letter-spacing: 0.025em;
+    }
+
+    .status-confirmed {
+      color: var(--status-confirmed-ink);
+      background: var(--status-confirmed-bg);
+    }
+
+    .status-pending {
+      color: var(--status-pending-ink);
+      background: var(--status-pending-bg);
+    }
+
+    blockquote {
+      margin: 0.9rem 0 0;
+      padding: 0.75rem 0.9rem;
+      color: var(--muted);
+      background: var(--surface-2);
+      border-left: 3px solid var(--line);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    }
+
+    .logic-card {
+      margin-top: 0.65rem;
+      background: var(--surface);
+    }
+
+    .logic-card .logic-card {
+      border-left: 3px solid var(--brand-soft);
+      box-shadow: none;
+    }
+
+    ul {
+      margin: 0.45rem 0 1.2rem;
+      padding-left: 1.35rem;
+    }
+
+    li + li {
+      margin-top: 0.4rem;
+    }
+
+    details {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+    }
+
+    details > summary {
+      min-height: 2.75rem;
+      padding: 0.9rem 1rem;
+      cursor: pointer;
+      font-weight: 750;
+    }
+
+    details[open] > summary {
+      color: var(--brand);
+      background: var(--brand-soft);
+      border-bottom: 1px solid var(--line);
+    }
+
+    pre {
+      max-width: 100%;
+      margin: 0;
+      padding: 1rem;
+      overflow: auto;
+      color: var(--ink);
+      background: var(--surface-2);
+      font: var(--type-sm)/1.75 ui-monospace, SFMono-Regular, Menlo, Consolas,
+        "Liberation Mono", monospace;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .error {
+      padding: 0.9rem 1rem;
+      color: var(--status-error-ink);
+      background: var(--status-error-bg);
+      border: 1px solid currentColor;
+      border-radius: var(--radius-md);
+      font-weight: 700;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    @media (max-width: 800px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+        padding: 0.75rem;
+      }
+
+      .side-nav {
+        top: 0;
+        z-index: 5;
+        max-height: calc(100vh - 0.75rem);
+        padding: 0.65rem;
+        background: var(--bg);
+        border-radius: 0 0 var(--radius-md) var(--radius-md);
+      }
+
+      .rail-kicker,
+      .rail-title {
+        display: none;
+      }
+
+      .nav-toggle {
+        display: block;
+        width: 100%;
+      }
+
+      .side-nav nav {
+        display: none;
+        max-height: calc(100vh - 5rem);
+        margin-top: 0.5rem;
+        overflow: auto;
+      }
+
+      .side-nav.open nav {
+        display: grid;
+      }
+
+      section {
+        scroll-margin-top: 4.75rem;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .skip-link,
+      .side-nav {
+        display: none;
+      }
+
+      .app-shell {
+        display: block;
+        max-width: none;
+        padding: 0;
+      }
+
+      section {
+        padding: 1rem 0;
+        overflow: visible;
+        break-inside: avoid;
+        border-right: 0;
+        border-left: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      pre {
+        overflow: visible;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+    }
+  </style>
 </head>
 <body>
+  <a class="skip-link" href="#main">跳至主要内容</a>
+  <div class="app-shell">
+    <aside class="side-nav" aria-label="报告目录">
+      <p class="rail-kicker">Flash report</p>
+      <p class="rail-title">认定标准</p>
+      <button class="nav-toggle" type="button" aria-expanded="false">目录</button>
+      <nav aria-label="页面导航">
+        <a href="#overview">概览</a>
+        <a href="#logic">逻辑关系</a>
+        <a href="#rules">认定规则</a>
+        <a href="#extractions">提取项</a>
+        <a href="#analysis">分析记录</a>
+        <a href="#sources">原始材料</a>
+        <a href="#confirmation">确认记录</a>
+      </nav>
+    </aside>
+
+    <main id="main" tabindex="-1">
+      <section id="overview" class="hero" aria-labelledby="report-title">
+        <p class="eyebrow">门诊慢特病 · 认定标准</p>
+        <h1 id="report-title">门诊慢特病认定标准</h1>
+        <p id="report-description" class="lede">正在读取离线报告数据。</p>
+        <div id="report-error" class="error" role="alert" hidden></div>
+        <div id="overview-content"></div>
+      </section>
+
+      <section id="logic" aria-labelledby="logic-title">
+        <h2 id="logic-title">逻辑关系</h2>
+        <div id="logic-content"></div>
+      </section>
+
+      <section id="rules" aria-labelledby="rules-title">
+        <h2 id="rules-title">认定规则</h2>
+        <div id="rules-content"></div>
+      </section>
+
+      <section id="extractions" aria-labelledby="extractions-title">
+        <h2 id="extractions-title">提取项</h2>
+        <div id="extractions-content"></div>
+      </section>
+
+      <section id="analysis" aria-labelledby="analysis-title">
+        <h2 id="analysis-title">分析记录</h2>
+        <div id="analysis-content"></div>
+      </section>
+
+      <section id="sources" aria-labelledby="sources-title">
+        <h2 id="sources-title">原始材料</h2>
+        <div id="sources-content" class="source-list"></div>
+      </section>
+
+      <section id="confirmation" aria-labelledby="confirmation-title">
+        <h2 id="confirmation-title">确认记录</h2>
+        <div id="confirmation-content"></div>
+      </section>
+    </main>
+  </div>
+
   <script id="flash-data" type="application/json">__FLASH_DATA_JSON__</script>
+  <script>
+    (() => {
+      "use strict";
+
+      const LABELS = {
+        enum: "枚举",
+        text: "文本",
+        AND: "且",
+        OR: "或",
+        group: "逻辑组",
+        rule: "规则",
+        true: "已确认",
+        false: "未确认",
+        standard: "认定标准"
+      };
+
+      const byId = id => document.getElementById(id);
+      const node = (tag, text, className) => {
+        const element = document.createElement(tag);
+        if (text !== undefined && text !== null) {
+          element.textContent = String(text);
+        }
+        if (className) element.className = className;
+        return element;
+      };
+
+      const displayValue = value => {
+        if (value === undefined || value === null || value === "") {
+          return "未提供";
+        }
+        return value;
+      };
+
+      const appendRows = (root, rows) => {
+        const grid = node("div", null, "card-grid");
+        rows.forEach(([label, value]) => {
+          const card = node("div", null, "card");
+          card.append(
+            node("strong", label),
+            node("div", displayValue(value))
+          );
+          grid.append(card);
+        });
+        root.append(grid);
+      };
+
+      const renderArray = (root, title, values) => {
+        root.append(node("h3", title));
+        if (!values.length) {
+          root.append(node("p", "无"));
+          return;
+        }
+        const list = node("ul");
+        values.forEach(value => list.append(node("li", value)));
+        root.append(list);
+      };
+
+      const renderLogic = (logic, ruleMap) => {
+        const box = node("div", null, "card logic-card");
+        if (logic.type === "rule") {
+          const rule = ruleMap.get(logic.ruleId);
+          box.append(
+            node(
+              "span",
+              `${LABELS.rule} · ${displayValue(logic.ruleId)}`,
+              "badge"
+            )
+          );
+          box.append(
+            node(
+              "p",
+              rule ? rule.content : "引用的规则不存在",
+              rule ? null : "error"
+            )
+          );
+          return box;
+        }
+        if (logic.type !== "group" || !Array.isArray(logic.children)) {
+          throw new Error("无效的逻辑节点");
+        }
+        box.append(
+          node(
+            "span",
+            `${LABELS.group} · ${LABELS[logic.operator] || logic.operator}`,
+            "badge"
+          )
+        );
+        const children = node("div", null, "card-grid");
+        logic.children.forEach(child => {
+          children.append(renderLogic(child, ruleMap));
+        });
+        box.append(children);
+        return box;
+      };
+
+      const renderOverview = data => {
+        const meta = data.meta;
+        byId("report-title").textContent =
+          meta.diseaseName || "门诊慢特病认定标准";
+        byId("report-description").textContent =
+          meta.description || "未提供标准说明";
+        appendRows(byId("overview-content"), [
+          ["病种名称", meta.diseaseName],
+          ["病种编码", meta.diseaseCode],
+          ["版本", meta.version],
+          ["数据模式", data.mode]
+        ]);
+      };
+
+      const renderRules = rules => {
+        const root = byId("rules-content");
+        const grid = node("div", null, "rule-grid");
+        rules.forEach(rule => {
+          const card = node("article", null, "rule-card");
+          card.append(
+            node("span", rule.id, "badge"),
+            node("h3", rule.content),
+            node("blockquote", rule.sourceQuote)
+          );
+          grid.append(card);
+        });
+        root.append(grid);
+      };
+
+      const renderExtractions = rules => {
+        const root = byId("extractions-content");
+        const grid = node("div", null, "extraction-grid");
+        rules.forEach(rule => {
+          rule.extractionItems.forEach(item => {
+            const card = node("article", null, "extraction-card");
+            card.append(
+              node("span", item.id, "badge"),
+              node("h3", item.name)
+            );
+            appendRows(card, [
+              ["所属规则", rule.id],
+              ["ID", item.id],
+              ["名称", item.name],
+              ["数据类型", LABELS[item.dataType] || item.dataType],
+              ["肯定证据", item.expectedEvidence],
+              ["反向证据", item.negativeEvidence],
+              ["无法判断边界", item.unknownWhen],
+              ["优先材料位置", item.preferredSource]
+            ]);
+            grid.append(card);
+          });
+        });
+        root.append(grid);
+      };
+
+      const renderAnalysis = analysisRecord => {
+        const root = byId("analysis-content");
+        renderArray(root, "输入概括", analysisRecord.inputSummary);
+        renderArray(root, "采用的解释", analysisRecord.interpretations);
+        renderArray(root, "证据发现", analysisRecord.evidenceFindings);
+        renderArray(root, "不确定项", analysisRecord.uncertainties);
+        root.append(
+          node("h3", "初步结论"),
+          node("p", displayValue(analysisRecord.preliminaryConclusion))
+        );
+      };
+
+      const renderSources = sourceDocuments => {
+        const root = byId("sources-content");
+        sourceDocuments.forEach(source => {
+          const details = node("details");
+          const sourceType = LABELS[source.type] || source.type || "未知类型";
+          details.append(
+            node("summary", `${source.name} · ${sourceType}`)
+          );
+          const sourceText = node("pre");
+          sourceText.textContent = source.content || "未提供";
+          details.append(sourceText);
+          root.append(details);
+        });
+      };
+
+      const renderConfirmation = confirmation => {
+        const root = byId("confirmation-content");
+        const confirmedKey = String(confirmation.confirmed);
+        const status = node(
+          "span",
+          LABELS[confirmedKey],
+          confirmation.confirmed
+            ? "badge status-confirmed"
+            : "badge status-pending"
+        );
+        root.append(status);
+        appendRows(root, [
+          ["确认状态", LABELS[confirmedKey]],
+          ["已展示摘要", confirmation.summaryShown],
+          ["用户原话", confirmation.userResponse]
+        ]);
+      };
+
+      const renderReport = data => {
+        if (!data || typeof data !== "object") {
+          throw new Error("报告数据不是对象");
+        }
+        if (
+          !data.meta ||
+          !Array.isArray(data.rules) ||
+          !data.logic ||
+          !data.analysisRecord ||
+          !Array.isArray(data.sourceDocuments) ||
+          !data.confirmation
+        ) {
+          throw new Error("报告缺少必要字段");
+        }
+        renderOverview(data);
+        const ruleMap = new Map(data.rules.map(rule => [rule.id, rule]));
+        byId("logic-content").append(renderLogic(data.logic, ruleMap));
+        renderRules(data.rules);
+        renderExtractions(data.rules);
+        renderAnalysis(data.analysisRecord);
+        renderSources(data.sourceDocuments);
+        renderConfirmation(data.confirmation);
+      };
+
+      const showError = () => {
+        const error = byId("report-error");
+        error.textContent = "无法生成报告：数据解析或渲染失败。";
+        error.hidden = false;
+        byId("report-description").textContent =
+          "请检查内嵌 JSON 数据后重新生成。";
+        [
+          "overview-content",
+          "logic-content",
+          "rules-content",
+          "extractions-content",
+          "analysis-content",
+          "sources-content",
+          "confirmation-content"
+        ].forEach(id => byId(id).replaceChildren());
+      };
+
+      try {
+        const data = JSON.parse(byId("flash-data").textContent);
+        renderReport(data);
+      } catch (error) {
+        showError();
+      }
+
+      const sideNav = document.querySelector(".side-nav");
+      const navToggle = document.querySelector(".nav-toggle");
+      const navLinks = Array.from(
+        document.querySelectorAll(".side-nav nav a")
+      );
+      const setActive = sectionId => {
+        navLinks.forEach(link => {
+          link.classList.toggle(
+            "active",
+            link.getAttribute("href") === `#${sectionId}`
+          );
+        });
+      };
+
+      navToggle.addEventListener("click", () => {
+        const isOpen = sideNav.classList.toggle("open");
+        navToggle.setAttribute("aria-expanded", String(isOpen));
+      });
+
+      navLinks.forEach(link => {
+        link.addEventListener("click", () => {
+          setActive(link.getAttribute("href").slice(1));
+          sideNav.classList.remove("open");
+          navToggle.setAttribute("aria-expanded", "false");
+        });
+      });
+
+      setActive("overview");
+      if ("IntersectionObserver" in window) {
+        const observer = new IntersectionObserver(entries => {
+          const visible = entries
+            .filter(entry => entry.isIntersecting)
+            .sort(
+              (first, second) =>
+                Math.abs(first.boundingClientRect.top) -
+                Math.abs(second.boundingClientRect.top)
+            );
+          if (visible.length) setActive(visible[0].target.id);
+        }, {
+          rootMargin: "-15% 0px -65% 0px",
+          threshold: [0, 0.2, 0.6]
+        });
+        document.querySelectorAll("main section").forEach(section => {
+          observer.observe(section);
+        });
+      }
+    })();
+  </script>
 </body>
 </html>

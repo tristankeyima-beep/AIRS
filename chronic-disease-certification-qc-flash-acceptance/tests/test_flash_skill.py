@@ -1,6 +1,7 @@
 import copy
 import json
 import re
+import tempfile
 import unittest
 from collections import Counter
 from pathlib import Path
@@ -23,6 +24,18 @@ MODE1_REQUIRED_KEYS = {
 
 def read(path):
     return path.read_text(encoding="utf-8")
+
+
+def embedded_html(template_path, fixture_path):
+    template = read(template_path)
+    data = json.loads(read(fixture_path))
+    payload = json.dumps(data, ensure_ascii=False, indent=2)
+    payload = (
+        payload.replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+    )
+    return template.replace("__FLASH_DATA_JSON__", payload)
 
 
 def parse_frontmatter(markdown):
@@ -487,6 +500,182 @@ class Mode1DocumentationTests(unittest.TestCase):
 
         self.assertEqual(fixture, contract_example)
         assert_valid_mode1_fixture(self, contract_example)
+
+
+class FlashCertificationTemplateTests(unittest.TestCase):
+    def setUp(self):
+        self.template_path = (
+            SKILL_ROOT / "assets" / "certification-template.html"
+        )
+        self.fixture_path = ACCEPTANCE_ROOT / "fixtures" / "valid-mode1.json"
+        self.template = read(self.template_path)
+
+    def test_template_has_one_safe_data_slot_and_offline_renderer(self):
+        self.assertEqual(1, self.template.count("__FLASH_DATA_JSON__"))
+        script_tags = re.findall(
+            r"<script\b[^>]*>",
+            self.template,
+            re.IGNORECASE,
+        )
+        self.assertEqual(2, len(script_tags))
+        data_slots = [
+            tag
+            for tag in script_tags
+            if re.search(r'\bid="flash-data"', tag)
+            and re.search(r'\btype="application/json"', tag)
+        ]
+        self.assertEqual(1, len(data_slots))
+        self.assertIn(
+            '<script id="flash-data" type="application/json">'
+            "__FLASH_DATA_JSON__</script>",
+            self.template,
+        )
+
+        for forbidden in ("innerHTML", "document.write"):
+            self.assertNotIn(forbidden, self.template)
+        self.assertNotRegex(self.template, r"\beval\s*\(")
+        for required in (
+            "textContent",
+            "JSON.parse",
+            "IntersectionObserver",
+            "prefers-reduced-motion",
+        ):
+            self.assertIn(required, self.template)
+        self.assertNotRegex(
+            self.template,
+            r"https?://|<script\b[^>]*\bsrc\s*=|<link\b[^>]*\bhref\s*=",
+        )
+
+    def test_template_has_exact_navigation_and_sections(self):
+        navigation = (
+            ("overview", "概览"),
+            ("logic", "逻辑关系"),
+            ("rules", "认定规则"),
+            ("extractions", "提取项"),
+            ("analysis", "分析记录"),
+            ("sources", "原始材料"),
+            ("confirmation", "确认记录"),
+        )
+        for section_id, label in navigation:
+            self.assertIn(
+                f'<a href="#{section_id}">{label}</a>',
+                self.template,
+            )
+            self.assertEqual(
+                1,
+                len(
+                    re.findall(
+                        rf'<section\b[^>]*\bid="{section_id}"[^>]*>',
+                        self.template,
+                    )
+                ),
+            )
+
+    def test_template_exposes_accessible_landmarks_and_focus(self):
+        self.assertRegex(
+            self.template,
+            r'<a\b[^>]*class="skip-link"[^>]*href="#main"[^>]*>',
+        )
+        self.assertRegex(self.template, r'<main\b[^>]*\bid="main"[^>]*>')
+        self.assertRegex(
+            self.template,
+            r'<nav\b[^>]*\baria-label="页面导航"[^>]*>',
+        )
+        self.assertRegex(
+            self.template,
+            r'<button\b[^>]*class="nav-toggle"[^>]*'
+            r'\btype="button"[^>]*\baria-expanded="false"[^>]*>',
+        )
+        self.assertEqual(
+            1,
+            len(re.findall(r"<h1\b", self.template, re.IGNORECASE)),
+        )
+        self.assertIn(":focus-visible", self.template)
+
+    def test_renderer_declares_complete_mode1_fields_and_labels(self):
+        mappings = (
+            'enum: "枚举"',
+            'text: "文本"',
+            'AND: "且"',
+            'OR: "或"',
+            'group: "逻辑组"',
+            'rule: "规则"',
+            'true: "已确认"',
+            'false: "未确认"',
+        )
+        for mapping in mappings:
+            self.assertIn(mapping, self.template)
+
+        for field in (
+            "id",
+            "name",
+            "dataType",
+            "expectedEvidence",
+            "negativeEvidence",
+            "unknownWhen",
+            "preferredSource",
+            "inputSummary",
+            "interpretations",
+            "evidenceFindings",
+            "uncertainties",
+            "preliminaryConclusion",
+            "sourceQuote",
+            "summaryShown",
+            "userResponse",
+        ):
+            self.assertIn(field, self.template)
+        self.assertIn("引用的规则不存在", self.template)
+        self.assertIn('node("p", "无")', self.template)
+
+    def test_template_embeds_exact_mode1_fixture(self):
+        fixture = json.loads(read(self.fixture_path))
+        html = embedded_html(self.template_path, self.fixture_path)
+
+        self.assertNotIn("__FLASH_DATA_JSON__", html)
+        self.assertIn("测试病种甲", html)
+        self.assertIn("R001", html)
+        match = re.search(
+            r'<script id="flash-data" type="application/json">'
+            r"(?P<payload>.*?)</script>",
+            html,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(match)
+        self.assertEqual(fixture, json.loads(match.group("payload")))
+
+    def test_hostile_source_content_cannot_break_out_of_data_slot(self):
+        hostile = (
+            "</script><script>"
+            "document.body.textContent='owned'"
+            "</script>"
+        )
+        fixture = json.loads(read(self.fixture_path))
+        fixture["sourceDocuments"][0]["content"] = hostile
+        with tempfile.TemporaryDirectory() as directory:
+            hostile_fixture_path = Path(directory) / "hostile.json"
+            hostile_fixture_path.write_text(
+                json.dumps(fixture, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            hostile_html = embedded_html(
+                self.template_path,
+                hostile_fixture_path,
+            )
+
+        self.assertNotIn(hostile, hostile_html)
+        self.assertIn("\\u003c/script", hostile_html)
+        script_tags = re.findall(
+            r"<script\b[^>]*>",
+            hostile_html,
+            re.IGNORECASE,
+        )
+        executable_scripts = [
+            tag
+            for tag in script_tags
+            if 'type="application/json"' not in tag
+        ]
+        self.assertEqual(2, len(script_tags))
+        self.assertEqual(1, len(executable_scripts))
 
 
 if __name__ == "__main__":
