@@ -411,17 +411,14 @@ def assert_valid_mode2(test_case, fixture):
         base_review["preliminaryResult"],
         {"meets", "does_not_meet", "uncertain"},
     )
-    if (
-        profile["standardKind"] != "absent"
-        and profile["auditDetail"] == "detailed"
-    ):
+    if profile["standardKind"] != "absent":
         test_case.assertTrue(
             base_review["materialFacts"],
-            "detailed review requires materialFacts",
+            "review with a standard requires materialFacts",
         )
         test_case.assertTrue(
             judgments,
-            "detailed review requires ruleJudgments",
+            "review with a standard requires ruleJudgments",
         )
         for index, judgment in enumerate(judgments):
             test_case.assertTrue(
@@ -599,6 +596,9 @@ def assert_valid_mode2(test_case, fixture):
             ],
             [judgment["ruleId"] for judgment in judgments],
         )
+        if analysis["uncertainties"]:
+            test_case.assertEqual("uncertain", qc_conclusion)
+            test_case.assertEqual("unknown", risk)
 
     if profile["auditDetail"] == "conclusion_only":
         for name in MODE2_DIMENSIONS[:4]:
@@ -606,6 +606,42 @@ def assert_valid_mode2(test_case, fixture):
             test_case.assertEqual("not_checked", dimension["status"])
         test_case.assertEqual("uncertain", qc_conclusion)
         test_case.assertEqual("unknown", risk)
+
+
+def assert_natural_language_ambiguity_scenario(test_case, fixture):
+    assert_valid_mode2(test_case, fixture)
+    test_case.assertEqual(
+        "natural_language",
+        fixture["inputProfile"]["standardKind"],
+    )
+    test_case.assertTrue(
+        fixture["analysisRecord"]["uncertainties"],
+        "conclusion-affecting natural-language ambiguity must be recorded",
+    )
+    test_case.assertEqual(
+        "uncertain",
+        fixture["auditComparison"]["qcConclusion"],
+    )
+    test_case.assertEqual("unknown", fixture["auditComparison"]["risk"])
+
+
+def assert_directional_risk_scenario(
+    test_case,
+    fixture,
+    original_conclusion,
+    preliminary_result,
+    expected_risk,
+):
+    assert_valid_mode2(test_case, fixture)
+    test_case.assertEqual(
+        original_conclusion,
+        fixture["auditComparison"]["originalConclusion"],
+    )
+    test_case.assertEqual(
+        preliminary_result,
+        fixture["baseReview"]["preliminaryResult"],
+    )
+    test_case.assertEqual(expected_risk, fixture["auditComparison"]["risk"])
 
 
 class OpenAIYamlParserTests(unittest.TestCase):
@@ -1031,6 +1067,44 @@ class Mode2FixtureContractTests(unittest.TestCase):
 
         assert_valid_mode2(self, reliable)
 
+    def brief_fixture(self):
+        fixture = copy.deepcopy(self.fixture)
+        fixture["inputProfile"]["auditDetail"] = "brief"
+        for source in fixture["sourceDocuments"]:
+            if source["type"] == "audit_result":
+                source["content"] = (
+                    "原审核摘要主张证据 A 缺失，结论为不通过。"
+                )
+        fixture["analysisRecord"]["inputSummary"] = [
+            "已收到患者材料、结构化标准和简要审核结果"
+        ]
+        fixture["dimensions"][2]["status"] = "not_checked"
+        fixture["dimensions"][2]["summary"] = "简要审核结果未展示推理过程"
+        fixture["dimensions"][2]["notCheckedReason"] = "未提供完整审核过程"
+        return fixture
+
+    def test_accepts_brief_report_with_independent_base_review_evidence(self):
+        assert_valid_mode2(self, self.brief_fixture())
+
+    def test_rejects_brief_report_with_empty_base_review_evidence(self):
+        empty_facts = self.brief_fixture()
+        empty_facts["baseReview"]["materialFacts"] = []
+
+        empty_judgments = self.brief_fixture()
+        empty_judgments["baseReview"]["ruleJudgments"] = []
+
+        empty_evidence = self.brief_fixture()
+        empty_evidence["baseReview"]["ruleJudgments"][0]["evidence"] = []
+
+        for name, mutation in {
+            "material facts": empty_facts,
+            "rule judgments": empty_judgments,
+            "judgment evidence": empty_evidence,
+        }.items():
+            with self.subTest(mutation=name):
+                with self.assertRaises(AssertionError):
+                    assert_valid_mode2(self, mutation)
+
     def conclusion_only_fixture(self):
         fixture = copy.deepcopy(self.fixture)
         fixture["inputProfile"]["auditDetail"] = "conclusion_only"
@@ -1108,6 +1182,156 @@ class Mode2FixtureContractTests(unittest.TestCase):
             with self.subTest(mutation=name):
                 with self.assertRaises(AssertionError):
                     assert_valid_mode2(self, mutation)
+
+    def ambiguous_natural_language_fixture(self):
+        fixture = self.natural_language_fixture()
+        fixture["analysisRecord"]["uncertainties"] = [
+            "自然语言标准中“证据充分”的含义存在影响结论的歧义"
+        ]
+        fixture["analysisRecord"]["preliminaryConclusion"] = (
+            "自然语言标准存在影响结论的歧义，质控结论不确定"
+        )
+        fixture["auditComparison"]["qcConclusion"] = "uncertain"
+        fixture["auditComparison"]["risk"] = "unknown"
+        fixture["auditComparison"]["summary"] = (
+            "自然语言标准的关键含义不明确，无法确定原审核是否可靠"
+        )
+        return fixture
+
+    def test_accepts_natural_language_conclusion_ambiguity_degradation(self):
+        assert_natural_language_ambiguity_scenario(
+            self,
+            self.ambiguous_natural_language_fixture(),
+        )
+
+    def test_rejects_unrecorded_or_non_degraded_natural_language_ambiguity(self):
+        missing_uncertainty = self.ambiguous_natural_language_fixture()
+        missing_uncertainty["analysisRecord"]["uncertainties"] = []
+
+        definite_conclusion = self.ambiguous_natural_language_fixture()
+        definite_conclusion["auditComparison"]["qcConclusion"] = "problematic"
+
+        directional_risk = self.ambiguous_natural_language_fixture()
+        directional_risk["auditComparison"]["risk"] = "false_rejection"
+
+        for name, mutation in {
+            "missing uncertainty": missing_uncertainty,
+            "definite conclusion": definite_conclusion,
+            "directional risk": directional_risk,
+        }.items():
+            with self.subTest(mutation=name):
+                with self.assertRaises(AssertionError):
+                    assert_natural_language_ambiguity_scenario(self, mutation)
+
+    def false_approval_fixture(self):
+        fixture = copy.deepcopy(self.fixture)
+        for source in fixture["sourceDocuments"]:
+            if source["type"] == "patient_material":
+                source["content"] = "患者材料未记载证据 A。"
+            elif source["type"] == "audit_result":
+                source["content"] = (
+                    "原审核认定证据 A 已满足，结论为通过。"
+                )
+        fixture["analysisRecord"]["evidenceFindings"] = [
+            "患者材料未提供证据 A"
+        ]
+        fixture["analysisRecord"]["preliminaryConclusion"] = (
+            "原审核的满足判断与患者材料不一致"
+        )
+        fixture["baseReview"]["materialFacts"] = ["患者材料未记载证据 A"]
+        fixture["baseReview"]["ruleJudgments"][0] = {
+            "ruleId": "R001",
+            "result": "not_met",
+            "evidence": ["患者材料：未记载证据 A"],
+            "reason": "材料中缺少标准要求的证据 A",
+        }
+        fixture["baseReview"]["preliminaryResult"] = "does_not_meet"
+        fixture["auditComparison"] = {
+            "originalConclusion": "通过",
+            "qcConclusion": "problematic",
+            "risk": "false_approval",
+            "summary": "原审核将未满足的证据条件判为满足，可能导致错误通过",
+        }
+        fixture["dimensions"][0]["summary"] = "原审核未识别证据 A 实际缺失"
+        fixture["dimensions"][1]["summary"] = (
+            "复核能够从患者材料中准确识别证据 A 缺失"
+        )
+        fixture["dimensions"][3]["summary"] = (
+            "证据 A 未满足标准要求，但原审核仍给出通过结论"
+        )
+        fixture["issues"][0].update(
+            {
+                "auditClaim": "原审核主张证据 A 已满足",
+                "actualEvidence": "患者材料未记载证据 A",
+                "impact": "可能导致不符合条件的申请被错误通过",
+                "recommendation": "重新核对证据 A 的缺失状态",
+            }
+        )
+        fixture["issues"][1].update(
+            {
+                "auditClaim": "原审核以证据 A 已满足为由给出通过结论",
+                "actualEvidence": "证据 A 不满足认定标准要求",
+                "impact": "可能造成审核条件与通过结论不一致",
+                "recommendation": "根据证据 A 未满足的事实修正审核结论",
+            }
+        )
+        fixture["recommendations"] = [
+            "重新核对患者材料中的证据 A",
+            "复核并修正最终审核结论",
+        ]
+        return fixture
+
+    def test_accepts_paired_false_rejection_and_false_approval_directions(self):
+        assert_directional_risk_scenario(
+            self,
+            self.fixture,
+            "不通过",
+            "meets",
+            "false_rejection",
+        )
+
+        false_approval = self.false_approval_fixture()
+        assert_directional_risk_scenario(
+            self,
+            false_approval,
+            "通过",
+            "does_not_meet",
+            "false_approval",
+        )
+
+    def test_rejects_reversed_canonical_and_false_approval_directions(self):
+        reversed_rejection = copy.deepcopy(self.fixture)
+        reversed_rejection["auditComparison"]["risk"] = "false_approval"
+
+        reversed_approval = self.false_approval_fixture()
+        reversed_approval["auditComparison"]["risk"] = "false_rejection"
+
+        scenarios = (
+            (
+                "reversed rejection",
+                reversed_rejection,
+                "不通过",
+                "meets",
+                "false_rejection",
+            ),
+            (
+                "reversed approval",
+                reversed_approval,
+                "通过",
+                "does_not_meet",
+                "false_approval",
+            ),
+        )
+        for name, fixture, original, preliminary, expected_risk in scenarios:
+            with self.subTest(scenario=name):
+                with self.assertRaises(AssertionError):
+                    assert_directional_risk_scenario(
+                        self,
+                        fixture,
+                        original,
+                        preliminary,
+                        expected_risk,
+                    )
 
     def test_accepts_absent_profile_and_rejects_standard_or_rule_review(self):
         absent = copy.deepcopy(self.fixture)
@@ -1270,6 +1494,12 @@ class Mode2DocumentationTests(unittest.TestCase):
             "`uncertain` 时",
             "前四个维度",
             "连续且唯一",
+            "不论 `auditDetail`",
+            "`false_approval` 表示原审核通过",
+            "`false_rejection` 表示原审核不通过",
+            "`both` 表示同时存在错误通过和错误拒绝风险",
+            "影响结论的歧义",
+            "`analysisRecord.uncertainties` 必须非空",
             "<病种>-审核质控-flash-<日期>.json",
             "<病种>-审核质控-flash-<日期>.html",
         ):
@@ -1288,6 +1518,19 @@ class Mode2DocumentationTests(unittest.TestCase):
 
         self.assertEqual(fixture, contract_example)
         assert_valid_mode2(self, contract_example)
+
+    def test_output_checklist_requires_mode2_risk_direction_self_check(self):
+        checklist = read(
+            SKILL_ROOT / "references" / "output-checklist.md"
+        )
+        for marker in (
+            "baseReview.preliminaryResult",
+            "auditComparison.originalConclusion",
+            "false_approval（错误通过）",
+            "false_rejection（错误拒绝）",
+            "both（双向风险）",
+        ):
+            self.assertIn(marker, checklist)
 
 
 class FlashCertificationTemplateTests(unittest.TestCase):

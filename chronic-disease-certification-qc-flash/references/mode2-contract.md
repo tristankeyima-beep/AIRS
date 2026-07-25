@@ -32,7 +32,7 @@
 - `materialFacts` 是字符串数组。
 - `ruleJudgments` 是数组，每项字段恰好为 `ruleId`、`result`、`evidence`、`reason`。`ruleId` 和 `reason` 是非空字符串；`result` 只能是 `met`、`not_met`、`unknown`；`evidence` 是字符串数组。
 - `preliminaryResult` 只能是 `meets`、`does_not_meet`、`uncertain`。
-- 当 `standardKind` 不是 `absent` 且 `auditDetail=detailed` 时，`materialFacts`、`ruleJudgments` 及每项判断的 `evidence` 都不得为空。
+- 当 `standardKind` 不是 `absent` 时，不论 `auditDetail` 是何种取值，`materialFacts`、`ruleJudgments` 及每项判断的 `evidence` 都不得为空。
 
 ## `auditComparison`
 
@@ -40,6 +40,7 @@
 
 - `qcConclusion` 只能是 `reliable`、`problematic`、`uncertain`。
 - `risk` 只能是 `none`、`false_approval`、`false_rejection`、`both`、`unknown`。
+- `false_approval` 表示原审核通过，但独立复核结果为不满足，存在错误通过风险；`false_rejection` 表示原审核不通过，但独立复核结果为满足，存在错误拒绝风险；`both` 表示同时存在错误通过和错误拒绝风险；`unknown` 表示现有信息不足以确定风险方向。
 - `reliable` 时，不得有 `issue` 维度或问题记录，且 `risk` 必须为 `none`。
 - `problematic` 时，必须至少有一个 `issue` 维度和问题记录，且 `risk` 不得为 `none`。
 - `uncertain` 时，`risk` 必须为 `unknown`。
@@ -63,7 +64,7 @@
 - `standardKind=absent`：不得判断独立政策资格；不得包含 `standard` 来源，`ruleJudgments` 必须为空数组，`preliminaryResult` 必须为 `uncertain`，“规则维护质量”必须为 `not_checked` 并写明原因。
 - `auditDetail=conclusion_only`：不得编造或推断未展示的审核主张、证据、推理和规则执行过程；前四个维度必须为 `not_checked` 并写明原因，`qcConclusion` 必须为 `uncertain`，`risk` 必须为 `unknown`。
 - `auditDetail=brief`：只核查可见主张，无法获取的检查项标为 `not_checked` 并写明原因，不得编造缺失过程。
-- `standardKind=natural_language`：可以构建仅用于本次质控的临时规则，编号必须从 `TMP-R001` 开始连续且唯一，但不得把它们称为正式业务规则。任何影响结论的含义歧义必须写入 `analysisRecord.uncertainties`，并令 `qcConclusion` 为 `uncertain`。
+- `standardKind=natural_language`：可以构建仅用于本次质控的临时规则，编号必须从 `TMP-R001` 开始连续且唯一，但不得把它们称为正式业务规则。出现任何影响结论的歧义时，`analysisRecord.uncertainties` 必须非空，`qcConclusion` 必须为 `uncertain`，`risk` 必须为 `unknown`。
 
 交付文件名固定为 `<病种>-审核质控-flash-<日期>.json` 和 `<病种>-审核质控-flash-<日期>.html`。
 
