@@ -5,7 +5,6 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILL_ROOT = REPO_ROOT / "chronic-disease-certification-qc-flash"
-ACCEPTANCE_ROOT = REPO_ROOT / "chronic-disease-certification-qc-flash-acceptance"
 
 
 def read(path):
@@ -24,6 +23,56 @@ def parse_frontmatter(markdown):
             raise AssertionError(f"invalid frontmatter line: {line}")
         metadata[key.strip()] = value.strip().strip("\"'")
     return metadata
+
+
+def parse_openai_interface(yaml_text):
+    lines = yaml_text.splitlines()
+    if not lines or lines[0] != "interface:":
+        raise AssertionError("openai.yaml must start with interface:")
+
+    interface = {}
+    for line in lines[1:]:
+        match = re.fullmatch(r'  ([a-z_]+): "([^"]*)"', line)
+        if not match:
+            raise AssertionError(f"invalid interface line: {line}")
+        key, value = match.groups()
+        if key in interface:
+            raise AssertionError(f"duplicate interface key: {key}")
+        interface[key] = value
+
+    expected_keys = {
+        "display_name",
+        "short_description",
+        "default_prompt",
+    }
+    if set(interface) != expected_keys:
+        raise AssertionError(
+            f"interface keys must be exactly {sorted(expected_keys)}"
+        )
+    return interface
+
+
+class OpenAIYamlParserTests(unittest.TestCase):
+    def test_rejects_malformed_missing_and_misplaced_interface_fields(self):
+        invalid_documents = (
+            (
+                "interface:\n"
+                ' display_name: "门诊慢特病认定与质控 Flash"\n'
+            ),
+            (
+                "interface:\n"
+                '  display_name: "门诊慢特病认定与质控 Flash"\n'
+            ),
+            (
+                'display_name: "门诊慢特病认定与质控 Flash"\n'
+                "interface:\n"
+            ),
+        )
+
+        for document in invalid_documents:
+            with self.subTest(document=document):
+                with self.assertRaises(AssertionError):
+                    parse_openai_interface(document)
 
 
 class FlashSkillStaticStructureTests(unittest.TestCase):
@@ -57,9 +106,44 @@ class FlashSkillStaticStructureTests(unittest.TestCase):
         for phrase in ("轻量", "认定标准", "审核"):
             self.assertIn(phrase, metadata["description"])
 
-        ui = read(SKILL_ROOT / "agents" / "openai.yaml")
-        self.assertIn('display_name: "门诊慢特病认定与质控 Flash"', ui)
-        self.assertIn("$chronic-disease-certification-qc-flash", ui)
+        ui = parse_openai_interface(
+            read(SKILL_ROOT / "agents" / "openai.yaml")
+        )
+        self.assertEqual(
+            {
+                "display_name": "门诊慢特病认定与质控 Flash",
+                "short_description": (
+                    "轻量生成门诊慢特病认定标准并复核患者材料与智能审核结果"
+                ),
+                "default_prompt": (
+                    "使用 $chronic-disease-certification-qc-flash "
+                    "生成门诊慢特病认定标准，或复核患者材料与智能审核结果。"
+                ),
+            },
+            ui,
+        )
+        self.assertGreaterEqual(len(ui["short_description"]), 25)
+        self.assertLessEqual(len(ui["short_description"]), 64)
+        self.assertIn(
+            "$chronic-disease-certification-qc-flash",
+            ui["default_prompt"],
+        )
+
+    def test_html_templates_have_single_json_data_slot(self):
+        templates = (
+            "certification-template.html",
+            "qc-report-template.html",
+        )
+
+        for filename in templates:
+            with self.subTest(template=filename):
+                html = read(SKILL_ROOT / "assets" / filename)
+                self.assertTrue(html.strip())
+                self.assertRegex(html, r"(?i)<!doctype html>")
+                self.assertRegex(html, r"(?i)<html(?:\s|>)")
+                self.assertEqual(1, html.count("__FLASH_DATA_JSON__"))
+                self.assertIn('id="flash-data"', html)
+                self.assertIn('type="application/json"', html)
 
     def test_no_placeholder_markers_in_runtime_docs(self):
         forbidden = ("TO" + "DO", "T" + "BD")
@@ -68,7 +152,7 @@ class FlashSkillStaticStructureTests(unittest.TestCase):
         )
 
         for path in runtime_files:
-            content = read(path)
+            content = read(path).upper()
             for marker in forbidden:
                 self.assertNotIn(marker, content, path.relative_to(REPO_ROOT))
 
