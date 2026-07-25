@@ -12,6 +12,7 @@ CATALOG = ROOT / "acceptance-cases.json"
 BUILDER = ROOT / "build_acceptance_html.py"
 
 EXPECTED_GENERATED_FILE = "慢特病认定标准与审核质控-验收测试用例.html"
+SENSITIVE_DUPLICATE_KEY = "敏感业务字段_患者身份证号_DO_NOT_ECHO"
 VALID_CATALOG = {
     "catalogVersion": "2026.07.25.1",
     "title": "门诊慢特病认定标准与智能审核质控验收测试用例",
@@ -68,17 +69,26 @@ def test_duplicate_key_is_rejected_at_any_depth(builder_module, tmp_path):
           "title": "title",
           "description": "description",
           "generatedFile": "慢特病认定标准与审核质控-验收测试用例.html",
-          "cases": [{"steps": [{"expectation": "one", "expectation": "two"}]}]
+          "cases": [
+            {
+              "steps": [
+                {
+                  "__SENSITIVE_DUPLICATE_KEY__": "one",
+                  "__SENSITIVE_DUPLICATE_KEY__": "two"
+                }
+              ]
+            }
+          ]
         }
-        """,
+        """.replace("__SENSITIVE_DUPLICATE_KEY__", SENSITIVE_DUPLICATE_KEY),
         encoding="utf-8",
     )
 
-    with pytest.raises(
-        builder_module.CatalogError,
-        match=r"^duplicate_json_key:expectation$",
-    ):
+    with pytest.raises(builder_module.CatalogError) as caught:
         builder_module.load_catalog(path)
+
+    assert str(caught.value) == "duplicate_json_key"
+    assert SENSITIVE_DUPLICATE_KEY not in str(caught.value)
 
 
 @pytest.mark.parametrize(
@@ -215,6 +225,45 @@ def test_cli_catalog_error_is_generic_and_has_no_traceback(
     assert result.stderr.strip() == "catalog_error"
     assert "Traceback" not in result.stderr
     assert "private-business-content" not in result.stderr
+
+
+def test_cli_duplicate_key_error_does_not_echo_sensitive_key(
+    builder_module,
+    tmp_path,
+):
+    del builder_module
+    invalid = tmp_path / "duplicate.json"
+    invalid.write_text(
+        """
+        {
+          "catalogVersion": "2026.07.25.1",
+          "title": "title",
+          "description": "description",
+          "generatedFile": "慢特病认定标准与审核质控-验收测试用例.html",
+          "cases": [
+            {
+              "__SENSITIVE_DUPLICATE_KEY__": "one",
+              "__SENSITIVE_DUPLICATE_KEY__": "two"
+            }
+          ]
+        }
+        """.replace("__SENSITIVE_DUPLICATE_KEY__", SENSITIVE_DUPLICATE_KEY),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [sys.executable, str(BUILDER), "--catalog", str(invalid)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr.strip() == "catalog_error"
+    assert "Traceback" not in result.stderr
+    assert SENSITIVE_DUPLICATE_KEY not in result.stdout
+    assert SENSITIVE_DUPLICATE_KEY not in result.stderr
 
 
 def test_cli_argument_error_exits_two_without_traceback(builder_module):

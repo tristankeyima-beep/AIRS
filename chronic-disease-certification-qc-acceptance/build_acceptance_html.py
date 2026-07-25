@@ -29,7 +29,7 @@ def _reject_duplicate_pairs(pairs):
     result = {}
     for key, value in pairs:
         if key in result:
-            raise CatalogError(f"duplicate_json_key:{key}")
+            raise CatalogError("duplicate_json_key")
         result[key] = value
     return result
 
