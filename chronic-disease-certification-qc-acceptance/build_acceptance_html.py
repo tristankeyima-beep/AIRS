@@ -1395,25 +1395,25 @@ function exactKeys(value, expected) {
   );
 }
 
-function validateResultsDocument(value) {
-  if (!exactKeys(value, ["results", "updatedAt", "version"])) {
+function normalizeImportedResults(payload) {
+  if (!exactKeys(payload, ["results", "updatedAt", "version"])) {
     throw new Error("invalid-root");
   }
   if (
-    value.version !== acceptanceCatalog.catalogVersion ||
-    typeof value.updatedAt !== "string" ||
-    !value.updatedAt
+    payload.version !== acceptanceCatalog.catalogVersion ||
+    typeof payload.updatedAt !== "string" ||
+    !payload.updatedAt
   ) {
     throw new Error("invalid-metadata");
   }
   if (
-    !value.results ||
-    typeof value.results !== "object" ||
-    Array.isArray(value.results)
+    !payload.results ||
+    typeof payload.results !== "object" ||
+    Array.isArray(payload.results)
   ) {
     throw new Error("invalid-results");
   }
-  const ids = Object.keys(value.results);
+  const ids = Object.keys(payload.results);
   if (
     ids.length !== knownIds.size ||
     ids.some((id) => !knownIds.has(id))
@@ -1422,7 +1422,7 @@ function validateResultsDocument(value) {
   }
   const candidateResults = {};
   ids.forEach((id) => {
-    const item = value.results[id];
+    const item = payload.results[id];
     if (
       !exactKeys(item, ["actual", "notes", "status"]) ||
       !STATUS_VALUES.includes(item.status) ||
@@ -1515,7 +1515,7 @@ function loadSavedResults() {
     return;
   }
   try {
-    const candidateResults = validateResultsDocument(JSON.parse(saved));
+    const candidateResults = normalizeImportedResults(JSON.parse(saved));
     results = candidateResults;
   } catch (error) {
     showNotice("已忽略损坏或不兼容的本地记录；当前页面内容未被清空。");
@@ -1932,7 +1932,7 @@ async function importResults(file) {
       throw new Error("invalid-file-type");
     }
     const text = await file.text();
-    const candidateResults = validateResultsDocument(JSON.parse(text));
+    const candidateResults = normalizeImportedResults(JSON.parse(text));
     if (!persistResults(candidateResults)) {
       return;
     }

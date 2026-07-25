@@ -401,6 +401,100 @@ class AcceptanceConsoleParser(HTMLParser):
                 self.external_resources.append(resource)
 
 
+class OfflineSafetyParser(HTMLParser):
+    PROHIBITED_TAGS = {
+        "link",
+        "img",
+        "iframe",
+        "object",
+        "embed",
+        "source",
+        "video",
+        "audio",
+        "track",
+        "base",
+    }
+    PROHIBITED_ATTRIBUTES = {
+        "src",
+        "srcset",
+        "xlink:href",
+        "xml:base",
+    }
+
+    def __init__(self):
+        super().__init__()
+        self.violations = []
+        self.scripts = []
+        self.styles = []
+        self._current_script = None
+        self._current_style = None
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.casefold()
+        attributes = {
+            name.casefold(): value or ""
+            for name, value in attrs
+        }
+        if tag in self.PROHIBITED_TAGS:
+            self.violations.append(f"prohibited-tag:{tag}")
+        for name, value in attributes.items():
+            if name.startswith("on"):
+                self.violations.append(f"event-attribute:{name}")
+            if name in self.PROHIBITED_ATTRIBUTES:
+                self.violations.append(f"resource-attribute:{name}")
+            if name == "href" and not value.startswith("#"):
+                self.violations.append("external-href")
+        if (
+            tag == "meta"
+            and attributes.get("http-equiv", "").strip().casefold() == "refresh"
+        ):
+            self.violations.append("meta-refresh")
+        if tag == "script":
+            self._current_script = {
+                "attributes": attributes,
+                "text": [],
+            }
+            self.scripts.append(self._current_script)
+        elif tag == "style":
+            self._current_style = []
+            self.styles.append(self._current_style)
+
+    def handle_endtag(self, tag):
+        tag = tag.casefold()
+        if tag == "script":
+            self._current_script = None
+        elif tag == "style":
+            self._current_style = None
+
+    def handle_data(self, data):
+        if self._current_script is not None:
+            self._current_script["text"].append(data)
+        if self._current_style is not None:
+            self._current_style.append(data)
+
+    @property
+    def catalog_json(self):
+        matches = [
+            "".join(script["text"])
+            for script in self.scripts
+            if script["attributes"].get("id") == "catalog-data"
+        ]
+        if len(matches) != 1:
+            raise AssertionError("expected exactly one catalog-data script")
+        return matches[0]
+
+    @property
+    def runtime_script(self):
+        matches = [
+            "".join(script["text"])
+            for script in self.scripts
+            if not script["attributes"]
+        ]
+        if len(matches) != 1:
+            raise AssertionError("expected exactly one runtime script")
+        return matches[0]
+
+
 def assert_static_acceptance_articles(testcase, rendered, cases):
     parser = AcceptanceArticleParser()
     parser.feed(rendered)
@@ -410,6 +504,13 @@ def assert_static_acceptance_articles(testcase, rendered, cases):
         own_content = "\n".join(article["text"] + article["attributes"])
         for field in ("id", "title", "mode", "priority"):
             testcase.assertIn(case[field], own_content)
+
+
+def parse_offline_html(rendered):
+    parser = OfflineSafetyParser()
+    parser.feed(rendered)
+    parser.close()
+    return parser
 
 
 def load_builder_module():
@@ -1526,6 +1627,294 @@ class AcceptanceCatalogTests(unittest.TestCase):
 
         self.assertEqual(BUILDER_MODULE.safe_json_for_script(value), expected)
 
+    def test_generated_html_is_strictly_offline_and_has_only_fixed_scripts(self):
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+        parser = parse_offline_html(rendered)
+
+        self.assertEqual(parser.violations, [])
+        self.assertEqual(len(parser.scripts), 2)
+        self.assertEqual(
+            parser.scripts[0]["attributes"],
+            {"id": "catalog-data", "type": "application/json"},
+        )
+        self.assertEqual(parser.scripts[1]["attributes"], {})
+        self.assertEqual(
+            parser.runtime_script.strip(),
+            BUILDER_MODULE.CONSOLE_JS.strip(),
+        )
+        self.assertEqual(len(parser.styles), 1)
+        css = "".join(parser.styles[0])
+        self.assertIsNone(re.search(r"@import\b", css, flags=re.IGNORECASE))
+        self.assertIsNone(re.search(r"url\s*\(", css, flags=re.IGNORECASE))
+        self.assertNotIn("@font-face", css.casefold())
+
+    def test_offline_parser_detects_resource_event_css_and_refresh_mutations(self):
+        mutated = """
+        <base href="https://invalid.example/">
+        <meta http-equiv="refresh" content="0;url=/next">
+        <link href="/style.css"><img src="local.png" srcset="other.png">
+        <iframe src="frame.html"></iframe><object data="object.bin"></object>
+        <embed src="embed.bin"><source src="media.bin">
+        <video src="video.bin"></video><audio src="audio.bin"></audio>
+        <track src="captions.vtt"><p onclick="bad()">text</p>
+        <svg xlink:href="/asset" xml:base="/"></svg>
+        <style>@import "local.css"; p { background: url(local.png); }</style>
+        """
+        parser = parse_offline_html(mutated)
+        css = "".join("".join(parts) for parts in parser.styles)
+
+        for violation in (
+            "prohibited-tag:base",
+            "prohibited-tag:link",
+            "prohibited-tag:img",
+            "prohibited-tag:iframe",
+            "prohibited-tag:object",
+            "prohibited-tag:embed",
+            "prohibited-tag:source",
+            "prohibited-tag:video",
+            "prohibited-tag:audio",
+            "prohibited-tag:track",
+            "meta-refresh",
+            "event-attribute:onclick",
+            "resource-attribute:src",
+            "resource-attribute:srcset",
+            "resource-attribute:xlink:href",
+            "resource-attribute:xml:base",
+            "external-href",
+        ):
+            with self.subTest(violation=violation):
+                self.assertIn(violation, parser.violations)
+        self.assertRegex(css.casefold(), r"@import\b")
+        self.assertRegex(css.casefold(), r"url\s*\(")
+
+    @unittest.skipUnless(shutil.which("node"), "Node is optional")
+    def test_malicious_catalog_text_remains_data_in_python_and_javascript(self):
+        catalog = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
+        malicious = (
+            "</script><script>globalThis.compromised=true</script>\n"
+            "<img src=x onerror=alert(1)>\n"
+            '<button onclick="globalThis.compromised=true">x</button>'
+            "\u2028\u2029"
+        )
+        catalog["cases"][0]["inputs"][0]["content"] = malicious
+
+        rendered = BUILDER_MODULE.render_acceptance_html(catalog)
+        parser = parse_offline_html(rendered)
+        embedded = json.loads(parser.catalog_json)
+
+        self.assertIn("\\u003c", parser.catalog_json)
+        self.assertIn("\\u2028", parser.catalog_json)
+        self.assertIn("\\u2029", parser.catalog_json)
+        self.assertEqual(parser.violations, [])
+        self.assertEqual(len(parser.scripts), 2)
+        self.assertEqual(
+            embedded["cases"][0]["inputs"][0]["content"],
+            malicious,
+        )
+        node_program = (
+            '"use strict";'
+            'const raw=require("fs").readFileSync(0,"utf8");'
+            "const value=JSON.parse(raw);"
+            "process.stdout.write(value.cases[0].inputs[0].content);"
+        )
+        node_result = subprocess.run(
+            ["node", "-e", node_program],
+            input=parser.catalog_json,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(node_result.returncode, 0, node_result.stderr)
+        self.assertEqual(node_result.stdout, malicious)
+
+    @unittest.skipUnless(shutil.which("node"), "Node is optional")
+    def test_runtime_script_uses_only_the_approved_interaction_contract(self):
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+        script = parse_offline_html(rendered).runtime_script
+
+        for required in (
+            "localStorage.getItem",
+            "localStorage.setItem",
+            "localStorage.removeItem",
+            "navigator.clipboard.writeText",
+            "JSON.parse",
+            "JSON.stringify",
+            "window.print",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, script)
+        forbidden_patterns = {
+            "eval": r"(?<![\w$])eval\s*\(",
+            "function-constructor": r"\bnew\s+Function\b",
+            "document-write": r"\bdocument\s*\.\s*write\s*\(",
+            "html-assignment": r"\.\s*(?:innerHTML|outerHTML)\s*=",
+            "html-insertion": r"\.\s*insertAdjacentHTML\s*\(",
+            "network-request": r"(?<![\w$])fetch\s*\(",
+            "xhr": r"\bXMLHttpRequest\b",
+            "socket": r"\bWebSocket\b",
+            "event-stream": r"\bEventSource\b",
+            "beacon": r"\.\s*sendBeacon\s*\(",
+            "dynamic-import": r"(?<![\w$])import\s*\(",
+        }
+        for label, pattern in forbidden_patterns.items():
+            with self.subTest(label=label):
+                self.assertIsNone(re.search(pattern, script))
+        syntax = subprocess.run(
+            ["node", "--check", "-"],
+            input=script,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(syntax.returncode, 0, syntax.stderr)
+
+    @unittest.skipUnless(shutil.which("node"), "Node is optional")
+    def test_normalize_imported_results_is_pure_exact_and_prototype_safe(self):
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+        exact_keys = re.search(
+            r"(function exactKeys\(.*?\n\})\n\n",
+            rendered,
+            flags=re.DOTALL,
+        )
+        normalizer = re.search(
+            r"(function normalizeImportedResults\(payload\).*?\n\})\n\n"
+            r"function serializeResults",
+            rendered,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(exact_keys)
+        self.assertIsNotNone(normalizer)
+        smoke = "\n".join(
+            (
+                '"use strict";',
+                (
+                    'const acceptanceCatalog = { catalogVersion: "V1", cases: '
+                    '[{ id: "CASE-A" }, { id: "CASE-B" }] };'
+                ),
+                'const STATUS_VALUES = ["not-run", "passed", "failed", "blocked"];',
+                (
+                    "const knownIds = new Set("
+                    "acceptanceCatalog.cases.map((item) => item.id));"
+                ),
+                exact_keys.group(1),
+                normalizer.group(1),
+                (
+                    'const valid = { version: "V1", updatedAt: "2026-07-25T00:00:00Z", '
+                    "results: { "
+                    '"CASE-A": { status: "passed", actual: "ok", notes: "" }, '
+                    '"CASE-B": { status: "blocked", actual: "", notes: "wait" } '
+                    "} };"
+                ),
+                "const before = JSON.stringify(valid);",
+                "const normalized = normalizeImportedResults(valid);",
+                (
+                    "if (JSON.stringify(valid) !== before || normalized === valid.results || "
+                    'normalized["CASE-A"] === valid.results["CASE-A"]) '
+                    'throw new Error("input-mutated-or-aliased");'
+                ),
+                (
+                    'if (JSON.stringify(normalized) !== '
+                    '\'{"CASE-A":{"status":"passed","actual":"ok","notes":""},'
+                    '"CASE-B":{"status":"blocked","actual":"","notes":"wait"}}\') '
+                    'throw new Error("valid-not-normalized");'
+                ),
+                'normalized["CASE-A"].actual = "changed";',
+                (
+                    'if (valid.results["CASE-A"].actual !== "ok") '
+                    'throw new Error("result-alias");'
+                ),
+                "const invalid = [",
+                '  { ...valid, version: "V2" },',
+                "  { ...valid, updatedAt: 1 },",
+                "  { results: valid.results, updatedAt: valid.updatedAt },",
+                "  { ...valid, extra: true },",
+                (
+                    "  { ...valid, results: { ...valid.results, "
+                    '"CASE-B": undefined, "CASE-X": valid.results["CASE-B"] } },'
+                ),
+                '  { ...valid, results: { "CASE-A": valid.results["CASE-A"] } },',
+                (
+                    "  { ...valid, results: { ...valid.results, "
+                    '"CASE-A": { ...valid.results["CASE-A"], status: "unknown" } } },'
+                ),
+                (
+                    "  { ...valid, results: { ...valid.results, "
+                    '"CASE-A": { ...valid.results["CASE-A"], actual: 7 } } },'
+                ),
+                (
+                    "  { ...valid, results: { ...valid.results, "
+                    '"CASE-A": { ...valid.results["CASE-A"], notes: null } } },'
+                ),
+                (
+                    "  { ...valid, results: { ...valid.results, "
+                    '"CASE-A": { status: "passed", actual: "ok" } } },'
+                ),
+                (
+                    "  { ...valid, results: { ...valid.results, "
+                    '"CASE-A": { ...valid.results["CASE-A"], extra: true } } },'
+                ),
+                (
+                    "  JSON.parse("
+                    '\'{\"version\":\"V1\",\"updatedAt\":\"x\",\"results\":{'
+                    '\"CASE-A\":{\"status\":\"passed\",\"actual\":\"\",\"notes\":\"\"},'
+                    '\"__proto__\":{\"polluted\":true}}}\'),'
+                ),
+                (
+                    "  { ...valid, results: { "
+                    '"CASE-A": valid.results["CASE-A"], constructor: { polluted: true } } },'
+                ),
+                (
+                    "  { ...valid, results: { "
+                    '"CASE-A": valid.results["CASE-A"], prototype: { polluted: true } } }'
+                ),
+                "];",
+                (
+                    "invalid.forEach((value, index) => { let rejected = false; "
+                    "try { normalizeImportedResults(value); } catch (error) { rejected = true; } "
+                    "if (!rejected) throw new Error('accepted-invalid-' + index); });"
+                ),
+                (
+                    'if (Object.prototype.polluted !== undefined || '
+                    '({}).polluted !== undefined) throw new Error("prototype-polluted");'
+                ),
+            )
+        )
+        result = subprocess.run(
+            ["node", "-"],
+            input=smoke,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_embedded_catalog_matches_source_and_has_exact_ordered_id_fields(self):
+        source = BUILDER_MODULE.load_catalog(CATALOG)
+        rendered = BUILDER_MODULE.render_acceptance_html(source)
+        parser = parse_offline_html(rendered)
+        embedded = json.loads(parser.catalog_json)
+        embedded_ids = tuple(case["id"] for case in embedded["cases"])
+
+        self.assertEqual(embedded, source)
+        self.assertEqual(len(embedded["cases"]), 40)
+        self.assertEqual(embedded_ids, EXPECTED_IDS)
+        for case_id in EXPECTED_IDS:
+            with self.subTest(case=case_id):
+                field_pattern = (
+                    r'"id":'
+                    + re.escape(json.dumps(case_id, ensure_ascii=False))
+                )
+                self.assertEqual(
+                    len(re.findall(field_pattern, parser.catalog_json)),
+                    1,
+                )
+
     def test_render_acceptance_html_is_complete_static_and_safely_embedded(self):
         catalog = BUILDER_MODULE.load_catalog(CATALOG)
 
@@ -1745,7 +2134,7 @@ class AcceptanceCatalogTests(unittest.TestCase):
         self.assertIn("localStorage.getItem(storageKey)", rendered)
         self.assertIn("localStorage.removeItem(storageKey)", rendered)
         self.assertIn("showNotice(", rendered)
-        self.assertIn("validateResultsDocument", rendered)
+        self.assertIn("normalizeImportedResults", rendered)
         self.assertIn("candidateResults", rendered)
 
     def test_import_export_reset_copy_and_print_actions_follow_contract(self):
@@ -2095,7 +2484,7 @@ class AcceptanceCatalogTests(unittest.TestCase):
                     'if (shouldFail) throw new Error("quota"); stored = value; } };'
                 ),
                 "function showNotice(message) { notices.push(message); }",
-                "function validateResultsDocument() { return candidateResults; }",
+                "function normalizeImportedResults() { return candidateResults; }",
                 "function updateDashboard() { updates += 1; }",
                 "function renderCases() { renders += 1; }",
                 "function cancelPendingSave() {}",
@@ -2122,6 +2511,145 @@ class AcceptanceCatalogTests(unittest.TestCase):
                     "updates !== 1 || notices.length !== 1 || "
                     '!stored.includes("\\"actual\\":\\"new\\"")) '
                     'throw new Error("successful-import-not-applied");'
+                ),
+                "})().catch((error) => { console.error(error); process.exit(1); });",
+            )
+        )
+        result = subprocess.run(
+            ["node", "-"],
+            input=smoke,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    @unittest.skipUnless(shutil.which("node"), "Node is optional")
+    def test_node_interaction_mutations_preserve_state_and_export_exact_fields(self):
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+        definitions = []
+        patterns = (
+            r"(function exactKeys\(.*?\n\})\n\n",
+            (
+                r"(function normalizeImportedResults\(payload\).*?\n\})\n\n"
+                r"function serializeResults"
+            ),
+            (
+                r"(function serializeResults\(nextResults\).*?\n\})\n\n"
+                r"function stringifyResultsDocument"
+            ),
+            (
+                r"(function stringifyResultsDocument\(.*?\n\})\n\n"
+                r"function persistResults"
+            ),
+            r"(function persistResults\(nextResults\).*?\n\})\n\n",
+            (
+                r"(function loadSavedResults\(\).*?\n\})\n\n"
+                r"function appendTextList"
+            ),
+            (
+                r"(async function importResults\(file\).*?\n\})\n\n"
+                r"function resetResults"
+            ),
+        )
+        for pattern in patterns:
+            match = re.search(pattern, rendered, flags=re.DOTALL)
+            self.assertIsNotNone(match, pattern)
+            definitions.append(match.group(1))
+
+        smoke = "\n".join(
+            (
+                '"use strict";',
+                (
+                    'const acceptanceCatalog = { catalogVersion: "V1", cases: '
+                    '[{ id: "CASE-A" }, { id: "CASE-B" }] };'
+                ),
+                'const STATUS_VALUES = ["not-run", "passed", "failed", "blocked"];',
+                (
+                    "const knownIds = new Set("
+                    "acceptanceCatalog.cases.map((item) => item.id));"
+                ),
+                'const storageKey = "acceptance:V1";',
+                'const SAVE_FAILURE_NOTICE = "save-failed";',
+                (
+                    'const oldResults = { "CASE-A": { status: "not-run", '
+                    'actual: "old", notes: "" }, "CASE-B": { status: "not-run", '
+                    'actual: "", notes: "" } };'
+                ),
+                "let results = oldResults;",
+                "let storageValue = '{broken';",
+                "let storageShouldFail = false;",
+                "let hasPendingSave = true;",
+                "let updates = 0;",
+                "let renders = 0;",
+                "const notices = [];",
+                (
+                    "const localStorage = { getItem() { return storageValue; }, "
+                    "setItem(key, value) { if (storageShouldFail) "
+                    "throw new Error('quota'); storageValue = value; } };"
+                ),
+                "function showNotice(message) { notices.push(message); }",
+                "function cancelPendingSave() {}",
+                "function updateDashboard() { updates += 1; }",
+                "function renderCases() { renders += 1; }",
+                *definitions,
+                (
+                    'const valid = { version: "V1", updatedAt: "2026-07-25T00:00:00Z", '
+                    'results: { "CASE-A": { status: "passed", actual: "new", notes: "" }, '
+                    '"CASE-B": { status: "blocked", actual: "", notes: "wait" } } };'
+                ),
+                "(async () => {",
+                "  loadSavedResults();",
+                (
+                    '  if (results !== oldResults) '
+                    'throw new Error("broken-storage-overwrote");'
+                ),
+                (
+                    '  const wrongVersion = { name: "results.json", async text() { '
+                    'return JSON.stringify({ ...valid, version: "V2" }); } };'
+                ),
+                "  await importResults(wrongVersion);",
+                (
+                    "  if (results !== oldResults || updates !== 0 || renders !== 0) "
+                    'throw new Error("invalid-import-overwrote");'
+                ),
+                "  storageShouldFail = true;",
+                (
+                    '  const validFile = { name: "results.json", async text() { '
+                    "return JSON.stringify(valid); } };"
+                ),
+                "  await importResults(validFile);",
+                (
+                    "  if (results !== oldResults || updates !== 0 || renders !== 0) "
+                    'throw new Error("failed-storage-overwrote");'
+                ),
+                "  storageShouldFail = false;",
+                "  await importResults(validFile);",
+                (
+                    '  if (results === oldResults || results["CASE-A"].actual !== "new" || '
+                    "updates !== 1 || renders !== 1) "
+                    'throw new Error("valid-import-not-applied");'
+                ),
+                '  results["CASE-A"].extra = "drop";',
+                (
+                    '  results["EXTRA"] = { status: "passed", actual: "drop", '
+                    'notes: "drop", extra: true };'
+                ),
+                "  const exported = JSON.parse(serializeResults(results));",
+                (
+                    "  if (Object.keys(exported).sort().join(',') !== "
+                    "'results,updatedAt,version' || exported.version !== 'V1') "
+                    'throw new Error("wrong-export-root");'
+                ),
+                (
+                    "  if (Object.keys(exported.results).sort().join(',') !== "
+                    "'CASE-A,CASE-B') throw new Error('wrong-export-ids');"
+                ),
+                (
+                    "  if (Object.keys(exported.results['CASE-A']).sort().join(',') !== "
+                    "'actual,notes,status') throw new Error('wrong-export-fields');"
                 ),
                 "})().catch((error) => { console.error(error); process.exit(1); });",
             )
