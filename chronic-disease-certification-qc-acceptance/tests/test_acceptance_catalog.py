@@ -1,5 +1,7 @@
 import importlib.util
+import hashlib
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -10,6 +12,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "acceptance-cases.json"
 BUILDER = ROOT / "build_acceptance_html.py"
+QC_RENDERER_PATH = (
+    ROOT.parent
+    / "chronic-disease-certification-qc"
+    / "scripts"
+    / "render_qc_html.py"
+)
 
 EXPECTED_GENERATED_FILE = "慢特病认定标准与审核质控-验收测试用例.html"
 EXPECTED_METADATA = {
@@ -88,6 +96,229 @@ CASE_CLASSIFICATION_MATRIX = {
     "SAFE-005": ("safety", "safe-output", "P0"),
     "SAFE-006": ("safety", "artifact-consistency", "P1"),
 }
+PLAIN_TEXT_CASES = {
+    "M1-001",
+    "M1-002",
+    "M1-003",
+    "SAFE-001",
+    "SAFE-004",
+}
+JSON_CASE_KEYS = {
+    "M1-004": {"synthetic", "revision", "status", "proposal"},
+    "M1-005": {
+        "synthetic",
+        "diseaseName",
+        "diseaseCode",
+        "version",
+        "rules",
+        "extractionGuides",
+        "enums",
+        "logic",
+    },
+    "M1-006": {
+        "synthetic",
+        "diseaseName",
+        "diseaseCode",
+        "version",
+        "rules",
+        "extractionGuides",
+        "enums",
+        "logic",
+    },
+    "M1-009": {"synthetic", "diseaseName", "rules", "extractionGuides"},
+    "M1-010": {"synthetic", "diseaseName", "rules", "logic"},
+    "M2-008": {"synthetic", "standard", "conditionResults", "finalRecommendation"},
+    "M2-015": {"synthetic", "materials", "standard", "auditResult"},
+    "GATE-002": {"synthetic", "before", "supplement", "after"},
+    "GATE-003": {"synthetic", "invalidStatements"},
+    "GATE-004": {"synthetic", "userStatement"},
+    "GATE-005": {"synthetic", "tempRoot", "stages", "cleanup"},
+    "GATE-006": {
+        "synthetic",
+        "visibilityHistory",
+        "reviewMode",
+        "disclosure",
+    },
+    "SAFE-002": {"synthetic", "rawInput"},
+    "SAFE-003": {"synthetic", "tempRoot", "networkPolicy", "files", "cleanup"},
+    "SAFE-005": {
+        "synthetic",
+        "tempRoot",
+        "fixtures",
+        "failureInjection",
+        "cleanup",
+    },
+    "SAFE-006": {"synthetic", "generator", "viewports", "assertions"},
+}
+BUNDLE_CASE_FILES = {
+    "M1-011": {"cycle.json", "depth.json"},
+    "M1-012": {"source-a.txt", "source-b.txt"},
+    "M2-001": {"materials.txt", "standard.txt", "audit-result.json"},
+    "M2-002": {"materials.txt", "standard.txt", "audit-result.json"},
+    "M2-003": {"materials.txt", "standard.txt", "audit-result.json"},
+    "M2-004": {"materials.txt", "standard.txt", "audit-result.json"},
+    "M2-005": {"materials.txt", "standard.txt", "audit-result.json"},
+    "M2-006": {"materials.txt", "standard.txt", "audit-result.json"},
+    "M2-007": {"materials.txt", "standard.txt", "audit-result.json"},
+    "M2-009": {"materials.txt", "standard.txt", "audit-result.json"},
+    "M2-010": {"materials.txt", "standard.txt", "audit-result.json"},
+    "M2-011": {"materials.txt", "standard.json", "audit-result.json"},
+    "M2-012": {"materials.txt", "standard.txt", "audit-result.json"},
+    "M2-013": {"materials.txt", "audit-result.json"},
+    "M2-014": {"materials.txt", "standard.txt", "audit-result.json"},
+    "M2-016": {
+        "inventory.json",
+        "material-01.txt",
+        "material-03.txt",
+        "audit-result.json",
+    },
+    "GATE-001": {"materials.txt", "audit-result.json"},
+}
+BUNDLE_JSON_REQUIRED_KEYS = {
+    ("M1-011", "cycle.json"): {"synthetic", "rootNode", "nodes"},
+    ("M1-011", "depth.json"): {"synthetic", "maxDepth", "logic"},
+    ("M2-001", "audit-result.json"): {
+        "synthetic",
+        "originalResult",
+        "claims",
+        "finalRecommendation",
+    },
+    ("M2-002", "audit-result.json"): {
+        "synthetic",
+        "originalResult",
+        "claims",
+        "finalRecommendation",
+    },
+    ("M2-003", "audit-result.json"): {
+        "synthetic",
+        "originalResult",
+        "claims",
+        "finalRecommendation",
+    },
+    ("M2-004", "audit-result.json"): {
+        "synthetic",
+        "originalResult",
+        "claims",
+        "finalRecommendation",
+    },
+    ("M2-005", "audit-result.json"): {
+        "synthetic",
+        "originalResult",
+        "claims",
+        "finalRecommendation",
+    },
+    ("M2-006", "audit-result.json"): {
+        "synthetic",
+        "originalResult",
+        "claims",
+        "finalRecommendation",
+    },
+    ("M2-007", "audit-result.json"): {
+        "synthetic",
+        "originalResult",
+        "claims",
+        "finalRecommendation",
+    },
+    ("M2-009", "audit-result.json"): {
+        "synthetic",
+        "originalResult",
+        "conditionResults",
+        "finalRecommendation",
+    },
+    ("M2-010", "audit-result.json"): {
+        "synthetic",
+        "originalResult",
+        "conditionResults",
+        "rejectionReason",
+        "finalRecommendation",
+    },
+    ("M2-011", "standard.json"): {
+        "synthetic",
+        "diseaseName",
+        "rules",
+        "extractionItems",
+        "extractionGuides",
+    },
+    ("M2-011", "audit-result.json"): {
+        "synthetic",
+        "originalResult",
+        "conditionResults",
+        "finalRecommendation",
+    },
+    ("M2-012", "audit-result.json"): {
+        "synthetic",
+        "originalResult",
+        "conditionResults",
+        "finalRecommendation",
+    },
+    ("M2-013", "audit-result.json"): {
+        "synthetic",
+        "originalResult",
+        "auditResultKind",
+        "finalRecommendation",
+    },
+    ("M2-014", "audit-result.json"): {
+        "synthetic",
+        "originalResult",
+        "auditResultKind",
+        "visibleClaims",
+        "finalRecommendation",
+    },
+    ("M2-016", "inventory.json"): {
+        "synthetic",
+        "revision",
+        "files",
+        "standardKind",
+        "referencedButMissing",
+    },
+    ("M2-016", "audit-result.json"): {
+        "synthetic",
+        "auditResultKind",
+        "visibleClaims",
+        "finalRecommendation",
+        "references",
+    },
+    ("GATE-001", "audit-result.json"): {
+        "synthetic",
+        "auditResultKind",
+        "finalRecommendation",
+    },
+}
+SPECIAL_FORMAT_CASES = {
+    "M1-007": "重复键 JSON",
+    "M1-008": "包装样本 bundle",
+}
+EXPECTED_INPUT_FORMATS = {
+    **{case_id: "UTF-8 纯文本" for case_id in PLAIN_TEXT_CASES},
+    **{case_id: "JSON" for case_id in JSON_CASE_KEYS},
+    **{case_id: "多文件 bundle" for case_id in BUNDLE_CASE_FILES},
+    **SPECIAL_FORMAT_CASES,
+}
+VAGUE_INPUT_PHRASES = (
+    "样本一为",
+    "样本二为",
+    "分别构造为",
+    "均已提供",
+    "仅存放在本地",
+    "生成大量测试条件",
+)
+
+
+def parse_file_bundle(content):
+    header = re.compile(r"^=== FILE: ([^=\r\n]+) ===$", re.MULTILINE)
+    matches = list(header.finditer(content))
+    if not matches or content[: matches[0].start()].strip():
+        raise AssertionError("bundle must start with a file header")
+    files = {}
+    for index, match in enumerate(matches):
+        name = match.group(1).strip()
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(content)
+        body = content[start:end].strip("\r\n")
+        if not name or name in files or not body.strip():
+            raise AssertionError("bundle file names must be unique and bodies non-empty")
+        files[name] = body
+    return files
 
 
 def load_builder_module():
@@ -101,7 +332,22 @@ def load_builder_module():
     return module
 
 
+def load_qc_renderer_module():
+    if not QC_RENDERER_PATH.is_file():
+        raise AssertionError(f"missing renderer: {QC_RENDERER_PATH.name}")
+    spec = importlib.util.spec_from_file_location(
+        "acceptance_qc_renderer",
+        QC_RENDERER_PATH,
+    )
+    if spec is None or spec.loader is None:
+        raise AssertionError("unable to load QC renderer")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 BUILDER_MODULE = load_builder_module()
+QC_RENDERER_MODULE = load_qc_renderer_module()
 
 
 class AcceptanceCatalogTests(unittest.TestCase):
@@ -203,6 +449,188 @@ class AcceptanceCatalogTests(unittest.TestCase):
                         )
                     )
 
+    def test_all_40_inputs_have_an_executable_format_contract(self):
+        cases = {
+            case["id"]: case
+            for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
+        }
+        bundle_json_files = set()
+
+        self.assertEqual(set(EXPECTED_INPUT_FORMATS), set(EXPECTED_IDS))
+        for case_id in EXPECTED_IDS:
+            with self.subTest(case=case_id):
+                case = cases[case_id]
+                self.assertEqual(len(case["inputs"]), 1)
+                item = case["inputs"][0]
+                self.assertEqual(item["format"], EXPECTED_INPUT_FORMATS[case_id])
+                for phrase in VAGUE_INPUT_PHRASES:
+                    self.assertNotIn(phrase, item["content"])
+
+                if case_id in PLAIN_TEXT_CASES:
+                    self.assertGreaterEqual(len(item["content"]), 30)
+                    if case_id != "M1-001":
+                        self.assertIn("【合成测试数据】", item["content"])
+                elif case_id in JSON_CASE_KEYS:
+                    payload = json.loads(item["content"])
+                    self.assertEqual(set(payload), JSON_CASE_KEYS[case_id])
+                    self.assertIs(payload["synthetic"], True)
+                elif case_id in BUNDLE_CASE_FILES:
+                    files = parse_file_bundle(item["content"])
+                    self.assertEqual(set(files), BUNDLE_CASE_FILES[case_id])
+                    for name, body in files.items():
+                        if name.endswith(".json"):
+                            payload = json.loads(body)
+                            self.assertIs(payload["synthetic"], True)
+                            bundle_json_files.add((case_id, name))
+                            self.assertEqual(
+                                set(payload),
+                                BUNDLE_JSON_REQUIRED_KEYS[(case_id, name)],
+                            )
+                        else:
+                            self.assertIn("【合成测试数据】", body)
+        self.assertEqual(bundle_json_files, set(BUNDLE_JSON_REQUIRED_KEYS))
+
+    def test_m1_005_is_a_complete_parseable_structured_standard(self):
+        cases = {
+            case["id"]: case
+            for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
+        }
+        standard = json.loads(cases["M1-005"]["inputs"][0]["content"])
+
+        self.assertEqual(standard["diseaseName"], "测试病种")
+        self.assertEqual(standard["diseaseCode"], "TEST01")
+        self.assertEqual(standard["version"], "V1")
+        self.assertEqual(
+            {rule["ruleCode"] for rule in standard["rules"]},
+            {"R001", "R002"},
+        )
+        self.assertEqual(
+            {guide["guideCode"] for guide in standard["extractionGuides"]},
+            {"G001", "G002"},
+        )
+        self.assertEqual(standard["enums"][0]["enumCode"], "E_BOOL")
+        self.assertEqual(standard["logic"]["operator"], "AND")
+        self.assertEqual(
+            {child["ruleCode"] for child in standard["logic"]["children"]},
+            {"R001", "R002"},
+        )
+
+    def test_m1_007_contains_a_real_nested_duplicate_key(self):
+        cases = {
+            case["id"]: case
+            for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
+        }
+        raw = cases["M1-007"]["inputs"][0]["content"]
+        duplicate_keys = []
+
+        def preserve_and_record_duplicates(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    duplicate_keys.append(key)
+                result[key] = value
+            return result
+
+        parsed = json.loads(raw, object_pairs_hook=preserve_and_record_duplicates)
+
+        self.assertEqual(duplicate_keys, ["SENSITIVE_FIELD"])
+        self.assertEqual(parsed["rules"][0]["guides"][0]["SENSITIVE_FIELD"], "two")
+        self.assertIn('"SENSITIVE_FIELD": "one"', raw)
+        self.assertIn('"SENSITIVE_FIELD": "two"', raw)
+
+    def test_m1_008_contains_three_reproducible_wrapped_json_samples(self):
+        cases = {
+            case["id"]: case
+            for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
+        }
+        files = parse_file_bundle(cases["M1-008"]["inputs"][0]["content"])
+
+        self.assertEqual(
+            set(files),
+            {"fenced.txt", "string-wrapped.json", "bom.json"},
+        )
+        fenced = files["fenced.txt"]
+        self.assertTrue(fenced.startswith("```json\n"))
+        self.assertTrue(fenced.endswith("\n```"))
+        fenced_payload = json.loads(fenced[len("```json\n") : -len("\n```")])
+        wrapped_payload = json.loads(json.loads(files["string-wrapped.json"]))
+        bom = files["bom.json"]
+        self.assertTrue(bom.startswith("\ufeff"))
+        bom_payload = json.loads(bom.lstrip("\ufeff"))
+        for payload in (fenced_payload, wrapped_payload, bom_payload):
+            self.assertEqual(
+                payload,
+                {
+                    "synthetic": True,
+                    "diseaseName": "测试病种",
+                    "condition": "条件A",
+                },
+            )
+
+    def test_operational_fixtures_use_synthetic_temp_roots_and_cleanup_steps(self):
+        cases = {
+            case["id"]: case
+            for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
+        }
+
+        for case_id in ("GATE-005", "SAFE-003", "SAFE-005"):
+            with self.subTest(case=case_id):
+                fixture = json.loads(cases[case_id]["inputs"][0]["content"])
+                self.assertTrue(
+                    fixture["tempRoot"].startswith(
+                        f"/tmp/chronic-qc-acceptance-{case_id.casefold()}"
+                    )
+                )
+                self.assertIs(fixture["cleanup"]["removeTempRoot"], True)
+                actions = [step["action"] for step in cases[case_id]["steps"]]
+                self.assertTrue(any("创建" in action for action in actions))
+                self.assertTrue(any("清理" in action for action in actions))
+
+        safe_output = json.loads(cases["SAFE-005"]["inputs"][0]["content"])
+        self.assertEqual(
+            set(safe_output["fixtures"]),
+            {
+                "input",
+                "existingHtml",
+                "existingText",
+                "pathAlias",
+                "hardLink",
+                "symbolicLink",
+            },
+        )
+        self.assertEqual(
+            safe_output["failureInjection"],
+            {
+                "operation": "replace_staged_text_output",
+                "failOnCall": 2,
+                "error": "synthetic replace failure",
+            },
+        )
+
+        capacity = json.loads(cases["SAFE-006"]["inputs"][0]["content"])
+        self.assertGreaterEqual(capacity["generator"]["recordCount"], 2000)
+        self.assertEqual(
+            {viewport["width"] for viewport in capacity["viewports"]},
+            {320, 1440},
+        )
+
+    def test_safe_002_fixture_is_detected_without_using_a_real_secret(self):
+        cases = {
+            case["id"]: case
+            for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
+        }
+        fixture = json.loads(cases["SAFE-002"]["inputs"][0]["content"])
+
+        self.assertEqual(
+            fixture["rawInput"]["api_key"],
+            "FAKE_TEST_VALUE_12345",
+        )
+        self.assertTrue(
+            QC_RENDERER_MODULE._contains_suspected_secret(
+                fixture["rawInput"]
+            )
+        )
+
     def test_repository_cases_match_independent_classification_matrix(self):
         cases = {
             case["id"]: case
@@ -264,15 +692,19 @@ class AcceptanceCatalogTests(unittest.TestCase):
         }
         expected = {
             "M2-001": {
-                "input": "【合成测试数据】测试病种标准为条件A；材料明确满足条件A；审核通过并引用对应原文。",
+                "material": "【合成测试数据】测试病种材料\n条件A：满足。",
+                "standard": "【合成测试数据】测试病种标准\nR001：满足条件A。",
+                "original_result": "通过",
                 "review": "独立复核确认条件A满足。",
-                "comparison": "判定审核可靠、无风险、issues=[]。",
-                "outcome": "正确质控结论=审核可靠；风险方向=无风险；issues=[]。",
-                "must": {"可靠", "无风险", "issues=[]"},
+                "comparison": "判定审核可靠、未发现明显风险、issues=[]。",
+                "outcome": "正确质控结论=审核可靠；风险方向=未发现明显风险；issues=[]。",
+                "must": {"可靠", "未发现明显风险", "issues=[]"},
                 "must_not": {"错误放行风险", "错误拒绝风险"},
             },
             "M2-002": {
-                "input": "【合成测试数据】标准要求条件A；材料第2段明确记载条件A；审核却声称缺少条件A并拒绝。",
+                "material": "【合成测试数据】测试病种材料\n第1段：一般说明。\n第2段：条件A明确满足。",
+                "standard": "【合成测试数据】测试病种标准\nR001：满足条件A。",
+                "original_result": "拒绝",
                 "review": "确认材料其实有该证据。",
                 "comparison": "判定审核不可靠并标注错误拒绝风险。",
                 "outcome": "正确质控结论=审核不可靠；材料存在却被原审核报缺失；风险方向=错误拒绝风险。",
@@ -280,7 +712,9 @@ class AcceptanceCatalogTests(unittest.TestCase):
                 "must_not": {"错误放行风险", "维持缺失结论"},
             },
             "M2-009": {
-                "input": "【合成测试数据】测试病种标准为 A AND B；材料只有 A，没有 B；审核却通过。",
+                "material": "【合成测试数据】测试病种材料\n条件A：满足。\n条件B：未提供。",
+                "standard": "【合成测试数据】测试病种标准\nR001：A AND B。",
+                "original_result": "通过",
                 "review": "因 B 不满足而得到不通过。",
                 "comparison": "标注错误放行风险。",
                 "outcome": "正确质控结论=原审核不可靠；材料只有 A，不满足 A AND B；原审核通过造成错误放行风险。",
@@ -288,7 +722,9 @@ class AcceptanceCatalogTests(unittest.TestCase):
                 "must_not": {"错误拒绝风险", "A 单独足够"},
             },
             "M2-010": {
-                "input": "【合成测试数据】测试病种标准为 A OR B；材料满足 A、不满足 B；审核因 B 不满足而拒绝。",
+                "material": "【合成测试数据】测试病种材料\n条件A：满足。\n条件B：不满足。",
+                "standard": "【合成测试数据】测试病种标准\nR001：A OR B。",
+                "original_result": "拒绝",
                 "review": "因满足 A 而得到通过。",
                 "comparison": "标注错误拒绝风险。",
                 "outcome": "正确质控结论=原审核不可靠；材料满足 A，已满足 A OR B；原审核拒绝造成错误拒绝风险。",
@@ -300,10 +736,17 @@ class AcceptanceCatalogTests(unittest.TestCase):
         for case_id, semantic_fields in expected.items():
             with self.subTest(case=case_id):
                 case = cases[case_id]
+                files = parse_file_bundle(case["inputs"][0]["content"])
+                audit = json.loads(files["audit-result.json"])
                 self.assertEqual(
-                    case["inputs"][0]["content"],
-                    semantic_fields["input"],
+                    files["materials.txt"],
+                    semantic_fields["material"],
                 )
+                self.assertEqual(
+                    files["standard.txt"],
+                    semantic_fields["standard"],
+                )
+                self.assertEqual(audit["originalResult"], semantic_fields["original_result"])
                 self.assertEqual(
                     case["steps"][0]["expected"],
                     semantic_fields["review"],
@@ -323,67 +766,120 @@ class AcceptanceCatalogTests(unittest.TestCase):
                     semantic_fields["must_not"].issubset(case["mustNotContain"])
                 )
 
-    def test_gate_002_binds_revision_hash_and_rechecks_before_execution(self):
+        self.assertIn("未发现明显风险", QC_RENDERER_MODULE.ROOT_RISKS)
+        self.assertEqual(
+            cases["M2-001"]["mustContain"][1],
+            "未发现明显风险",
+        )
+
+    def test_gate_002_uses_renderer_hashes_and_current_confirmation_fields(self):
         cases = {
             case["id"]: case
             for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
         }
         case = cases["GATE-002"]
+        fixture = json.loads(case["inputs"][0]["content"])
+        before = fixture["before"]
+        after = fixture["after"]
+
+        for phase in (before, after):
+            raw_input = phase["rawInput"]
+            inventory = phase["inputScope"]["inventory"]
+            confirmation = phase["inputScope"]["confirmation"]
+            canonical_raw = json.dumps(
+                raw_input,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+                allow_nan=False,
+            ).encode("utf-8")
+            canonical_inventory = json.dumps(
+                inventory,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+                allow_nan=False,
+            ).encode("utf-8")
+            self.assertEqual(
+                inventory["rawInputSha256"],
+                hashlib.sha256(canonical_raw).hexdigest(),
+            )
+            self.assertEqual(
+                inventory["rawInputSha256"],
+                QC_RENDERER_MODULE.compute_raw_input_sha256(raw_input),
+            )
+            self.assertEqual(
+                confirmation["inventorySha256"],
+                hashlib.sha256(canonical_inventory).hexdigest(),
+            )
+            self.assertEqual(
+                confirmation["inventorySha256"],
+                QC_RENDERER_MODULE.compute_inventory_sha256(inventory),
+            )
+            self.assertEqual(
+                confirmation["confirmedRevision"],
+                inventory["revision"],
+            )
+            self.assertIn(
+                confirmation["userStatement"],
+                QC_RENDERER_MODULE.CONFIRMATION_STATEMENTS,
+            )
 
         self.assertEqual(
-            case["inputs"][0]["content"],
-            "【合成测试数据】补传前清单 catalogRevision=1、"
-            "catalogHash=sha256(TEST_CATALOG_R1)；用户补传测试标准文件。",
+            after["inputScope"]["inventory"]["revision"],
+            before["inputScope"]["inventory"]["revision"] + 1,
         )
-        self.assertEqual(
-            case["steps"][1],
-            {
-                "actor": "系统",
-                "action": "修订输入清单并将 catalogRevision 递增至 2；按确定性序列化结果"
-                "计算新的 catalogHash；更新摘要并请求重新确认。",
-                "expected": "新 catalogHash 与补传前不同，关口保持关闭。",
-            },
+        self.assertNotEqual(
+            after["inputScope"]["inventory"]["rawInputSha256"],
+            before["inputScope"]["inventory"]["rawInputSha256"],
         )
-        self.assertEqual(
-            case["steps"][2],
-            {
-                "actor": "用户",
-                "action": "确认 catalogRevision=2 和对应 catalogHash 的清单与摘要。",
-                "expected": "确认记录同时绑定 catalogRevision=2 与 catalogHash。",
-            },
+        self.assertNotEqual(
+            after["inputScope"]["confirmation"]["inventorySha256"],
+            before["inputScope"]["confirmation"]["inventorySha256"],
         )
-        self.assertEqual(
-            case["steps"][3],
-            {
-                "actor": "系统",
-                "action": "执行前比较当前输入的 catalogRevision/catalogHash 与确认记录。",
-                "expected": "两者全部一致才执行；任一不一致不得执行并须重新确认。",
-            },
-        )
-        self.assertEqual(
-            case["expectedOutcome"],
-            "补传后的清单、确定性摘要哈希与确认记录形成闭环：catalogRevision 和 "
-            "catalogHash 匹配才执行，不匹配则重新确认。",
-        )
-        self.assertEqual(
-            case["acceptanceChecks"],
-            [
-                "确认补传后 catalogRevision 递增且新的确定性 catalogHash 随清单变化",
-                "确认记录同时绑定 catalogRevision 与 catalogHash",
-                "执行前校验当前 revision/hash 与确认记录；不一致时拒绝执行并重新确认",
-            ],
-        )
+        step_actions = [step["action"] for step in case["steps"]]
+        step_expectations = [step["expected"] for step in case["steps"]]
+        self.assertIn("补传后将 inputScope.inventory.revision 加 1，并重新分类、清点和询问。", step_actions)
+        self.assertIn("旧 confirmation 失效；重算 rawInputSha256 与 inventorySha256。", step_expectations)
+        self.assertIn("仅当当前 revision 与两个摘要均匹配新确认记录时执行。", step_expectations)
+        self.assertIn("任一不一致不得执行并须再次询问。", step_expectations)
 
-    def test_repository_cases_mark_synthetic_data_and_required_branches(self):
+    def test_gate_confirmation_statements_follow_renderer_allowlist(self):
         cases = {
             case["id"]: case
             for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
         }
-        for case_id in EXPECTED_IDS:
-            if case_id != "M1-001":
-                for item in cases[case_id]["inputs"]:
-                    self.assertIn("【合成测试数据】", item["content"])
+        accepted = json.loads(cases["GATE-004"]["inputs"][0]["content"])
+        rejected = json.loads(cases["GATE-003"]["inputs"][0]["content"])
 
+        self.assertEqual(accepted["userStatement"], "我确认完整")
+        self.assertIn(
+            accepted["userStatement"],
+            QC_RENDERER_MODULE.CONFIRMATION_STATEMENTS,
+        )
+        self.assertTrue(
+            QC_RENDERER_MODULE._valid_confirmation_statement(
+                accepted["userStatement"]
+            )
+        )
+        self.assertIn(
+            "我确认 revision 2 清单完整，同意开始执行",
+            rejected["invalidStatements"],
+        )
+        self.assertIn(
+            "没有更多内容，立即出报告",
+            rejected["invalidStatements"],
+        )
+        for statement in rejected["invalidStatements"]:
+            self.assertFalse(
+                QC_RENDERER_MODULE._valid_confirmation_statement(statement)
+            )
+
+    def test_m2_016_keeps_both_inventory_confirmation_branches(self):
+        cases = {
+            case["id"]: case
+            for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
+        }
         branch_actions = [
             step["action"]
             for step in cases["M2-016"]["steps"]

@@ -179,8 +179,8 @@
       "inputs": [
         {
           "name": "待确认提案",
-          "format": "结构化摘要",
-          "content": "【合成测试数据】测试病种标准提案 revision 1：条件A。用户尚未同意提案。"
+          "format": "JSON",
+          "content": "{\n  \"synthetic\": true,\n  \"revision\": 1,\n  \"status\": \"awaiting_confirmation\",\n  \"proposal\": {\n    \"diseaseName\": \"测试病种\",\n    \"diseaseCode\": \"TEST01\",\n    \"version\": \"V1\",\n    \"rules\": [\n      {\n        \"ruleCode\": \"R001\",\n        \"text\": \"满足条件A\"\n      }\n    ],\n    \"logic\": {\n      \"operator\": \"ALL\",\n      \"children\": [\n        \"R001\"\n      ]\n    }\n  }\n}"
         }
       ],
       "steps": [
@@ -229,7 +229,7 @@
         {
           "name": "完整标准",
           "format": "JSON",
-          "content": "【合成测试数据】测试病种编码 TEST01，版本 V1，规则 R001/R002、提取指南 G001/G002、枚举与 AND 逻辑拓扑均完整。"
+          "content": "{\n  \"synthetic\": true,\n  \"diseaseName\": \"测试病种\",\n  \"diseaseCode\": \"TEST01\",\n  \"version\": \"V1\",\n  \"rules\": [\n    {\n      \"ruleCode\": \"R001\",\n      \"title\": \"条件A\",\n      \"guideCodes\": [\n        \"G001\"\n      ]\n    },\n    {\n      \"ruleCode\": \"R002\",\n      \"title\": \"条件B\",\n      \"guideCodes\": [\n        \"G002\"\n      ]\n    }\n  ],\n  \"extractionGuides\": [\n    {\n      \"guideCode\": \"G001\",\n      \"field\": \"conditionA\",\n      \"enumCode\": \"E_BOOL\"\n    },\n    {\n      \"guideCode\": \"G002\",\n      \"field\": \"conditionB\",\n      \"enumCode\": \"E_BOOL\"\n    }\n  ],\n  \"enums\": [\n    {\n      \"enumCode\": \"E_BOOL\",\n      \"values\": [\n        \"满足\",\n        \"不满足\"\n      ]\n    }\n  ],\n  \"logic\": {\n    \"operator\": \"AND\",\n    \"children\": [\n      {\n        \"ruleCode\": \"R001\"\n      },\n      {\n        \"ruleCode\": \"R002\"\n      }\n    ]\n  }\n}"
         }
       ],
       "steps": [
@@ -276,8 +276,8 @@
       "inputs": [
         {
           "name": "缺组件标准",
-          "format": "JSON 摘要",
-          "content": "【合成测试数据】测试病种含规则 R001，但 extractionGuides 和 enums 均为空。"
+          "format": "JSON",
+          "content": "{\n  \"synthetic\": true,\n  \"diseaseName\": \"测试病种\",\n  \"diseaseCode\": \"TEST02\",\n  \"version\": \"V1\",\n  \"rules\": [\n    {\n      \"ruleCode\": \"R001\",\n      \"title\": \"条件A\",\n      \"guideCodes\": [\n        \"G001\"\n      ]\n    }\n  ],\n  \"extractionGuides\": [],\n  \"enums\": [],\n  \"logic\": {\n    \"operator\": \"ALL\",\n    \"children\": [\n      {\n        \"ruleCode\": \"R001\"\n      }\n    ]\n  }\n}"
         }
       ],
       "steps": [
@@ -324,8 +324,8 @@
       "inputs": [
         {
           "name": "深层重复键载荷",
-          "format": "JSON 文本",
-          "content": "【合成测试数据】在 rules[0].guides[0] 对象中重复放置字段占位名 SENSITIVE_FIELD 两次，值分别为 one 与 two。"
+          "format": "重复键 JSON",
+          "content": "{\n  \"synthetic\": true,\n  \"diseaseName\": \"测试病种\",\n  \"rules\": [\n    {\n      \"ruleCode\": \"R001\",\n      \"guides\": [\n        {\n          \"SENSITIVE_FIELD\": \"one\",\n          \"SENSITIVE_FIELD\": \"two\"\n        }\n      ]\n    }\n  ]\n}"
         }
       ],
       "steps": [
@@ -372,8 +372,8 @@
       "inputs": [
         {
           "name": "三类包装样本",
-          "format": "UTF-8 文本集合",
-          "content": "【合成测试数据】样本一为代码围栏包裹 JSON；样本二为 JSON 字符串包装；样本三以 BOM 开头，内容均描述测试病种条件A。"
+          "format": "包装样本 bundle",
+          "content": "=== FILE: fenced.txt ===\n```json\n{\"synthetic\": true, \"diseaseName\": \"测试病种\", \"condition\": \"条件A\"}\n```\n=== FILE: string-wrapped.json ===\n\"{\\\"synthetic\\\": true, \\\"diseaseName\\\": \\\"测试病种\\\", \\\"condition\\\": \\\"条件A\\\"}\"\n=== FILE: bom.json ===\n﻿{\"synthetic\": true, \"diseaseName\": \"测试病种\", \"condition\": \"条件A\"}"
         }
       ],
       "steps": [
@@ -421,8 +421,8 @@
       "inputs": [
         {
           "name": "非法代码标准",
-          "format": "JSON 摘要",
-          "content": "【合成测试数据】测试病种规则使用 ruleCode=bad rule，指南使用 guideCode=G#1。"
+          "format": "JSON",
+          "content": "{\n  \"synthetic\": true,\n  \"diseaseName\": \"测试病种\",\n  \"rules\": [\n    {\n      \"ruleCode\": \"bad rule\",\n      \"title\": \"条件A\",\n      \"guideCodes\": [\n        \"G#1\"\n      ]\n    }\n  ],\n  \"extractionGuides\": [\n    {\n      \"guideCode\": \"G#1\",\n      \"field\": \"conditionA\"\n    }\n  ]\n}"
         }
       ],
       "steps": [
@@ -469,8 +469,8 @@
       "inputs": [
         {
           "name": "异常拓扑",
-          "format": "JSON 摘要",
-          "content": "【合成测试数据】逻辑树引用不存在的 R404；规则表另含未被引用的 R002。"
+          "format": "JSON",
+          "content": "{\n  \"synthetic\": true,\n  \"diseaseName\": \"测试病种\",\n  \"rules\": [\n    {\n      \"ruleCode\": \"R001\",\n      \"text\": \"条件A\"\n    },\n    {\n      \"ruleCode\": \"R002\",\n      \"text\": \"条件B\"\n    }\n  ],\n  \"logic\": {\n    \"operator\": \"ALL\",\n    \"children\": [\n      {\n        \"ruleCode\": \"R001\"\n      },\n      {\n        \"ruleCode\": \"R404\"\n      }\n    ]\n  }\n}"
         }
       ],
       "steps": [
@@ -516,8 +516,8 @@
       "inputs": [
         {
           "name": "递归异常集合",
-          "format": "JSON 摘要",
-          "content": "【合成测试数据】样本一节点 N1 引用 N2 且 N2 引用 N1；样本二嵌套层数超过配置上限。"
+          "format": "多文件 bundle",
+          "content": "=== FILE: cycle.json ===\n{\n  \"synthetic\": true,\n  \"rootNode\": \"N1\",\n  \"nodes\": {\n    \"N1\": {\n      \"operator\": \"ALL\",\n      \"children\": [\n        \"N2\"\n      ]\n    },\n    \"N2\": {\n      \"operator\": \"ALL\",\n      \"children\": [\n        \"N1\"\n      ]\n    }\n  }\n}\n=== FILE: depth.json ===\n{\n  \"synthetic\": true,\n  \"maxDepth\": 3,\n  \"logic\": {\n    \"operator\": \"ALL\",\n    \"children\": [\n      {\n        \"operator\": \"ALL\",\n        \"children\": [\n          {\n            \"operator\": \"ALL\",\n            \"children\": [\n              {\n                \"operator\": \"ALL\",\n                \"children\": [\n                  {\n                    \"ruleCode\": \"R001\"\n                  }\n                ]\n              }\n            ]\n          }\n        ]\n      }\n    ]\n  }\n}"
         }
       ],
       "steps": [
@@ -563,8 +563,8 @@
       "inputs": [
         {
           "name": "冲突来源",
-          "format": "两份 UTF-8 纯文本",
-          "content": "【合成测试数据】来源甲写测试病种需条件A AND 条件B；来源乙写测试病种需条件A OR 条件B。"
+          "format": "多文件 bundle",
+          "content": "=== FILE: source-a.txt ===\n【合成测试数据】测试病种认定标准（来源甲）\n同时满足条件A AND 条件B。\n=== FILE: source-b.txt ===\n【合成测试数据】测试病种认定标准（来源乙）\n满足条件A OR 条件B之一即可。"
         }
       ],
       "steps": [
@@ -597,7 +597,7 @@
     },
     {
       "id": "M2-001",
-      "title": "正确审核结论无风险",
+      "title": "正确审核结论未发现明显风险",
       "mode": "mode2",
       "category": "audit-correctness",
       "priority": "P0",
@@ -606,7 +606,7 @@
         "结构化标准",
         "审核结果"
       ],
-      "objective": "验证材料、标准与审核结果一致时判定可靠、无风险且 issues=[]。",
+      "objective": "验证材料、标准与审核结果一致时判定可靠、未发现明显风险且 issues=[]。",
       "preconditions": [
         "输入清单 revision 1 已明确确认",
         "独立复核摘要已冻结"
@@ -614,8 +614,8 @@
       "inputs": [
         {
           "name": "完整一致样本",
-          "format": "三段 UTF-8 文本",
-          "content": "【合成测试数据】测试病种标准为条件A；材料明确满足条件A；审核通过并引用对应原文。"
+          "format": "多文件 bundle",
+          "content": "=== FILE: materials.txt ===\n【合成测试数据】测试病种材料\n条件A：满足。\n=== FILE: standard.txt ===\n【合成测试数据】测试病种标准\nR001：满足条件A。\n=== FILE: audit-result.json ===\n{\n  \"synthetic\": true,\n  \"originalResult\": \"通过\",\n  \"claims\": [\n    {\n      \"ruleCode\": \"R001\",\n      \"condition\": \"条件A\",\n      \"result\": \"满足\",\n      \"evidence\": \"条件A：满足。\"\n    }\n  ],\n  \"finalRecommendation\": \"通过\"\n}"
         }
       ],
       "steps": [
@@ -627,13 +627,13 @@
         {
           "actor": "系统",
           "action": "比较独立复核与原审核的证据、状态和建议。",
-          "expected": "判定审核可靠、无风险、issues=[]。"
+          "expected": "判定审核可靠、未发现明显风险、issues=[]。"
         }
       ],
-      "expectedOutcome": "正确质控结论=审核可靠；风险方向=无风险；issues=[]。",
+      "expectedOutcome": "正确质控结论=审核可靠；风险方向=未发现明显风险；issues=[]。",
       "mustContain": [
         "可靠",
-        "无风险",
+        "未发现明显风险",
         "issues=[]"
       ],
       "mustNotContain": [
@@ -664,8 +664,8 @@
       "inputs": [
         {
           "name": "假缺失样本",
-          "format": "三段文本",
-          "content": "【合成测试数据】标准要求条件A；材料第2段明确记载条件A；审核却声称缺少条件A并拒绝。"
+          "format": "多文件 bundle",
+          "content": "=== FILE: materials.txt ===\n【合成测试数据】测试病种材料\n第1段：一般说明。\n第2段：条件A明确满足。\n=== FILE: standard.txt ===\n【合成测试数据】测试病种标准\nR001：满足条件A。\n=== FILE: audit-result.json ===\n{\n  \"synthetic\": true,\n  \"originalResult\": \"拒绝\",\n  \"claims\": [\n    {\n      \"ruleCode\": \"R001\",\n      \"condition\": \"条件A\",\n      \"result\": \"缺失\",\n      \"evidence\": \"未找到条件A\"\n    }\n  ],\n  \"finalRecommendation\": \"拒绝\"\n}"
         }
       ],
       "steps": [
@@ -714,8 +714,8 @@
       "inputs": [
         {
           "name": "真实缺失样本",
-          "format": "三段文本",
-          "content": "【合成测试数据】标准要求条件B；完整材料仅记载条件A；审核指出缺少条件B并拒绝。"
+          "format": "多文件 bundle",
+          "content": "=== FILE: materials.txt ===\n【合成测试数据】测试病种材料\n条件A：满足。\n全文结束，未提供条件B。\n=== FILE: standard.txt ===\n【合成测试数据】测试病种标准\nR001：必须满足条件B。\n=== FILE: audit-result.json ===\n{\n  \"synthetic\": true,\n  \"originalResult\": \"拒绝\",\n  \"claims\": [\n    {\n      \"ruleCode\": \"R001\",\n      \"condition\": \"条件B\",\n      \"result\": \"缺失\",\n      \"evidence\": \"未找到条件B\"\n    }\n  ],\n  \"finalRecommendation\": \"拒绝\"\n}"
         }
       ],
       "steps": [
@@ -763,8 +763,8 @@
       "inputs": [
         {
           "name": "反向释义样本",
-          "format": "文本",
-          "content": "【合成测试数据】材料原文为“未见条件A”；审核引用该句却解释为“已见条件A”。"
+          "format": "多文件 bundle",
+          "content": "=== FILE: materials.txt ===\n【合成测试数据】测试病种材料\n检查记录：未见条件A。\n=== FILE: standard.txt ===\n【合成测试数据】测试病种标准\nR001：出现条件A方可满足。\n=== FILE: audit-result.json ===\n{\n  \"synthetic\": true,\n  \"originalResult\": \"通过\",\n  \"claims\": [\n    {\n      \"ruleCode\": \"R001\",\n      \"result\": \"满足\",\n      \"quotedEvidence\": \"未见条件A\",\n      \"interpretation\": \"已见条件A\"\n    }\n  ],\n  \"finalRecommendation\": \"通过\"\n}"
         }
       ],
       "steps": [
@@ -812,8 +812,8 @@
       "inputs": [
         {
           "name": "否定误提取样本",
-          "format": "文本",
-          "content": "【合成测试数据】材料写“条件A检查结果阴性”；审核提取“条件A检查结果阳性”并通过。"
+          "format": "多文件 bundle",
+          "content": "=== FILE: materials.txt ===\n【合成测试数据】测试病种材料\n条件A检查结果：阴性。\n=== FILE: standard.txt ===\n【合成测试数据】测试病种标准\nR001：条件A检查结果阳性。\n=== FILE: audit-result.json ===\n{\n  \"synthetic\": true,\n  \"originalResult\": \"通过\",\n  \"claims\": [\n    {\n      \"ruleCode\": \"R001\",\n      \"extractedFact\": \"条件A检查结果阳性\",\n      \"result\": \"满足\"\n    }\n  ],\n  \"finalRecommendation\": \"通过\"\n}"
         }
       ],
       "steps": [
@@ -861,8 +861,8 @@
       "inputs": [
         {
           "name": "疑似误判样本",
-          "format": "文本",
-          "content": "【合成测试数据】材料仅写“疑似测试病种”；审核写“已确诊测试病种”。"
+          "format": "多文件 bundle",
+          "content": "=== FILE: materials.txt ===\n【合成测试数据】测试材料\n诊断意见：疑似测试病种，待进一步检查。\n=== FILE: standard.txt ===\n【合成测试数据】测试病种标准\nR001：已确诊测试病种。\n=== FILE: audit-result.json ===\n{\n  \"synthetic\": true,\n  \"originalResult\": \"通过\",\n  \"claims\": [\n    {\n      \"ruleCode\": \"R001\",\n      \"extractedFact\": \"已确诊测试病种\",\n      \"result\": \"满足\"\n    }\n  ],\n  \"finalRecommendation\": \"通过\"\n}"
         }
       ],
       "steps": [
@@ -910,8 +910,8 @@
       "inputs": [
         {
           "name": "建议误判样本",
-          "format": "文本",
-          "content": "【合成测试数据】材料写“建议进一步评估条件B”；审核写“条件B检查已完成并符合”。"
+          "format": "多文件 bundle",
+          "content": "=== FILE: materials.txt ===\n【合成测试数据】测试病种材料\n后续建议：建议进一步评估条件B。\n=== FILE: standard.txt ===\n【合成测试数据】测试病种标准\nR001：条件B检查已完成且符合。\n=== FILE: audit-result.json ===\n{\n  \"synthetic\": true,\n  \"originalResult\": \"通过\",\n  \"claims\": [\n    {\n      \"ruleCode\": \"R001\",\n      \"extractedFact\": \"条件B检查已完成并符合\",\n      \"result\": \"满足\"\n    }\n  ],\n  \"finalRecommendation\": \"通过\"\n}"
         }
       ],
       "steps": [
@@ -958,8 +958,8 @@
       "inputs": [
         {
           "name": "内部矛盾审核",
-          "format": "JSON 摘要",
-          "content": "【合成测试数据】审核将全部必要条件标为不满足，最终建议却为通过。"
+          "format": "JSON",
+          "content": "{\n  \"synthetic\": true,\n  \"standard\": {\n    \"operator\": \"AND\",\n    \"requiredRules\": [\n      \"R001\",\n      \"R002\"\n    ]\n  },\n  \"conditionResults\": [\n    {\n      \"ruleCode\": \"R001\",\n      \"result\": \"不满足\"\n    },\n    {\n      \"ruleCode\": \"R002\",\n      \"result\": \"不满足\"\n    }\n  ],\n  \"finalRecommendation\": \"通过\"\n}"
         }
       ],
       "steps": [
@@ -982,7 +982,7 @@
       ],
       "mustNotContain": [
         "内部一致",
-        "无风险"
+        "未发现明显风险"
       ],
       "acceptanceChecks": [
         "独立重算结果可复核",
@@ -1008,8 +1008,8 @@
       "inputs": [
         {
           "name": "AND 误放行样本",
-          "format": "三段文本",
-          "content": "【合成测试数据】测试病种标准为 A AND B；材料只有 A，没有 B；审核却通过。"
+          "format": "多文件 bundle",
+          "content": "=== FILE: materials.txt ===\n【合成测试数据】测试病种材料\n条件A：满足。\n条件B：未提供。\n=== FILE: standard.txt ===\n【合成测试数据】测试病种标准\nR001：A AND B。\n=== FILE: audit-result.json ===\n{\n  \"synthetic\": true,\n  \"originalResult\": \"通过\",\n  \"conditionResults\": [\n    {\n      \"condition\": \"A\",\n      \"result\": \"满足\"\n    },\n    {\n      \"condition\": \"B\",\n      \"result\": \"缺失\"\n    }\n  ],\n  \"finalRecommendation\": \"通过\"\n}"
         }
       ],
       "steps": [
@@ -1058,8 +1058,8 @@
       "inputs": [
         {
           "name": "OR 误拒绝样本",
-          "format": "三段文本",
-          "content": "【合成测试数据】测试病种标准为 A OR B；材料满足 A、不满足 B；审核因 B 不满足而拒绝。"
+          "format": "多文件 bundle",
+          "content": "=== FILE: materials.txt ===\n【合成测试数据】测试病种材料\n条件A：满足。\n条件B：不满足。\n=== FILE: standard.txt ===\n【合成测试数据】测试病种标准\nR001：A OR B。\n=== FILE: audit-result.json ===\n{\n  \"synthetic\": true,\n  \"originalResult\": \"拒绝\",\n  \"conditionResults\": [\n    {\n      \"condition\": \"A\",\n      \"result\": \"满足\"\n    },\n    {\n      \"condition\": \"B\",\n      \"result\": \"不满足\"\n    }\n  ],\n  \"rejectionReason\": \"条件B不满足\",\n  \"finalRecommendation\": \"拒绝\"\n}"
         }
       ],
       "steps": [
@@ -1108,8 +1108,8 @@
       "inputs": [
         {
           "name": "低质量规则",
-          "format": "JSON 摘要",
-          "content": "【合成测试数据】测试病种规则条件A存在，但 extractionGuides 为空且缺提取项；审核结果未说明提取依据。"
+          "format": "多文件 bundle",
+          "content": "=== FILE: materials.txt ===\n【合成测试数据】测试病种材料\n条件A：满足。\n=== FILE: standard.json ===\n{\n  \"synthetic\": true,\n  \"diseaseName\": \"测试病种\",\n  \"rules\": [\n    {\n      \"ruleCode\": \"R001\",\n      \"text\": \"条件A\",\n      \"extractionItemCodes\": [\n        \"I001\"\n      ]\n    }\n  ],\n  \"extractionItems\": [],\n  \"extractionGuides\": []\n}\n=== FILE: audit-result.json ===\n{\n  \"synthetic\": true,\n  \"originalResult\": \"通过\",\n  \"conditionResults\": [\n    {\n      \"ruleCode\": \"R001\",\n      \"result\": \"满足\",\n      \"extractionBasis\": null\n    }\n  ],\n  \"finalRecommendation\": \"通过\"\n}"
         }
       ],
       "steps": [
@@ -1158,8 +1158,8 @@
       "inputs": [
         {
           "name": "歧义质控样本",
-          "format": "文本",
-          "content": "【合成测试数据】标准写“条件A、条件B”；材料只有A；审核通过，连接关系未说明。"
+          "format": "多文件 bundle",
+          "content": "=== FILE: materials.txt ===\n【合成测试数据】测试病种材料\n条件A：满足。\n条件B：未提供。\n=== FILE: standard.txt ===\n【合成测试数据】测试病种自然语言标准\n认定条件：条件A、条件B。\n原文未说明连接关系。\n=== FILE: audit-result.json ===\n{\n  \"synthetic\": true,\n  \"originalResult\": \"通过\",\n  \"conditionResults\": [\n    {\n      \"condition\": \"A\",\n      \"result\": \"满足\"\n    }\n  ],\n  \"finalRecommendation\": \"通过\"\n}"
         }
       ],
       "steps": [
@@ -1207,8 +1207,8 @@
       "inputs": [
         {
           "name": "无标准样本",
-          "format": "两段文本",
-          "content": "【合成测试数据】材料记载条件A；审核结论为通过；无标准。"
+          "format": "多文件 bundle",
+          "content": "=== FILE: materials.txt ===\n【合成测试数据】测试病种材料\n条件A：满足。\n=== FILE: audit-result.json ===\n{\n  \"synthetic\": true,\n  \"originalResult\": \"通过\",\n  \"auditResultKind\": \"conclusion_only\",\n  \"finalRecommendation\": \"通过\"\n}"
         }
       ],
       "steps": [
@@ -1258,8 +1258,8 @@
       "inputs": [
         {
           "name": "临时解释样本",
-          "format": "三段文本",
-          "content": "【合成测试数据】材料含条件A；自然语言标准写满足条件A即可；简略审核结果为通过。"
+          "format": "多文件 bundle",
+          "content": "=== FILE: materials.txt ===\n【合成测试数据】测试病种材料\n条件A：满足。\n=== FILE: standard.txt ===\n【合成测试数据】测试病种自然语言标准\n满足条件A即可认定。\n=== FILE: audit-result.json ===\n{\n  \"synthetic\": true,\n  \"originalResult\": \"通过\",\n  \"auditResultKind\": \"brief\",\n  \"visibleClaims\": [\n    \"条件A满足\"\n  ],\n  \"finalRecommendation\": \"通过\"\n}"
         }
       ],
       "steps": [
@@ -1310,8 +1310,8 @@
       "inputs": [
         {
           "name": "完整五维样本",
-          "format": "三个结构化对象",
-          "content": "【合成测试数据】测试病种材料、完整结构化标准和含证据链的详细审核结果均已提供。"
+          "format": "JSON",
+          "content": "{\n  \"synthetic\": true,\n  \"materials\": [\n    {\n      \"materialId\": \"M001\",\n      \"name\": \"测试材料\",\n      \"content\": \"条件A：满足；条件B：满足。\"\n    }\n  ],\n  \"standard\": {\n    \"diseaseName\": \"测试病种\",\n    \"rules\": [\n      {\n        \"ruleCode\": \"R001\",\n        \"text\": \"条件A\"\n      },\n      {\n        \"ruleCode\": \"R002\",\n        \"text\": \"条件B\"\n      }\n    ],\n    \"logic\": {\n      \"operator\": \"AND\",\n      \"children\": [\n        \"R001\",\n        \"R002\"\n      ]\n    }\n  },\n  \"auditResult\": {\n    \"kind\": \"detailed\",\n    \"conditionResults\": [\n      {\n        \"ruleCode\": \"R001\",\n        \"result\": \"满足\",\n        \"evidence\": {\n          \"materialId\": \"M001\",\n          \"rawText\": \"条件A：满足\"\n        }\n      },\n      {\n        \"ruleCode\": \"R002\",\n        \"result\": \"满足\",\n        \"evidence\": {\n          \"materialId\": \"M001\",\n          \"rawText\": \"条件B：满足\"\n        }\n      }\n    ],\n    \"finalRecommendation\": \"通过\"\n  }\n}"
         }
       ],
       "steps": [
@@ -1359,8 +1359,8 @@
       "inputs": [
         {
           "name": "疑似漏传样本",
-          "format": "文件清单与文本",
-          "content": "【合成测试数据】清单只有材料01、材料03和简略审核结果，无标准，可能漏传材料02。"
+          "format": "多文件 bundle",
+          "content": "=== FILE: inventory.json ===\n{\n  \"synthetic\": true,\n  \"revision\": 1,\n  \"files\": [\n    \"material-01.txt\",\n    \"material-03.txt\",\n    \"audit-result.json\"\n  ],\n  \"standardKind\": \"absent\",\n  \"referencedButMissing\": [\n    \"material-02.txt\"\n  ]\n}\n=== FILE: material-01.txt ===\n【合成测试数据】测试材料01\n条件A：满足。\n=== FILE: material-03.txt ===\n【合成测试数据】测试材料03\n补充说明：无标准文件。\n=== FILE: audit-result.json ===\n{\n  \"synthetic\": true,\n  \"auditResultKind\": \"brief\",\n  \"visibleClaims\": [\n    \"条件A满足\"\n  ],\n  \"finalRecommendation\": \"通过\",\n  \"references\": [\n    \"material-01.txt\",\n    \"material-02.txt\"\n  ]\n}"
         }
       ],
       "steps": [
@@ -1413,8 +1413,8 @@
       "inputs": [
         {
           "name": "首次上传",
-          "format": "两个文本文件",
-          "content": "【合成测试数据】文件一为测试材料，文件二为测试审核结果。"
+          "format": "多文件 bundle",
+          "content": "=== FILE: materials.txt ===\n【合成测试数据】测试病种材料\n条件A：满足。\n=== FILE: audit-result.json ===\n{\n  \"synthetic\": true,\n  \"auditResultKind\": \"conclusion_only\",\n  \"finalRecommendation\": \"通过\"\n}"
         }
       ],
       "steps": [
@@ -1455,57 +1455,65 @@
         "已确认清单",
         "补传文件"
       ],
-      "objective": "补传后递增 catalogRevision、重新计算确定性 catalogHash、更新摘要并将确认记录绑定两者，执行前校验一致性。",
+      "objective": "补传后将 inputScope.inventory.revision 加 1，重算 rawInputSha256 与 inventorySha256，使旧确认失效并重新确认。",
       "preconditions": [
-        "catalogRevision=1 的清单曾被确认但尚未执行"
+        "inputScope.inventory.revision=1 的清单曾被确认但尚未执行"
       ],
       "inputs": [
         {
           "name": "补传样本",
-          "format": "文本文件",
-          "content": "【合成测试数据】补传前清单 catalogRevision=1、catalogHash=sha256(TEST_CATALOG_R1)；用户补传测试标准文件。"
+          "format": "JSON",
+          "content": "{\n  \"synthetic\": true,\n  \"before\": {\n    \"rawInput\": {\n      \"materials\": [\n        {\n          \"materialId\": \"M001\",\n          \"name\": \"materials.txt\",\n          \"content\": \"条件A：满足。\"\n        }\n      ],\n      \"auditResult\": {\n        \"kind\": \"brief\",\n        \"finalRecommendation\": \"通过\"\n      }\n    },\n    \"inputScope\": {\n      \"inventory\": {\n        \"revision\": 1,\n        \"materials\": [\n          \"materials.txt\",\n          \"audit-result.json\"\n        ],\n        \"standardKind\": \"absent\",\n        \"auditResultKind\": \"brief\",\n        \"hasAuditProcess\": false,\n        \"hasFinalConclusion\": true,\n        \"referencedButMissing\": [],\n        \"rawInputSha256\": \"b4b489c4563322dd3039094bf29f6290a086010682afbea83d3b66c5739481f4\"\n      },\n      \"confirmation\": {\n        \"confirmedRevision\": 1,\n        \"inventorySha256\": \"8998e377b168d18ffaa0568ed26b64d0fffd91ec59c019a58add36d2aa16fc6d\",\n        \"userStatement\": \"我确认完整\",\n        \"outcome\": \"confirmed_complete\",\n        \"confirmedAfterInventory\": true\n      }\n    }\n  },\n  \"supplement\": {\n    \"fileName\": \"standard.txt\",\n    \"content\": \"【合成测试数据】测试病种标准：满足条件A。\"\n  },\n  \"after\": {\n    \"rawInput\": {\n      \"materials\": [\n        {\n          \"materialId\": \"M001\",\n          \"name\": \"materials.txt\",\n          \"content\": \"条件A：满足。\"\n        }\n      ],\n      \"standard\": \"【合成测试数据】测试病种标准：满足条件A。\",\n      \"auditResult\": {\n        \"kind\": \"brief\",\n        \"finalRecommendation\": \"通过\"\n      }\n    },\n    \"inputScope\": {\n      \"inventory\": {\n        \"revision\": 2,\n        \"materials\": [\n          \"materials.txt\",\n          \"standard.txt\",\n          \"audit-result.json\"\n        ],\n        \"standardKind\": \"natural_language\",\n        \"auditResultKind\": \"brief\",\n        \"hasAuditProcess\": false,\n        \"hasFinalConclusion\": true,\n        \"referencedButMissing\": [],\n        \"rawInputSha256\": \"5726885d274ec9b26ad1350427fee864117a2f743ab29391667a92abafb0fa9e\"\n      },\n      \"confirmation\": {\n        \"confirmedRevision\": 2,\n        \"inventorySha256\": \"c5393188d8bf3781cf96d185c819f16189c08919949f98a8b894ecd24f2ceeb5\",\n        \"userStatement\": \"我确认完整\",\n        \"outcome\": \"confirmed_complete\",\n        \"confirmedAfterInventory\": true\n      }\n    }\n  }\n}"
         }
       ],
       "steps": [
         {
           "actor": "用户",
-          "action": "在 catalogRevision=1 后补传文件。",
+          "action": "在 inputScope.inventory.revision=1 的清单后补传 standard.txt。",
           "expected": "旧确认立即失效。"
         },
         {
           "actor": "系统",
-          "action": "修订输入清单并将 catalogRevision 递增至 2；按确定性序列化结果计算新的 catalogHash；更新摘要并请求重新确认。",
-          "expected": "新 catalogHash 与补传前不同，关口保持关闭。"
+          "action": "补传后将 inputScope.inventory.revision 加 1，并重新分类、清点和询问。",
+          "expected": "旧 confirmation 失效；重算 rawInputSha256 与 inventorySha256。"
         },
         {
           "actor": "用户",
-          "action": "确认 catalogRevision=2 和对应 catalogHash 的清单与摘要。",
-          "expected": "确认记录同时绑定 catalogRevision=2 与 catalogHash。"
+          "action": "在新 inventory 展示后独立整句回复“我确认完整”。",
+          "expected": "新 confirmation 绑定 confirmedRevision=2 与当前 inventorySha256。"
         },
         {
           "actor": "系统",
-          "action": "执行前比较当前输入的 catalogRevision/catalogHash 与确认记录。",
-          "expected": "两者全部一致才执行；任一不一致不得执行并须重新确认。"
+          "action": "执行前重算 rawInputSha256 与 inventorySha256，并核对 confirmedRevision。",
+          "expected": "仅当当前 revision 与两个摘要均匹配新确认记录时执行。"
+        },
+        {
+          "actor": "系统",
+          "action": "模拟任一摘要或 revision 与确认记录不一致。",
+          "expected": "任一不一致不得执行并须再次询问。"
         }
       ],
-      "expectedOutcome": "补传后的清单、确定性摘要哈希与确认记录形成闭环：catalogRevision 和 catalogHash 匹配才执行，不匹配则重新确认。",
+      "expectedOutcome": "补传使 revision 加 1；rawInputSha256 与 inventorySha256 按正式算法重算；白名单整句确认绑定 confirmedRevision 和 inventorySha256，执行前不一致即拒绝。",
       "mustContain": [
         "补传",
-        "catalogRevision",
-        "catalogHash",
+        "inputScope.inventory.revision",
+        "rawInputSha256",
+        "confirmedRevision",
+        "inventorySha256",
         "更新摘要",
         "重新确认",
         "执行前校验"
       ],
       "mustNotContain": [
-        "沿用 catalogRevision=1 的确认",
+        "沿用 revision=1 的确认",
         "补传后直接执行",
         "revision/hash 不一致仍执行"
       ],
       "acceptanceChecks": [
-        "确认补传后 catalogRevision 递增且新的确定性 catalogHash 随清单变化",
-        "确认记录同时绑定 catalogRevision 与 catalogHash",
-        "执行前校验当前 revision/hash 与确认记录；不一致时拒绝执行并重新确认"
+        "用正式函数重算 before/after rawInputSha256 与 inventorySha256，均与 fixture 的 64 位小写十六进制值一致",
+        "确认补传后 inputScope.inventory.revision 从 1 加到 2 且旧 confirmation 失效",
+        "确认新 confirmation 同时绑定 confirmedRevision=2、当前 inventorySha256 与白名单 userStatement",
+        "执行前重算两个摘要并核对 revision；任一不一致时拒绝执行并重新询问"
       ],
       "notes": "补传内容为合成测试数据。"
     },
@@ -1525,8 +1533,8 @@
       "inputs": [
         {
           "name": "含糊回复集合",
-          "format": "对话文本",
-          "content": "【合成测试数据】依次输入“看看吧”“也许可以”“收到”。"
+          "format": "JSON",
+          "content": "{\n  \"synthetic\": true,\n  \"invalidStatements\": [\n    \"看看吧\",\n    \"也许可以\",\n    \"收到\",\n    \"我确认 revision 2 清单完整，同意开始执行\",\n    \"没有更多内容，立即出报告\"\n  ]\n}"
         }
       ],
       "steps": [
@@ -1573,14 +1581,14 @@
       "inputs": [
         {
           "name": "有效确认",
-          "format": "对话文本",
-          "content": "【合成测试数据】用户回复“我确认 revision 2 清单完整，同意开始执行”。"
+          "format": "JSON",
+          "content": "{\n  \"synthetic\": true,\n  \"userStatement\": \"我确认完整\"\n}"
         }
       ],
       "steps": [
         {
           "actor": "系统",
-          "action": "校验确认对象、revision 和明确同意语义。",
+          "action": "按正式白名单对用户独立整句“我确认完整”执行全句匹配。",
           "expected": "识别为明确有效确认。"
         },
         {
@@ -1622,11 +1630,16 @@
       "inputs": [
         {
           "name": "盲审三件套",
-          "format": "隔离文件集合",
-          "content": "【合成测试数据】测试材料和标准可先读取，原审核结果在第二阶段解封。"
+          "format": "JSON",
+          "content": "{\n  \"synthetic\": true,\n  \"tempRoot\": \"/tmp/chronic-qc-acceptance-gate-005\",\n  \"stages\": [\n    {\n      \"stage\": 1,\n      \"visibleFiles\": {\n        \"materials.txt\": \"【合成测试数据】条件A：满足。\",\n        \"standard.txt\": \"【合成测试数据】R001：满足条件A。\"\n      },\n      \"hiddenFiles\": [\n        \"audit-result.json\"\n      ],\n      \"output\": \"independent-review.json\"\n    },\n    {\n      \"stage\": 2,\n      \"visibleFiles\": {\n        \"audit-result.json\": {\n          \"synthetic\": true,\n          \"originalResult\": \"通过\",\n          \"finalRecommendation\": \"通过\"\n        }\n      },\n      \"requiresFrozenArtifact\": true\n    }\n  ],\n  \"cleanup\": {\n    \"removeTempRoot\": true\n  }\n}"
         }
       ],
       "steps": [
+        {
+          "actor": "验收人员",
+          "action": "在专用合成临时目录创建 fixture 中声明的三个文件，并按 stages 设置可见性。",
+          "expected": "仅材料与标准在第一阶段可见。"
+        },
         {
           "actor": "独立复核者",
           "action": "仅依据材料与标准完成独立复核。",
@@ -1636,6 +1649,11 @@
           "actor": "系统",
           "action": "冻结摘要后解封原审核结果并比较。",
           "expected": "冻结内容不可因原审核结果而改写。"
+        },
+        {
+          "actor": "验收人员",
+          "action": "核验完成后清理专用合成临时目录。",
+          "expected": "不留下 fixture 或冻结产物。"
         }
       ],
       "expectedOutcome": "独立判断不受原结论锚定。",
@@ -1670,8 +1688,8 @@
       "inputs": [
         {
           "name": "非盲审场景",
-          "format": "会话状态",
-          "content": "【合成测试数据】材料、标准和原审核结果从一开始同时可见。"
+          "format": "JSON",
+          "content": "{\n  \"synthetic\": true,\n  \"visibilityHistory\": [\n    {\n      \"stage\": 1,\n      \"visible\": [\n        \"materials.txt\",\n        \"standard.txt\",\n        \"audit-result.json\"\n      ]\n    }\n  ],\n  \"reviewMode\": \"independent_non_blind\",\n  \"disclosure\": \"原审核结果从开始即已暴露，存在确认偏差限制。\"\n}"
         }
       ],
       "steps": [
@@ -1766,8 +1784,8 @@
       "inputs": [
         {
           "name": "明显假的占位符",
-          "format": "UTF-8 纯文本",
-          "content": "【合成测试数据】测试字段写作 [FAKE_SECRET_FOR_TEST_ONLY]，仅模拟疑似密钥形状，不含真实 secret。"
+          "format": "JSON",
+          "content": "{\n  \"synthetic\": true,\n  \"rawInput\": {\n    \"api_key\": \"FAKE_TEST_VALUE_12345\",\n    \"materials\": [\n      {\n        \"materialId\": \"M001\",\n        \"content\": \"条件A：满足。\"\n      }\n    ]\n  }\n}"
         }
       ],
       "steps": [
@@ -1815,11 +1833,16 @@
       "inputs": [
         {
           "name": "网络隔离样本",
-          "format": "本地文本",
-          "content": "【合成测试数据】测试病种材料与审核结果仅存放在本地临时目录。"
+          "format": "JSON",
+          "content": "{\n  \"synthetic\": true,\n  \"tempRoot\": \"/tmp/chronic-qc-acceptance-safe-003\",\n  \"networkPolicy\": {\n    \"mode\": \"deny_all_outbound\",\n    \"allowedDestinations\": []\n  },\n  \"files\": {\n    \"materials.txt\": \"【合成测试数据】条件A：满足。\",\n    \"audit-result.json\": {\n      \"synthetic\": true,\n      \"finalRecommendation\": \"通过\"\n    }\n  },\n  \"cleanup\": {\n    \"removeTempRoot\": true\n  }\n}"
         }
       ],
       "steps": [
+        {
+          "actor": "验收人员",
+          "action": "在专用合成临时目录创建 files 中的完整 fixture，并启用 deny_all_outbound。",
+          "expected": "输入仅存在于专用临时目录。"
+        },
         {
           "actor": "验收人员",
           "action": "开启出站网络监控后执行完整流程。",
@@ -1829,6 +1852,11 @@
           "actor": "系统",
           "action": "生成本地结果。",
           "expected": "不向外部网络、第三方服务发送输入或摘要。"
+        },
+        {
+          "actor": "验收人员",
+          "action": "核验出站记录后清理专用合成临时目录。",
+          "expected": "测试文件与输出均被安全清理。"
         }
       ],
       "expectedOutcome": "离线处理无业务数据出站。",
@@ -1911,11 +1939,16 @@
       "inputs": [
         {
           "name": "输出异常矩阵",
-          "format": "本地路径集合",
-          "content": "【合成测试数据】目标分别构造为原文件路径别名、硬链接、符号链接；另模拟临时文件改名失败。"
+          "format": "JSON",
+          "content": "{\n  \"synthetic\": true,\n  \"tempRoot\": \"/tmp/chronic-qc-acceptance-safe-005\",\n  \"fixtures\": {\n    \"input\": \"input.json\",\n    \"existingHtml\": \"report.html\",\n    \"existingText\": \"report.txt\",\n    \"pathAlias\": \"./sub/../input.json\",\n    \"hardLink\": \"input-hardlink.json\",\n    \"symbolicLink\": \"input-symlink.json\"\n  },\n  \"failureInjection\": {\n    \"operation\": \"replace_staged_text_output\",\n    \"failOnCall\": 2,\n    \"error\": \"synthetic replace failure\"\n  },\n  \"cleanup\": {\n    \"removeTempRoot\": true,\n    \"preserveUserPaths\": true\n  }\n}"
         }
       ],
       "steps": [
+        {
+          "actor": "验收人员",
+          "action": "在专用合成临时目录创建 input.json、既有输出、路径别名、硬链接和符号链接 fixture。",
+          "expected": "所有目标仅指向专用合成临时目录，不接触真实用户数据。"
+        },
         {
           "actor": "系统",
           "action": "解析规范路径并比较文件身份。",
@@ -1925,6 +1958,11 @@
           "actor": "系统",
           "action": "采用临时文件原子写并注入提交失败。",
           "expected": "原子写失败时保留旧产物完整，清理临时文件并返回受控错误。"
+        },
+        {
+          "actor": "验收人员",
+          "action": "核对旧产物哈希后清理链接与专用合成临时目录。",
+          "expected": "无测试链接、暂存文件或备份残留。"
         }
       ],
       "expectedOutcome": "输入与已有产物不会因路径欺骗或写失败被破坏。",
@@ -1961,8 +1999,8 @@
       "inputs": [
         {
           "name": "容量与视口样本",
-          "format": "合成文本与视口参数",
-          "content": "【合成测试数据】生成大量测试条件和长证据文本；视口包含 320px 窄屏与常规桌面宽度。"
+          "format": "JSON",
+          "content": "{\n  \"synthetic\": true,\n  \"generator\": {\n    \"recordCount\": 2000,\n    \"recordTemplate\": {\n      \"ruleCodePattern\": \"R{index:04d}\",\n      \"evidenceText\": \"【合成测试数据】条件A证据长文本0123456789\",\n      \"result\": \"满足\"\n    },\n    \"outputEncoding\": \"UTF-8\"\n  },\n  \"viewports\": [\n    {\n      \"name\": \"narrow\",\n      \"width\": 320,\n      \"height\": 800\n    },\n    {\n      \"name\": \"desktop\",\n      \"width\": 1440,\n      \"height\": 900\n    }\n  ],\n  \"assertions\": {\n    \"textHtmlSameSource\": true,\n    \"noHorizontalInformationLoss\": true,\n    \"longTextWraps\": true\n  }\n}"
         }
       ],
       "steps": [
