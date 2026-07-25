@@ -32,6 +32,42 @@ class InspectStandardTests(unittest.TestCase):
             },
         )
 
+    def external_standard(self, rule_codes=("1001", "1002")):
+        return {
+            "meta": {
+                "version": "V2026042701",
+                "chronicDiseaseName": "脑梗死（恢复期）",
+                "chronicDiseaseCode": "M04810",
+            },
+            "ruleRepository": [
+                {
+                    "airsCdCriteriaRuleId": f"external-{index}",
+                    "ruleCode": code,
+                    "ruleContent": f"认定条件 {index}",
+                    "ruleSource": "外部审核系统现行认定标准",
+                    "ruleKeywordGuide": [
+                        {
+                            "dataType": "enum",
+                            "required": True,
+                            "keywordContent": f"提取项 {index}",
+                            "enumOptions": ["是", "否"],
+                        }
+                    ],
+                }
+                for index, code in enumerate(rule_codes, start=1)
+            ],
+            "logicTopology": {
+                "type": "GROUP",
+                "operator": "AND",
+                "groupCode": "1",
+                "level": 0,
+                "children": [
+                    {"type": "RULE_REF", "ruleCode": code}
+                    for code in rule_codes
+                ],
+            },
+        }
+
     def test_none_is_absent(self):
         result = inspector.inspect_standard(None)
         self.assertEqual(result["kind"], "absent")
@@ -108,6 +144,52 @@ class InspectStandardTests(unittest.TestCase):
         self.assert_completeness(result, True, True, True)
         self.assertEqual(result["issues"], [])
         self.assertTrue(result["semantic_review_available"])
+
+    def test_qc_profile_accepts_consistent_external_rule_code_schemes(self):
+        for codes in (("1001", "1002"), ("01001", "01002"), ("R001", "R002")):
+            with self.subTest(codes=codes):
+                result = inspector.inspect_standard(self.external_standard(codes), profile="qc")
+                self.assertEqual(result["kind"], "structured_complete")
+                self.assert_completeness(result, True, True, True)
+                self.assertTrue(result["semantic_review_available"])
+                self.assertTrue(any(item["code"] == "noncanonical_structure" for item in result["warnings"]))
+
+        canonical_result = inspector.inspect_standard(self.external_standard(("1001", "1002")))
+        self.assertEqual(canonical_result["kind"], "structured_incomplete")
+        self.assertTrue(any(item["code"] == "invalid_rule_code_format" for item in canonical_result["issues"]))
+
+    def test_qc_profile_rejects_duplicate_mixed_and_dangling_rule_codes(self):
+        duplicate = self.external_standard(("1001", "1001"))
+        mixed = self.external_standard(("1001", "01002"))
+        dangling = self.external_standard(("1001", "1002"))
+        dangling["logicTopology"]["children"][1]["ruleCode"] = "9999"
+        cases = (
+            (duplicate, "duplicate_rule_code"),
+            (mixed, "mixed_rule_code_scheme"),
+            (dangling, "unknown_rule_reference"),
+        )
+        for standard, issue_code in cases:
+            with self.subTest(issue_code=issue_code):
+                result = inspector.inspect_standard(standard, profile="qc")
+                self.assertEqual(result["kind"], "structured_incomplete")
+                self.assertFalse(result["completeness"]["executable"])
+                self.assertTrue(any(item["code"] == issue_code for item in result["issues"]))
+
+    def test_qc_profile_cli_accepts_external_four_digit_rules(self):
+        with tempfile.TemporaryDirectory() as directory:
+            input_path = Path(directory) / "external.json"
+            input_path.write_text(
+                json.dumps(self.external_standard(), ensure_ascii=False),
+                encoding="utf-8",
+            )
+            completed = subprocess.run(
+                [sys.executable, str(SCRIPT), str(input_path), "--profile", "qc"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(json.loads(completed.stdout)["kind"], "structured_complete")
 
     def test_empty_keyword_guide_is_incomplete_with_validator_issue(self):
         standard = copy.deepcopy(self.valid)
