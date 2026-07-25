@@ -738,6 +738,20 @@
         ) {
           throw new Error("报告缺少必要字段");
         }
+        if (!data.rules.length) {
+          throw new Error("未提供认定规则");
+        }
+        if (
+          data.rules.some(rule =>
+            !Array.isArray(rule.extractionItems) ||
+            !rule.extractionItems.length
+          )
+        ) {
+          throw new Error("未提供提取项");
+        }
+        if (!data.sourceDocuments.length) {
+          throw new Error("未提供原始材料");
+        }
         renderOverview(data);
         const ruleMap = new Map(data.rules.map(rule => [rule.id, rule]));
         byId("logic-content").append(renderLogic(data.logic, ruleMap));
@@ -748,10 +762,14 @@
         renderConfirmation(data.confirmation);
       };
 
-      const showError = () => {
-        const error = byId("report-error");
-        error.textContent = "无法生成报告：数据解析或渲染失败。";
-        error.hidden = false;
+      const showError = error => {
+        const errorBox = byId("report-error");
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : "数据解析或渲染失败";
+        errorBox.textContent = `无法生成报告：${message}。`;
+        errorBox.hidden = false;
         byId("report-description").textContent =
           "请检查内嵌 JSON 数据后重新生成。";
         [
@@ -769,7 +787,7 @@
         const data = JSON.parse(byId("flash-data").textContent);
         renderReport(data);
       } catch (error) {
-        showError();
+        showError(error);
       }
 
       const sideNav = document.querySelector(".side-nav");

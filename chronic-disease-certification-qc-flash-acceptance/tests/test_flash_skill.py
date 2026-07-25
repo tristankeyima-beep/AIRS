@@ -510,6 +510,32 @@ class FlashCertificationTemplateTests(unittest.TestCase):
         self.fixture_path = ACCEPTANCE_ROOT / "fixtures" / "valid-mode1.json"
         self.template = read(self.template_path)
 
+    def assert_embedded_fixture_has_error_contract(
+        self,
+        fixture,
+        condition,
+        message,
+    ):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture_path = Path(directory) / "invalid.json"
+            fixture_path.write_text(
+                json.dumps(fixture, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            html = embedded_html(self.template_path, fixture_path)
+
+        match = re.search(
+            r'<script id="flash-data" type="application/json">'
+            r"(?P<payload>.*?)</script>",
+            html,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(match)
+        self.assertEqual(fixture, json.loads(match.group("payload")))
+        self.assertIn(condition, self.template)
+        self.assertIn(f'throw new Error("{message}")', self.template)
+        self.assertIn("error.message", self.template)
+
     def test_template_has_one_safe_data_slot_and_offline_renderer(self):
         self.assertEqual(1, self.template.count("__FLASH_DATA_JSON__"))
         script_tags = re.findall(
@@ -676,6 +702,42 @@ class FlashCertificationTemplateTests(unittest.TestCase):
         ]
         self.assertEqual(2, len(script_tags))
         self.assertEqual(1, len(executable_scripts))
+
+    def test_empty_rules_raise_visible_chinese_contract_error(self):
+        fixture = json.loads(read(self.fixture_path))
+        fixture["rules"] = []
+        fixture["logic"] = {
+            "type": "group",
+            "operator": "AND",
+            "children": [],
+        }
+
+        self.assert_embedded_fixture_has_error_contract(
+            fixture,
+            "if (!data.rules.length)",
+            "未提供认定规则",
+        )
+
+    def test_empty_extraction_items_raise_visible_chinese_contract_error(self):
+        fixture = json.loads(read(self.fixture_path))
+        for rule in fixture["rules"]:
+            rule["extractionItems"] = []
+
+        self.assert_embedded_fixture_has_error_contract(
+            fixture,
+            "data.rules.some(rule =>",
+            "未提供提取项",
+        )
+
+    def test_empty_sources_raise_visible_chinese_contract_error(self):
+        fixture = json.loads(read(self.fixture_path))
+        fixture["sourceDocuments"] = []
+
+        self.assert_embedded_fixture_has_error_contract(
+            fixture,
+            "if (!data.sourceDocuments.length)",
+            "未提供原始材料",
+        )
 
 
 if __name__ == "__main__":
