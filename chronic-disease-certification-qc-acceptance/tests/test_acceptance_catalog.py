@@ -415,7 +415,14 @@ class OfflineSafetyParser(HTMLParser):
         "base",
     }
     PROHIBITED_ATTRIBUTES = {
+        "action",
+        "background",
+        "data",
+        "formaction",
+        "ping",
+        "poster",
         "src",
+        "srcdoc",
         "srcset",
         "xlink:href",
         "xml:base",
@@ -426,13 +433,57 @@ class OfflineSafetyParser(HTMLParser):
         self.violations = []
         self.scripts = []
         self.styles = []
+        self.csp_contents = []
         self._current_script = None
         self._current_style = None
 
+    @staticmethod
+    def _normalize_name(name):
+        return name.strip().casefold().replace("|", ":")
+
+    @staticmethod
+    def _normalize_css(css):
+        normalized = css
+        for _ in range(3):
+            previous = normalized
+            normalized = re.sub(
+                r"\\(?:\r\n|[\n\r\f])",
+                "",
+                normalized,
+            )
+
+            def decode_hex(match):
+                codepoint = int(match.group(1), 16)
+                if codepoint == 0 or codepoint > 0x10FFFF:
+                    return "\ufffd"
+                return chr(codepoint)
+
+            normalized = re.sub(
+                r"\\([0-9a-fA-F]{1,6})[ \t\r\n\f]?",
+                decode_hex,
+                normalized,
+            )
+            normalized = re.sub(
+                r"\\([^0-9a-fA-F\r\n\f])",
+                r"\1",
+                normalized,
+            )
+            normalized = re.sub(r"/\*.*?\*/", "", normalized, flags=re.DOTALL)
+            if normalized == previous:
+                break
+        return normalized.casefold()
+
+    def _inspect_css(self, css, context):
+        normalized = self._normalize_css(css)
+        if re.search(r"@import\b", normalized):
+            self.violations.append(f"css-import:{context}")
+        if re.search(r"url\s*\(", normalized):
+            self.violations.append(f"css-url:{context}")
+
     def handle_starttag(self, tag, attrs):
-        tag = tag.casefold()
+        tag = self._normalize_name(tag)
         attributes = {
-            name.casefold(): value or ""
+            self._normalize_name(name): value or ""
             for name, value in attrs
         }
         if tag in self.PROHIBITED_TAGS:
@@ -442,6 +493,8 @@ class OfflineSafetyParser(HTMLParser):
                 self.violations.append(f"event-attribute:{name}")
             if name in self.PROHIBITED_ATTRIBUTES:
                 self.violations.append(f"resource-attribute:{name}")
+            if name == "style":
+                self._inspect_css(value, "attribute")
             if name == "href" and not value.startswith("#"):
                 self.violations.append("external-href")
         if (
@@ -449,6 +502,12 @@ class OfflineSafetyParser(HTMLParser):
             and attributes.get("http-equiv", "").strip().casefold() == "refresh"
         ):
             self.violations.append("meta-refresh")
+        if (
+            tag == "meta"
+            and attributes.get("http-equiv", "").strip().casefold()
+            == "content-security-policy"
+        ):
+            self.csp_contents.append(attributes.get("content", ""))
         if tag == "script":
             self._current_script = {
                 "attributes": attributes,
@@ -460,10 +519,12 @@ class OfflineSafetyParser(HTMLParser):
             self.styles.append(self._current_style)
 
     def handle_endtag(self, tag):
-        tag = tag.casefold()
+        tag = self._normalize_name(tag)
         if tag == "script":
             self._current_script = None
         elif tag == "style":
+            if self._current_style is not None:
+                self._inspect_css("".join(self._current_style), "block")
             self._current_style = None
 
     def handle_data(self, data):
@@ -511,6 +572,90 @@ def parse_offline_html(rendered):
     parser.feed(rendered)
     parser.close()
     return parser
+
+
+def assert_runtime_offline_contract(testcase, script):
+    prohibited_patterns = {
+        "resource-element": (
+            r'document\s*\.\s*createElement\s*\(\s*["\']'
+            r"(?:img|iframe|script|link|object|embed|source|video|audio|track|base|form)"
+            r'["\']\s*\)'
+        ),
+        "image-constructor": r"\bnew\s+Image\s*\(",
+        "audio-constructor": r"\bnew\s+Audio\s*\(",
+        "resource-property": (
+            r"\.\s*(?:src|srcset|srcdoc|poster|data|background|ping|action|formAction)"
+            r"\s*="
+        ),
+        "resource-set-attribute": (
+            r"\.\s*setAttribute\s*\(\s*[\"']"
+            r"(?:src|srcset|srcdoc|poster|data|background|ping|action|formaction|"
+            r"xlink:href|xml:base)"
+            r"[\"']"
+        ),
+        "window-open": r"\bwindow\s*\.\s*open\s*\(",
+        "location-method": r"\blocation\s*\.\s*(?:assign|replace)\s*\(",
+        "location-href": r"(?:window\s*\.\s*)?location\s*\.\s*href\s*=",
+        "form-submit": r"\.\s*(?:submit|requestSubmit)\s*\(",
+    }
+    for label, pattern in prohibited_patterns.items():
+        testcase.assertIsNone(
+            re.search(pattern, script, flags=re.IGNORECASE),
+            label,
+        )
+    direct_creations = re.findall(
+        r"document\s*\.\s*createElement\s*\((.*?)\)",
+        script,
+        flags=re.DOTALL,
+    )
+    testcase.assertEqual(direct_creations, ["tagName"])
+    safe_tags_match = re.search(
+        r"const SAFE_ELEMENT_TAGS = Object\.freeze\(\[(.*?)\]\);",
+        script,
+        flags=re.DOTALL,
+    )
+    testcase.assertIsNotNone(safe_tags_match)
+    safe_tags = json.loads("[" + safe_tags_match.group(1) + "]")
+    testcase.assertEqual(
+        set(safe_tags),
+        {
+            "a",
+            "button",
+            "code",
+            "details",
+            "div",
+            "h2",
+            "h3",
+            "h4",
+            "header",
+            "label",
+            "li",
+            "ol",
+            "p",
+            "pre",
+            "section",
+            "span",
+            "strong",
+            "summary",
+            "textarea",
+            "ul",
+        },
+    )
+    testcase.assertEqual(len(safe_tags), len(set(safe_tags)))
+    testcase.assertRegex(
+        script,
+        r"(?s)SAFE_ELEMENT_TAGS\.includes\(tagName\).*?"
+        r"document\.createElement\(tagName\)",
+    )
+    href_assignments = re.findall(
+        r"\b([A-Za-z_$][\w$]*)\.href\s*=\s*([^;]+);",
+        script,
+    )
+    testcase.assertEqual(href_assignments, [("link", "objectUrl")])
+    testcase.assertIn("const objectUrl = URL.createObjectURL(blob);", script)
+    testcase.assertIn('const link = createElement("a");', script)
+    testcase.assertIn("link.download =", script)
+    testcase.assertIn("URL.revokeObjectURL(objectUrl);", script)
 
 
 def load_builder_module():
@@ -568,6 +713,25 @@ class AcceptanceCatalogTests(unittest.TestCase):
 
     def tearDown(self):
         self._temp_dir.cleanup()
+
+    def require_node(self):
+        node = shutil.which("node")
+        if node is None:
+            self.fail("Node.js is required for acceptance safety tests")
+        return node
+
+    def test_node_is_a_required_acceptance_safety_precondition(self):
+        with mock.patch("shutil.which", return_value=None):
+            with self.assertRaisesRegex(
+                AssertionError,
+                "Node.js is required",
+            ):
+                self.require_node()
+        source = Path(__file__).read_text(encoding="utf-8")
+        self.assertNotRegex(
+            source,
+            r"@unittest\.skipUnless\(shutil\.which\([\"']node[\"']",
+        )
 
     def write_catalog(self, value):
         path = self.temp_path / "catalog.json"
@@ -1649,18 +1813,49 @@ class AcceptanceCatalogTests(unittest.TestCase):
         self.assertIsNone(re.search(r"@import\b", css, flags=re.IGNORECASE))
         self.assertIsNone(re.search(r"url\s*\(", css, flags=re.IGNORECASE))
         self.assertNotIn("@font-face", css.casefold())
+        self.assertEqual(len(parser.csp_contents), 1)
+        directives = {}
+        for part in parser.csp_contents[0].split(";"):
+            tokens = part.strip().split()
+            if tokens:
+                directives[tokens[0]] = tokens[1:]
+        self.assertEqual(directives["default-src"], ["'none'"])
+        self.assertEqual(directives["script-src"], ["'unsafe-inline'"])
+        self.assertEqual(directives["style-src"], ["'unsafe-inline'"])
+        for directive in (
+            "img-src",
+            "font-src",
+            "connect-src",
+            "media-src",
+            "object-src",
+            "frame-src",
+            "base-uri",
+            "form-action",
+        ):
+            with self.subTest(directive=directive):
+                self.assertEqual(directives[directive], ["'none'"])
+        self.assertLess(
+            rendered.index('http-equiv="Content-Security-Policy"'),
+            rendered.index("<style>"),
+        )
 
     def test_offline_parser_detects_resource_event_css_and_refresh_mutations(self):
-        mutated = """
+        mutated = r"""
         <base href="https://invalid.example/">
         <meta http-equiv="refresh" content="0;url=/next">
         <link href="/style.css"><img src="local.png" srcset="other.png">
-        <iframe src="frame.html"></iframe><object data="object.bin"></object>
+        <iframe src="frame.html" srcdoc="<p>frame</p>"></iframe>
+        <object data="object.bin"></object>
         <embed src="embed.bin"><source src="media.bin">
-        <video src="video.bin"></video><audio src="audio.bin"></audio>
+        <video src="video.bin" poster="poster.png"></video>
+        <audio src="audio.bin"></audio>
         <track src="captions.vtt"><p onclick="bad()">text</p>
-        <svg xlink:href="/asset" xml:base="/"></svg>
-        <style>@import "local.css"; p { background: url(local.png); }</style>
+        <svg xlink:href="/asset" xlink|href="/asset-2" xml:base="/"></svg>
+        <FoRm AcTiOn="/submit"><button FoRmAcTiOn="/other">send</button></FoRm>
+        <a href="#local" ping="/audit">local</a>
+        <table background="/table.png"><tr><td>cell</td></tr></table>
+        <p STYLE="background:u\72l(local.png)">styled</p>
+        <style>@\69mport "local.css"; p { background: url(local.png); }</style>
         """
         parser = parse_offline_html(mutated)
         css = "".join("".join(parts) for parts in parser.styles)
@@ -1679,18 +1874,28 @@ class AcceptanceCatalogTests(unittest.TestCase):
             "meta-refresh",
             "event-attribute:onclick",
             "resource-attribute:src",
+            "resource-attribute:srcdoc",
             "resource-attribute:srcset",
+            "resource-attribute:poster",
+            "resource-attribute:data",
+            "resource-attribute:action",
+            "resource-attribute:formaction",
+            "resource-attribute:ping",
+            "resource-attribute:background",
             "resource-attribute:xlink:href",
             "resource-attribute:xml:base",
             "external-href",
+            "css-url:attribute",
+            "css-import:block",
+            "css-url:block",
         ):
             with self.subTest(violation=violation):
                 self.assertIn(violation, parser.violations)
-        self.assertRegex(css.casefold(), r"@import\b")
+        self.assertRegex(css.casefold(), r"@\\69mport\b")
         self.assertRegex(css.casefold(), r"url\s*\(")
 
-    @unittest.skipUnless(shutil.which("node"), "Node is optional")
     def test_malicious_catalog_text_remains_data_in_python_and_javascript(self):
+        self.require_node()
         catalog = deepcopy(BUILDER_MODULE.load_catalog(CATALOG))
         malicious = (
             "</script><script>globalThis.compromised=true</script>\n"
@@ -1729,8 +1934,8 @@ class AcceptanceCatalogTests(unittest.TestCase):
         self.assertEqual(node_result.returncode, 0, node_result.stderr)
         self.assertEqual(node_result.stdout, malicious)
 
-    @unittest.skipUnless(shutil.which("node"), "Node is optional")
     def test_runtime_script_uses_only_the_approved_interaction_contract(self):
+        self.require_node()
         rendered = BUILDER_MODULE.render_acceptance_html(
             BUILDER_MODULE.load_catalog(CATALOG)
         )
@@ -1763,6 +1968,16 @@ class AcceptanceCatalogTests(unittest.TestCase):
         for label, pattern in forbidden_patterns.items():
             with self.subTest(label=label):
                 self.assertIsNone(re.search(pattern, script))
+        assert_runtime_offline_contract(self, script)
+        leak_mutation = "\n".join(
+            (
+                script,
+                'const leak = document.createElement("img");',
+                'leak.src = "https:" + "//invalid.example/leak";',
+            )
+        )
+        with self.assertRaises(AssertionError):
+            assert_runtime_offline_contract(self, leak_mutation)
         syntax = subprocess.run(
             ["node", "--check", "-"],
             input=script,
@@ -1772,8 +1987,8 @@ class AcceptanceCatalogTests(unittest.TestCase):
         )
         self.assertEqual(syntax.returncode, 0, syntax.stderr)
 
-    @unittest.skipUnless(shutil.which("node"), "Node is optional")
     def test_normalize_imported_results_is_pure_exact_and_prototype_safe(self):
+        self.require_node()
         rendered = BUILDER_MODULE.render_acceptance_html(
             BUILDER_MODULE.load_catalog(CATALOG)
         )
@@ -2181,8 +2396,8 @@ class AcceptanceCatalogTests(unittest.TestCase):
         self.assertNotIn("gradient(", rendered.casefold())
         self.assertNotIn("@import", rendered.casefold())
 
-    @unittest.skipUnless(shutil.which("node"), "Node is optional")
     def test_interactive_script_has_valid_javascript_syntax(self):
+        self.require_node()
         rendered = BUILDER_MODULE.render_acceptance_html(
             BUILDER_MODULE.load_catalog(CATALOG)
         )
@@ -2327,8 +2542,8 @@ class AcceptanceCatalogTests(unittest.TestCase):
         )
         self.assertNotIn('<div id="case-list"', rendered)
 
-    @unittest.skipUnless(shutil.which("node"), "Node is optional")
     def test_node_smoke_executes_print_sync_and_default_expansion_behavior(self):
+        self.require_node()
         rendered = BUILDER_MODULE.render_acceptance_html(
             BUILDER_MODULE.load_catalog(CATALOG)
         )
@@ -2420,8 +2635,8 @@ class AcceptanceCatalogTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    @unittest.skipUnless(shutil.which("node"), "Node is optional")
     def test_node_smoke_keeps_import_transactional_when_storage_write_fails(self):
+        self.require_node()
         rendered = BUILDER_MODULE.render_acceptance_html(
             BUILDER_MODULE.load_catalog(CATALOG)
         )
@@ -2524,8 +2739,8 @@ class AcceptanceCatalogTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    @unittest.skipUnless(shutil.which("node"), "Node is optional")
     def test_node_interaction_mutations_preserve_state_and_export_exact_fields(self):
+        self.require_node()
         rendered = BUILDER_MODULE.render_acceptance_html(
             BUILDER_MODULE.load_catalog(CATALOG)
         )
@@ -2663,8 +2878,8 @@ class AcceptanceCatalogTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    @unittest.skipUnless(shutil.which("node"), "Node is optional")
     def test_risk_mapping_uses_expected_fields_and_locks_known_directions(self):
+        self.require_node()
         catalog = BUILDER_MODULE.load_catalog(CATALOG)
         rendered = BUILDER_MODULE.render_acceptance_html(catalog)
         derive_function = re.search(
@@ -2723,8 +2938,8 @@ class AcceptanceCatalogTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    @unittest.skipUnless(shutil.which("node"), "Node is optional")
     def test_node_fake_timer_debounces_input_and_flushes_latest_value(self):
+        self.require_node()
         rendered = BUILDER_MODULE.render_acceptance_html(
             BUILDER_MODULE.load_catalog(CATALOG)
         )

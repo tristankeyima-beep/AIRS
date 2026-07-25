@@ -1324,6 +1324,28 @@ const WORKFLOW_STAGES = [
   ["结果对比", "对照独立结论与原审核结果。"],
   ["正式报告", "确认关口满足后形成正式验收证据。"]
 ];
+const SAFE_ELEMENT_TAGS = Object.freeze([
+  "a",
+  "button",
+  "code",
+  "details",
+  "div",
+  "h2",
+  "h3",
+  "h4",
+  "header",
+  "label",
+  "li",
+  "ol",
+  "p",
+  "pre",
+  "section",
+  "span",
+  "strong",
+  "summary",
+  "textarea",
+  "ul"
+]);
 const knownIds = new Set(acceptanceCatalog.cases.map((caseData) => caseData.id));
 const expandedCases = new Set(
   acceptanceCatalog.cases
@@ -1365,6 +1387,9 @@ function createDefaultResults() {
 }
 
 function createElement(tagName, className, text) {
+  if (!SAFE_ELEMENT_TAGS.includes(tagName)) {
+    throw new Error("unsafe-element-tag");
+  }
   const element = document.createElement(tagName);
   if (className) {
     element.className = className;
@@ -1917,7 +1942,7 @@ function exportResults() {
     pad(now.getMinutes()) +
     pad(now.getSeconds());
   const blob = new Blob([serialized], { type: "application/json;charset=utf-8" });
-  const link = document.createElement("a");
+  const link = createElement("a");
   const objectUrl = URL.createObjectURL(blob);
   link.href = objectUrl;
   link.download = "慢特病Skill验收结果-" + stamp + ".json";
@@ -2050,6 +2075,7 @@ def render_acceptance_html(catalog, forbidden_terms=()):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'; manifest-src 'none'">
 <title>{title}</title>
 <style>
 {CONSOLE_CSS}
