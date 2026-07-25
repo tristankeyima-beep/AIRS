@@ -605,18 +605,25 @@ class FlashCertificationTemplateTests(unittest.TestCase):
         self.assertRegex(self.template, r'<main\b[^>]*\bid="main"[^>]*>')
         self.assertRegex(
             self.template,
-            r'<nav\b[^>]*\baria-label="页面导航"[^>]*>',
+            r'<nav\b[^>]*\bid="page-navigation"[^>]*'
+            r'\baria-label="页面导航"[^>]*>',
         )
         self.assertRegex(
             self.template,
             r'<button\b[^>]*class="nav-toggle"[^>]*'
-            r'\btype="button"[^>]*\baria-expanded="false"[^>]*>',
+            r'\btype="button"[^>]*\baria-expanded="false"[^>]*'
+            r'\baria-controls="page-navigation"[^>]*>',
         )
         self.assertEqual(
             1,
             len(re.findall(r"<h1\b", self.template, re.IGNORECASE)),
         )
         self.assertIn(":focus-visible", self.template)
+        self.assertIn(
+            'link.setAttribute("aria-current", "location")',
+            self.template,
+        )
+        self.assertIn('link.removeAttribute("aria-current")', self.template)
 
     def test_renderer_declares_complete_mode1_fields_and_labels(self):
         mappings = (
@@ -737,6 +744,44 @@ class FlashCertificationTemplateTests(unittest.TestCase):
             fixture,
             "if (!data.sourceDocuments.length)",
             "未提供原始材料",
+        )
+
+    def test_print_reveals_content_of_closed_source_documents(self):
+        self.assertIn(
+            "details:not([open]) > :not(summary)",
+            self.template,
+        )
+        self.assertRegex(
+            self.template,
+            r"details:not\(\[open\]\) > :not\(summary\)\s*\{\s*"
+            r"display:\s*block\s*!important;",
+        )
+
+    def test_navigation_uses_one_helper_and_final_anchor_fallback(self):
+        set_active = self.template.index("const setActive = target =>")
+        at_bottom = self.template.index(
+            "const isAtDocumentBottom = () =>"
+        )
+        observer = self.template.index("new IntersectionObserver")
+        scroll_handler = self.template.index(
+            'window.addEventListener("scroll"'
+        )
+
+        self.assertLess(set_active, at_bottom)
+        self.assertLess(at_bottom, observer)
+        self.assertLess(observer, scroll_handler)
+        self.assertIn("setActive(entry.target)", self.template)
+        self.assertIn("setActive(link)", self.template)
+        self.assertIn("document.documentElement.scrollHeight", self.template)
+        self.assertIn("window.innerHeight", self.template)
+        self.assertGreaterEqual(
+            self.template.count('setActive("confirmation")'),
+            2,
+        )
+        observer_body = self.template[observer:scroll_handler]
+        self.assertLess(
+            observer_body.index("if (isAtDocumentBottom())"),
+            observer_body.index("const visible"),
         )
 
 

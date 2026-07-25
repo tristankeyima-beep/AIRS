@@ -466,6 +466,10 @@
         white-space: pre-wrap;
         word-break: break-word;
       }
+
+      details:not([open]) > :not(summary) {
+        display: block !important;
+      }
     }
   </style>
 </head>
@@ -475,8 +479,8 @@
     <aside class="side-nav" aria-label="报告目录">
       <p class="rail-kicker">Flash report</p>
       <p class="rail-title">认定标准</p>
-      <button class="nav-toggle" type="button" aria-expanded="false">目录</button>
-      <nav aria-label="页面导航">
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="page-navigation">目录</button>
+      <nav id="page-navigation" aria-label="页面导航">
         <a href="#overview">概览</a>
         <a href="#logic">逻辑关系</a>
         <a href="#rules">认定规则</a>
@@ -795,14 +799,27 @@
       const navLinks = Array.from(
         document.querySelectorAll(".side-nav nav a")
       );
-      const setActive = sectionId => {
+      const setActive = target => {
+        const sectionId =
+          typeof target === "string"
+            ? target
+            : target.matches("a")
+              ? target.getAttribute("href").slice(1)
+              : target.id;
         navLinks.forEach(link => {
-          link.classList.toggle(
-            "active",
-            link.getAttribute("href") === `#${sectionId}`
-          );
+          const isActive =
+            link.getAttribute("href") === `#${sectionId}`;
+          link.classList.toggle("active", isActive);
+          if (isActive) {
+            link.setAttribute("aria-current", "location");
+          } else {
+            link.removeAttribute("aria-current");
+          }
         });
       };
+      const isAtDocumentBottom = () =>
+        window.scrollY + window.innerHeight >=
+        document.documentElement.scrollHeight - 2;
 
       navToggle.addEventListener("click", () => {
         const isOpen = sideNav.classList.toggle("open");
@@ -811,7 +828,7 @@
 
       navLinks.forEach(link => {
         link.addEventListener("click", () => {
-          setActive(link.getAttribute("href").slice(1));
+          setActive(link);
           sideNav.classList.remove("open");
           navToggle.setAttribute("aria-expanded", "false");
         });
@@ -820,6 +837,10 @@
       setActive("overview");
       if ("IntersectionObserver" in window) {
         const observer = new IntersectionObserver(entries => {
+          if (isAtDocumentBottom()) {
+            setActive("confirmation");
+            return;
+          }
           const visible = entries
             .filter(entry => entry.isIntersecting)
             .sort(
@@ -827,7 +848,10 @@
                 Math.abs(first.boundingClientRect.top) -
                 Math.abs(second.boundingClientRect.top)
             );
-          if (visible.length) setActive(visible[0].target.id);
+          if (visible.length) {
+            const entry = visible[0];
+            setActive(entry.target);
+          }
         }, {
           rootMargin: "-15% 0px -65% 0px",
           threshold: [0, 0.2, 0.6]
@@ -836,6 +860,12 @@
           observer.observe(section);
         });
       }
+
+      window.addEventListener("scroll", () => {
+        if (isAtDocumentBottom()) {
+          setActive("confirmation");
+        }
+      }, { passive: true });
     })();
   </script>
 </body>
