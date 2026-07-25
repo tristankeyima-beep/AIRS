@@ -41,6 +41,10 @@ MODE2_DIMENSIONS = [
     "审核条件与结论一致性",
     "规则维护质量",
 ]
+MODE2_KNOWN_CONCLUSION_RESULTS = {
+    "通过": "meets",
+    "不通过": "does_not_meet",
+}
 
 
 def read(path):
@@ -612,11 +616,52 @@ def assert_valid_mode2(test_case, fixture):
         for name in MODE2_DIMENSIONS[:3]:
             dimension = dimensions[MODE2_DIMENSIONS.index(name)]
             test_case.assertEqual("not_checked", dimension["status"])
+        condition_dimension = dimensions[
+            MODE2_DIMENSIONS.index("审核条件与结论一致性")
+        ]
         rule_dimension = dimensions[MODE2_DIMENSIONS.index("规则维护质量")]
         if profile["standardKind"] == "absent":
+            test_case.assertEqual(
+                "not_checked",
+                condition_dimension["status"],
+            )
             test_case.assertEqual("not_checked", rule_dimension["status"])
+            test_case.assertEqual("uncertain", qc_conclusion)
+            test_case.assertEqual("unknown", risk)
         else:
             test_case.assertNotEqual("not_checked", rule_dimension["status"])
+            original_result = MODE2_KNOWN_CONCLUSION_RESULTS.get(
+                comparison["originalConclusion"]
+            )
+            preliminary_result = base_review["preliminaryResult"]
+            rule_issue = rule_dimension["status"] == "issue"
+            if (
+                original_result is None
+                or preliminary_result == "uncertain"
+            ):
+                test_case.assertEqual(
+                    "not_checked",
+                    condition_dimension["status"],
+                )
+                if rule_issue:
+                    test_case.assertEqual("problematic", qc_conclusion)
+                    test_case.assertEqual("none", risk)
+                else:
+                    test_case.assertEqual("uncertain", qc_conclusion)
+                    test_case.assertEqual("unknown", risk)
+            elif preliminary_result == original_result:
+                test_case.assertEqual("passed", condition_dimension["status"])
+                test_case.assertEqual("uncertain", qc_conclusion)
+                test_case.assertEqual("unknown", risk)
+            else:
+                test_case.assertEqual("issue", condition_dimension["status"])
+                test_case.assertEqual("problematic", qc_conclusion)
+                expected_risk = (
+                    "false_rejection"
+                    if original_result == "does_not_meet"
+                    else "false_approval"
+                )
+                test_case.assertEqual(expected_risk, risk)
 
 
 def assert_natural_language_ambiguity_scenario(test_case, fixture):
@@ -1402,6 +1447,186 @@ class Mode2FixtureContractTests(unittest.TestCase):
                     risk,
                 )
 
+    def test_generic_validator_rejects_known_conclusion_only_mismatches(self):
+        hidden_error_rejection = self.conclusion_only_fixture(
+            "不通过",
+            "meets",
+            "not_checked",
+            "uncertain",
+            "unknown",
+        )
+        reliable_consistency = self.conclusion_only_fixture(
+            "通过",
+            "meets",
+            "passed",
+            "reliable",
+            "none",
+        )
+        wrong_directional_risk = self.conclusion_only_fixture(
+            "不通过",
+            "meets",
+            "issue",
+            "problematic",
+            "false_approval",
+        )
+        invented_unknown_direction = self.conclusion_only_fixture(
+            "方向未明确",
+            "meets",
+            "passed",
+            "uncertain",
+            "unknown",
+        )
+
+        for name, mutation in {
+            "hidden error rejection": hidden_error_rejection,
+            "reliable consistency": reliable_consistency,
+            "wrong directional risk": wrong_directional_risk,
+            "invented unknown direction": invented_unknown_direction,
+        }.items():
+            with self.subTest(mismatch=name):
+                with self.assertRaises(AssertionError):
+                    assert_valid_mode2(self, mutation)
+
+    def absent_conclusion_only_fixture(self):
+        fixture = self.conclusion_only_fixture(
+            "不通过",
+            "uncertain",
+            "not_checked",
+            "uncertain",
+            "unknown",
+        )
+        fixture["inputProfile"]["standardKind"] = "absent"
+        fixture["sourceDocuments"] = [
+            source
+            for source in fixture["sourceDocuments"]
+            if source["type"] != "standard"
+        ]
+        fixture["confirmation"]["inventoryShown"] = [
+            source["name"] for source in fixture["sourceDocuments"]
+        ]
+        fixture["baseReview"]["ruleJudgments"] = []
+        fixture["baseReview"]["preliminaryResult"] = "uncertain"
+        fixture["dimensions"][3]["status"] = "not_checked"
+        fixture["dimensions"][3]["summary"] = (
+            "标准缺失，无法独立得出审核方向"
+        )
+        fixture["dimensions"][3]["notCheckedReason"] = "未提供认定标准"
+        fixture["dimensions"][4]["status"] = "not_checked"
+        fixture["dimensions"][4]["summary"] = (
+            "标准缺失，无法检查规则维护质量"
+        )
+        fixture["dimensions"][4]["notCheckedReason"] = "未提供认定标准"
+        fixture["issues"] = []
+        return fixture
+
+    def test_accepts_absent_conclusion_only_uncertain_outcome(self):
+        assert_valid_mode2(self, self.absent_conclusion_only_fixture())
+
+    def test_rejects_absent_conclusion_only_cross_field_claims(self):
+        passed_condition = self.absent_conclusion_only_fixture()
+        passed_condition["dimensions"][3]["status"] = "passed"
+        passed_condition["dimensions"][3]["notCheckedReason"] = ""
+
+        reliable = self.absent_conclusion_only_fixture()
+        reliable["auditComparison"]["qcConclusion"] = "reliable"
+        reliable["auditComparison"]["risk"] = "none"
+
+        directional_issue = self.absent_conclusion_only_fixture()
+        directional_issue["dimensions"][3]["status"] = "issue"
+        directional_issue["dimensions"][3]["notCheckedReason"] = ""
+        directional_issue["auditComparison"]["qcConclusion"] = "problematic"
+        directional_issue["auditComparison"]["risk"] = "false_rejection"
+        directional_issue["issues"] = [
+            {
+                "id": "I001",
+                "dimension": "审核条件与结论一致性",
+                "severity": "high",
+                "auditClaim": "原审核结论为不通过",
+                "actualEvidence": "未提供标准却声称可独立得出方向",
+                "sourceReference": "原审核结果：测试结论",
+                "impact": "可能错误推断审核方向",
+                "recommendation": "补充认定标准后再比较方向",
+            }
+        ]
+
+        for name, mutation in {
+            "passed condition": passed_condition,
+            "reliable outcome": reliable,
+            "directional issue": directional_issue,
+        }.items():
+            with self.subTest(mismatch=name):
+                with self.assertRaises(AssertionError):
+                    assert_valid_mode2(self, mutation)
+
+    def test_accepts_conclusion_only_local_rule_issue_without_directional_risk(self):
+        fixture = self.conclusion_only_scenarios()[3][1]
+        fixture["dimensions"][4]["status"] = "issue"
+        fixture["dimensions"][4]["summary"] = "可见标准存在规则编号维护问题"
+        fixture["issues"] = [
+            {
+                "id": "I001",
+                "dimension": "规则维护质量",
+                "severity": "low",
+                "auditClaim": "规则编号格式便于维护",
+                "actualEvidence": "标准中的规则编号格式不统一",
+                "sourceReference": "认定标准：测试条款",
+                "impact": "影响维护效率但不改变审核方向",
+                "recommendation": "统一规则编号格式",
+            }
+        ]
+        fixture["auditComparison"]["qcConclusion"] = "problematic"
+        fixture["auditComparison"]["risk"] = "none"
+
+        assert_valid_mode2(self, fixture)
+
+    def direction_consistent_rule_issue_fixture(self):
+        fixture = self.conclusion_only_scenarios()[2][1]
+        fixture["dimensions"][4]["status"] = "issue"
+        fixture["dimensions"][4]["summary"] = "可见标准存在规则编号维护问题"
+        fixture["issues"] = [
+            {
+                "id": "I001",
+                "dimension": "规则维护质量",
+                "severity": "low",
+                "auditClaim": "规则编号格式便于维护",
+                "actualEvidence": "标准中的规则编号格式不统一",
+                "sourceReference": "认定标准：测试条款",
+                "impact": "影响维护效率但不改变审核方向",
+                "recommendation": "统一规则编号格式",
+            }
+        ]
+        return fixture
+
+    def test_direction_consistent_rule_issue_remains_uncertain(self):
+        assert_valid_mode2(self, self.direction_consistent_rule_issue_fixture())
+
+    def test_rejects_problematic_none_for_direction_consistent_rule_issue(self):
+        fixture = self.direction_consistent_rule_issue_fixture()
+        fixture["auditComparison"]["qcConclusion"] = "problematic"
+        fixture["auditComparison"]["risk"] = "none"
+
+        with self.assertRaises(AssertionError):
+            assert_valid_mode2(self, fixture)
+
+    def test_accepts_conclusion_only_direction_issue_with_local_rule_issue(self):
+        fixture = self.conclusion_only_scenarios()[0][1]
+        fixture["dimensions"][4]["status"] = "issue"
+        fixture["dimensions"][4]["summary"] = "可见标准存在规则编号维护问题"
+        fixture["issues"].append(
+            {
+                "id": "I002",
+                "dimension": "规则维护质量",
+                "severity": "low",
+                "auditClaim": "规则编号格式便于维护",
+                "actualEvidence": "标准中的规则编号格式不统一",
+                "sourceReference": "认定标准：测试条款",
+                "impact": "影响维护效率但不改变错误拒绝风险方向",
+                "recommendation": "统一规则编号格式",
+            }
+        )
+
+        assert_valid_mode2(self, fixture)
+
     def test_rejects_conclusion_only_process_checks_and_direction_mismatches(self):
         for index, dimension_name in enumerate(MODE2_DIMENSIONS[:3]):
             fixture = self.conclusion_only_scenarios()[3][1]
@@ -1873,6 +2098,12 @@ class Mode2DocumentationTests(unittest.TestCase):
             "`sourceDocuments[].name`",
             "顺序和内容完全一致",
             "文档名不得重复",
+            "方向一致时",
+            "必须使用 `qcConclusion=uncertain`、`risk=unknown`",
+            "禁止使用 `reliable`",
+            "`standardKind=absent` 且 `auditDetail=conclusion_only`",
+            "规则维护质量存在明确局部问题",
+            "`qcConclusion=problematic`、`risk=none`",
             "<病种>-审核质控-flash-<日期>.json",
             "<病种>-审核质控-flash-<日期>.html",
         ):
@@ -1907,6 +2138,10 @@ class Mode2DocumentationTests(unittest.TestCase):
             "审核条件与结论一致性",
             "confirmation.inventoryShown",
             "sourceDocuments[].name",
+            "方向一致也必须使用不确定结论",
+            "禁止标为可靠",
+            "标准缺失且仅有原审核结论",
+            "局部规则维护问题",
         ):
             self.assertIn(marker, checklist)
 
