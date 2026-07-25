@@ -1,0 +1,75 @@
+{
+  "case": {
+    "patientName": "测试患者",
+    "diseaseName": "结构缺陷病种",
+    "auditId": "QC-INCOMPLETE-001"
+  },
+  "inputScope": {
+    "confirmedByUser": true,
+    "materials": [],
+    "standardKind": "structured_incomplete",
+    "auditResultKind": "detailed",
+    "inventory": {
+      "revision": 1,
+      "materials": [],
+      "standardKind": "structured_incomplete",
+      "auditResultKind": "detailed",
+      "hasAuditProcess": true,
+      "hasFinalConclusion": true,
+      "referencedButMissing": [],
+      "rawInputSha256": "070b01af07c0d5aa985b4ac305a7a20105931ed24df2c5b9824ba9c4ed8f5b76"
+    },
+    "confirmation": {
+      "confirmedRevision": 1,
+      "inventorySha256": "a5b00a28802a14a4fecdf29cc39e7d4bb370e6aeeb56d464733478e956b5794f",
+      "userStatement": "以上为全部",
+      "outcome": "confirmed_complete",
+      "confirmedAfterInventory": true
+    },
+    "independentReview": {
+      "mode": "isolated_blind",
+      "completedBeforeComparison": true,
+      "artifact": {
+        "materialFacts": [],
+        "standardKind": "structured_incomplete",
+        "ruleResults": [],
+        "finalResult": "无法判断"
+      },
+      "artifactSha256": "28502d1899c8def0f3e71b23a55286b97d3327e8ec0858d7832323c162a6456f"
+    }
+  },
+  "capabilities": [
+    {"name": "材料缺失判断准确性", "status": "completed", "reason": ""},
+    {"name": "证据提取准确性", "status": "completed", "reason": ""},
+    {"name": "过度推理", "status": "completed", "reason": ""},
+    {"name": "审核条件与结论一致性", "status": "not_run", "reason": "规则编码重复，逻辑不可执行"},
+    {"name": "规则维护质量", "status": "partial", "reason": "可完成语义检查，但结构不可执行"}
+  ],
+  "originalResult": "不通过",
+  "qcConclusion": "无法确定",
+  "riskDirection": "暂时无法判断",
+  "recommendedAction": "修正规则编码后重新执行质控",
+  "issues": [],
+  "ruleReviews": [],
+  "unperformedChecks": [
+    {"name": "审核条件与结论一致性", "reason": "规则编码重复，逻辑不可执行"}
+  ],
+  "rawInput": {
+    "materials": [],
+    "standard": {
+      "ruleRepository": [
+        {"ruleCode": "1001", "ruleContent": "条件一"},
+        {"ruleCode": "1001", "ruleContent": "条件二"}
+      ],
+      "logicTopology": {
+        "type": "GROUP",
+        "operator": "AND",
+        "children": [{"type": "RULE_REF", "ruleCode": "1001"}]
+      }
+    },
+    "auditResult": {
+      "finalResult": "不通过",
+      "ruleResults": []
+    }
+  }
+}
