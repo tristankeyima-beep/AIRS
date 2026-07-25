@@ -18,7 +18,7 @@
 - `schemaVersion` 固定为 `flash-1.0`；`mode` 固定为 `qc`。
 - `meta` 字段恰好为 `reportTitle`、`diseaseName`、`generatedAt`，均为非空字符串。
 - `inputProfile` 字段恰好为 `standardKind`、`auditDetail`、`materialsConfirmedComplete`。`standardKind` 只能是 `structured`、`natural_language`、`absent`；`auditDetail` 只能是 `detailed`、`brief`、`conclusion_only`；正式成果中的完整性字段必须是布尔值 `true`。
-- `sourceDocuments` 是非空数组。每项字段恰好为 `name`、`type`、`content`，均为非空字符串；`type` 只能是 `patient_material`、`standard`、`audit_result`。每份报告必须包含至少一项 `patient_material` 和至少一项 `audit_result`；`structured`、`natural_language` 必须至少有一项 `standard`，`absent` 不得有 `standard`。`content` 必须保存收到的完整原文，不得摘要替代、删节或改写。
+- `sourceDocuments` 是非空数组。每项字段恰好为 `name`、`type`、`content`，均为非空字符串；文档名不得重复；`type` 只能是 `patient_material`、`standard`、`audit_result`。每份报告必须包含至少一项 `patient_material` 和至少一项 `audit_result`；`structured`、`natural_language` 必须至少有一项 `standard`，`absent` 不得有 `standard`。`content` 必须保存收到的完整原文，不得摘要替代、删节或改写。
 - `analysisRecord` 字段恰好为 `inputSummary`、`interpretations`、`evidenceFindings`、`uncertainties`、`preliminaryConclusion`。前四项都是字符串数组，结论是非空字符串。
 - `recommendations` 是字符串数组，允许为空数组；数组中的字符串不得为空。
 
@@ -42,7 +42,7 @@
 - `risk` 只能是 `none`、`false_approval`、`false_rejection`、`both`、`unknown`。
 - `false_approval` 表示原审核通过，但独立复核结果为不满足，存在错误通过风险；`false_rejection` 表示原审核不通过，但独立复核结果为满足，存在错误拒绝风险；`both` 表示同时存在错误通过和错误拒绝风险；`unknown` 表示现有信息不足以确定风险方向。
 - `reliable` 时，不得有 `issue` 维度或问题记录，且 `risk` 必须为 `none`。
-- `problematic` 时，必须至少有一个 `issue` 维度和问题记录，且 `risk` 不得为 `none`。
+- `problematic` 时必须至少有一个 `issue` 维度和问题记录；`problematic` 时允许 `risk=none`，仅表示问题不改变通过/不通过方向。
 - `uncertain` 时，`risk` 必须为 `unknown`。
 
 ## 五个质控维度
@@ -60,9 +60,9 @@
 ## 问题、确认与降级
 
 - `issues` 是数组。每项字段恰好为 `id`、`dimension`、`severity`、`auditClaim`、`actualEvidence`、`sourceReference`、`impact`、`recommendation`，全部为非空字符串。`id` 从 `I001` 开始连续编号；问题记录的维度集合必须与状态为 `issue` 的维度集合完全相等，非问题维度不得出现在问题记录中；`severity` 只能是 `high`、`medium`、`low`。
-- `confirmation` 字段恰好为 `confirmed`、`inventoryShown`、`userResponse`。`confirmed` 必须为布尔值 `true`；`inventoryShown` 是非空字符串数组；`userResponse` 是非空字符串。
+- `confirmation` 字段恰好为 `confirmed`、`inventoryShown`、`userResponse`。`confirmed` 必须为布尔值 `true`；`confirmation.inventoryShown` 是非空字符串数组，必须与 `sourceDocuments[].name` 的顺序和内容完全一致；`userResponse` 是非空字符串。
 - `standardKind=absent`：不得判断独立政策资格；不得包含 `standard` 来源，`ruleJudgments` 必须为空数组，`preliminaryResult` 必须为 `uncertain`，“规则维护质量”必须为 `not_checked` 并写明原因。
-- `auditDetail=conclusion_only`：不得编造或推断未展示的审核主张、证据、推理和规则执行过程；前四个维度必须为 `not_checked` 并写明原因，`qcConclusion` 必须为 `uncertain`，`risk` 必须为 `unknown`。
+- `auditDetail=conclusion_only`：不得编造或推断未展示的审核主张、证据、推理和规则执行过程；前三个过程依赖维度（材料缺失判断准确性、证据提取准确性、过度推理）必须为 `not_checked` 并写明原因。第四个“审核条件与结论一致性”维度在 `baseReview.preliminaryResult` 有决定性方向且原审核结论方向明确时必须评为 `passed` 或 `issue`：方向相反时为 `issue`，`qcConclusion=problematic`，并按方向使用 `false_approval` 或 `false_rejection`；方向一致时可评为 `passed`，但因过程不可见，总体仍可保守使用 `qcConclusion=uncertain`、`risk=unknown`；原审核方向不明确时该维度为 `not_checked`。规则维护质量不依赖 `auditDetail`：标准可见时必须检查为 `passed` 或 `issue`，标准缺失时为 `not_checked`。
 - `auditDetail=brief`：只核查可见主张，无法获取的检查项标为 `not_checked` 并写明原因，不得编造缺失过程。
 - `standardKind=natural_language`：可以构建仅用于本次质控的临时规则，编号必须从 `TMP-R001` 开始连续且唯一，但不得把它们称为正式业务规则。出现任何影响结论的歧义时，`analysisRecord.uncertainties` 必须非空，`qcConclusion` 必须为 `uncertain`，`risk` 必须为 `unknown`。
 

@@ -327,6 +327,7 @@ def assert_valid_mode2(test_case, fixture):
     test_case.assertIsInstance(sources, list)
     test_case.assertTrue(sources, "sourceDocuments")
     source_types = []
+    source_names = []
     for index, source in enumerate(sources):
         path = f"sourceDocuments[{index}]"
         test_case.assertIsInstance(source, dict, path)
@@ -339,6 +340,12 @@ def assert_valid_mode2(test_case, fixture):
         )
         assert_nonempty_string(test_case, source["content"], f"{path}.content")
         source_types.append(source["type"])
+        source_names.append(source["name"])
+    test_case.assertEqual(
+        len(source_names),
+        len(set(source_names)),
+        "source document names must be unique",
+    )
     test_case.assertIn("patient_material", source_types)
     test_case.assertIn("audit_result", source_types)
     if profile["standardKind"] == "absent":
@@ -554,7 +561,6 @@ def assert_valid_mode2(test_case, fixture):
     elif qc_conclusion == "problematic":
         test_case.assertTrue(issue_status_dimensions)
         test_case.assertTrue(issues)
-        test_case.assertNotEqual("none", risk)
     else:
         test_case.assertEqual("unknown", risk)
 
@@ -575,6 +581,11 @@ def assert_valid_mode2(test_case, fixture):
         confirmation["inventoryShown"],
         "confirmation.inventoryShown",
         allow_empty=False,
+    )
+    test_case.assertEqual(
+        source_names,
+        confirmation["inventoryShown"],
+        "confirmation inventory must exactly mirror source document names",
     )
     assert_nonempty_string(
         test_case,
@@ -598,11 +609,14 @@ def assert_valid_mode2(test_case, fixture):
         )
 
     if profile["auditDetail"] == "conclusion_only":
-        for name in MODE2_DIMENSIONS[:4]:
+        for name in MODE2_DIMENSIONS[:3]:
             dimension = dimensions[MODE2_DIMENSIONS.index(name)]
             test_case.assertEqual("not_checked", dimension["status"])
-        test_case.assertEqual("uncertain", qc_conclusion)
-        test_case.assertEqual("unknown", risk)
+        rule_dimension = dimensions[MODE2_DIMENSIONS.index("规则维护质量")]
+        if profile["standardKind"] == "absent":
+            test_case.assertEqual("not_checked", rule_dimension["status"])
+        else:
+            test_case.assertNotEqual("not_checked", rule_dimension["status"])
 
 
 def assert_natural_language_ambiguity_scenario(test_case, fixture):
@@ -639,6 +653,53 @@ def assert_directional_risk_scenario(
         fixture["baseReview"]["preliminaryResult"],
     )
     test_case.assertEqual(expected_risk, fixture["auditComparison"]["risk"])
+
+
+def assert_conclusion_only_direction_scenario(
+    test_case,
+    fixture,
+    original_conclusion,
+    preliminary_result,
+    condition_status,
+    qc_conclusion,
+    risk,
+):
+    assert_valid_mode2(test_case, fixture)
+    test_case.assertEqual(
+        "conclusion_only",
+        fixture["inputProfile"]["auditDetail"],
+    )
+    test_case.assertEqual(
+        ["not_checked", "not_checked", "not_checked"],
+        [dimension["status"] for dimension in fixture["dimensions"][:3]],
+    )
+    test_case.assertEqual(
+        original_conclusion,
+        fixture["auditComparison"]["originalConclusion"],
+    )
+    test_case.assertEqual(
+        preliminary_result,
+        fixture["baseReview"]["preliminaryResult"],
+    )
+    test_case.assertEqual(
+        condition_status,
+        fixture["dimensions"][3]["status"],
+    )
+    test_case.assertEqual(
+        qc_conclusion,
+        fixture["auditComparison"]["qcConclusion"],
+    )
+    test_case.assertEqual(risk, fixture["auditComparison"]["risk"])
+    if fixture["inputProfile"]["standardKind"] == "absent":
+        test_case.assertEqual(
+            "not_checked",
+            fixture["dimensions"][4]["status"],
+        )
+    else:
+        test_case.assertNotEqual(
+            "not_checked",
+            fixture["dimensions"][4]["status"],
+        )
 
 
 class OpenAIYamlParserTests(unittest.TestCase):
@@ -913,6 +974,14 @@ class Mode2FixtureContractTests(unittest.TestCase):
             ],
             self.fixture["sourceDocuments"],
         )
+        source_names = [
+            source["name"] for source in self.fixture["sourceDocuments"]
+        ]
+        self.assertEqual(
+            source_names,
+            self.fixture["confirmation"]["inventoryShown"],
+        )
+        self.assertEqual(len(source_names), len(set(source_names)))
 
     def test_rejects_invalid_nested_mode2_mutations(self):
         mutations = {}
@@ -1014,10 +1083,6 @@ class Mode2FixtureContractTests(unittest.TestCase):
             dimension["summary"] = "本维度复核通过"
         mutations["reliable with non-none risk"] = reliable_with_risk
 
-        problematic_without_risk = copy.deepcopy(self.fixture)
-        problematic_without_risk["auditComparison"]["risk"] = "none"
-        mutations["problematic without risk"] = problematic_without_risk
-
         problematic_without_issues = copy.deepcopy(self.fixture)
         problematic_without_issues["issues"] = []
         for dimension in problematic_without_issues["dimensions"]:
@@ -1044,6 +1109,38 @@ class Mode2FixtureContractTests(unittest.TestCase):
                 with self.assertRaises(AssertionError):
                     assert_valid_mode2(self, mutation)
 
+    def test_rejects_inventory_omissions_extras_reordering_and_duplicate_names(self):
+        missing = copy.deepcopy(self.fixture)
+        missing["confirmation"]["inventoryShown"] = missing["confirmation"][
+            "inventoryShown"
+        ][:-1]
+
+        extra = copy.deepcopy(self.fixture)
+        extra["confirmation"]["inventoryShown"].append("额外材料")
+
+        reordered = copy.deepcopy(self.fixture)
+        reordered["confirmation"]["inventoryShown"] = list(
+            reversed(reordered["confirmation"]["inventoryShown"])
+        )
+
+        duplicate_name = copy.deepcopy(self.fixture)
+        duplicate_name["sourceDocuments"][1]["name"] = duplicate_name[
+            "sourceDocuments"
+        ][0]["name"]
+        duplicate_name["confirmation"]["inventoryShown"] = [
+            source["name"] for source in duplicate_name["sourceDocuments"]
+        ]
+
+        for name, mutation in {
+            "missing": missing,
+            "extra": extra,
+            "reordered": reordered,
+            "duplicate source name": duplicate_name,
+        }.items():
+            with self.subTest(mutation=name):
+                with self.assertRaises(AssertionError):
+                    assert_valid_mode2(self, mutation)
+
     def test_accepts_reliable_report_without_issue_dimensions_or_risk(self):
         reliable = copy.deepcopy(self.fixture)
         reliable["auditComparison"]["qcConclusion"] = "reliable"
@@ -1063,6 +1160,42 @@ class Mode2FixtureContractTests(unittest.TestCase):
             dimension["notCheckedReason"] = ""
 
         assert_valid_mode2(self, reliable)
+
+    def test_accepts_problematic_local_issue_without_directional_risk(self):
+        fixture = copy.deepcopy(self.fixture)
+        fixture["auditComparison"] = {
+            "originalConclusion": "通过",
+            "qcConclusion": "problematic",
+            "risk": "none",
+            "summary": "存在局部规则维护问题，但不改变本次通过结论",
+        }
+        fixture["analysisRecord"]["preliminaryConclusion"] = (
+            "独立复核结果与原审核通过方向一致"
+        )
+        for source in fixture["sourceDocuments"]:
+            if source["type"] == "audit_result":
+                source["content"] = "原审核认定证据 A 已提供，结论为通过。"
+        fixture["issues"] = [
+            {
+                "id": "I001",
+                "dimension": "规则维护质量",
+                "severity": "low",
+                "auditClaim": "规则编号格式可直接用于维护",
+                "actualEvidence": "认定标准中的规则编号格式不统一",
+                "sourceReference": "认定标准：测试条款",
+                "impact": "影响规则维护效率但不改变本次审核方向",
+                "recommendation": "统一规则编号格式",
+            }
+        ]
+        for dimension in fixture["dimensions"]:
+            dimension["status"] = "passed"
+            dimension["summary"] = "本维度复核通过"
+            dimension["notCheckedReason"] = ""
+        fixture["dimensions"][4]["status"] = "issue"
+        fixture["dimensions"][4]["summary"] = "规则编号格式存在局部维护问题"
+        fixture["recommendations"] = ["统一规则编号格式"]
+
+        assert_valid_mode2(self, fixture)
 
     def brief_fixture(self):
         fixture = copy.deepcopy(self.fixture)
@@ -1102,53 +1235,246 @@ class Mode2FixtureContractTests(unittest.TestCase):
                 with self.assertRaises(AssertionError):
                     assert_valid_mode2(self, mutation)
 
-    def conclusion_only_fixture(self):
+    def conclusion_only_fixture(
+        self,
+        original_conclusion,
+        preliminary_result,
+        condition_status,
+        qc_conclusion,
+        risk,
+    ):
         fixture = copy.deepcopy(self.fixture)
         fixture["inputProfile"]["auditDetail"] = "conclusion_only"
-        fixture["auditComparison"]["qcConclusion"] = "uncertain"
-        fixture["auditComparison"]["risk"] = "unknown"
-        fixture["auditComparison"]["summary"] = (
-            "仅有原审核结论，无法核查未展示的审核行为"
-        )
+        fixture["auditComparison"] = {
+            "originalConclusion": original_conclusion,
+            "qcConclusion": qc_conclusion,
+            "risk": risk,
+            "summary": "仅依据原审核结论方向与独立复核结果进行质控",
+        }
         fixture["analysisRecord"]["inputSummary"] = [
             "已收到患者材料、结构化标准和原审核结论"
         ]
         fixture["analysisRecord"]["preliminaryConclusion"] = (
-            "只能独立复核患者材料与认定标准，无法核查原审核过程"
+            "只能独立复核患者材料与认定标准，并比较原审核结论方向"
         )
+        if preliminary_result == "does_not_meet":
+            for source in fixture["sourceDocuments"]:
+                if source["type"] == "patient_material":
+                    source["content"] = "患者材料未记载证据 A。"
+            fixture["analysisRecord"]["evidenceFindings"] = [
+                "患者材料未提供证据 A"
+            ]
+            fixture["baseReview"]["materialFacts"] = [
+                "患者材料未记载证据 A"
+            ]
+            fixture["baseReview"]["ruleJudgments"][0] = {
+                "ruleId": "R001",
+                "result": "not_met",
+                "evidence": ["患者材料：未记载证据 A"],
+                "reason": "材料中缺少标准要求的证据 A",
+            }
+        fixture["baseReview"]["preliminaryResult"] = preliminary_result
         for source in fixture["sourceDocuments"]:
             if source["type"] == "audit_result":
-                source["content"] = "原审核结论为不通过。"
+                source["content"] = f"原审核结论为{original_conclusion}。"
         fixture["issues"] = []
-        for dimension in fixture["dimensions"][:4]:
+        for dimension in fixture["dimensions"][:3]:
             dimension["status"] = "not_checked"
-            dimension["summary"] = "原审核仅提供结论，当前维度无法核查"
+            dimension["summary"] = "原审核仅提供结论，过程依赖维度无法核查"
             dimension["notCheckedReason"] = "未提供审核主张、证据和规则过程"
+        condition_dimension = fixture["dimensions"][3]
+        condition_dimension["status"] = condition_status
+        condition_dimension["notCheckedReason"] = (
+            "原审核结论方向不明确"
+            if condition_status == "not_checked"
+            else ""
+        )
+        if condition_status == "issue":
+            condition_dimension["summary"] = (
+                "独立复核结果与原审核结论方向相反"
+            )
+            fixture["issues"] = [
+                {
+                    "id": "I001",
+                    "dimension": "审核条件与结论一致性",
+                    "severity": "high",
+                    "auditClaim": f"原审核结论为{original_conclusion}",
+                    "actualEvidence": (
+                        f"独立复核结果为{preliminary_result}"
+                    ),
+                    "sourceReference": "患者材料与认定标准：测试条款",
+                    "impact": "可能改变申请的通过或不通过方向",
+                    "recommendation": "按独立复核结果重新判定最终结论",
+                }
+            ]
+        elif condition_status == "passed":
+            condition_dimension["summary"] = (
+                "独立复核结果与原审核结论方向一致"
+            )
+        else:
+            condition_dimension["summary"] = (
+                "原审核结论方向不明确，无法比较一致性"
+            )
         return fixture
 
-    def test_accepts_safe_conclusion_only_degradation(self):
-        assert_valid_mode2(self, self.conclusion_only_fixture())
+    def conclusion_only_scenarios(self):
+        return (
+            (
+                "错误拒绝",
+                self.conclusion_only_fixture(
+                    "不通过",
+                    "meets",
+                    "issue",
+                    "problematic",
+                    "false_rejection",
+                ),
+                "不通过",
+                "meets",
+                "issue",
+                "problematic",
+                "false_rejection",
+            ),
+            (
+                "错误通过",
+                self.conclusion_only_fixture(
+                    "通过",
+                    "does_not_meet",
+                    "issue",
+                    "problematic",
+                    "false_approval",
+                ),
+                "通过",
+                "does_not_meet",
+                "issue",
+                "problematic",
+                "false_approval",
+            ),
+            (
+                "方向一致",
+                self.conclusion_only_fixture(
+                    "通过",
+                    "meets",
+                    "passed",
+                    "uncertain",
+                    "unknown",
+                ),
+                "通过",
+                "meets",
+                "passed",
+                "uncertain",
+                "unknown",
+            ),
+            (
+                "方向未知",
+                self.conclusion_only_fixture(
+                    "方向未明确",
+                    "meets",
+                    "not_checked",
+                    "uncertain",
+                    "unknown",
+                ),
+                "方向未明确",
+                "meets",
+                "not_checked",
+                "uncertain",
+                "unknown",
+            ),
+        )
 
-    def test_rejects_conclusion_only_forbidden_statuses_conclusion_and_risk(self):
-        mutations = {}
-        for index, dimension_name in enumerate(MODE2_DIMENSIONS[:4]):
-            visible_status = self.conclusion_only_fixture()
-            visible_status["dimensions"][index]["status"] = "passed"
-            visible_status["dimensions"][index]["notCheckedReason"] = ""
-            mutations[f"visible status for {dimension_name}"] = visible_status
+    def test_accepts_table_driven_conclusion_only_direction_scenarios(self):
+        for (
+            name,
+            fixture,
+            original,
+            preliminary,
+            condition_status,
+            qc_conclusion,
+            risk,
+        ) in self.conclusion_only_scenarios():
+            with self.subTest(scenario=name):
+                assert_conclusion_only_direction_scenario(
+                    self,
+                    fixture,
+                    original,
+                    preliminary,
+                    condition_status,
+                    qc_conclusion,
+                    risk,
+                )
 
-        reliable_conclusion = self.conclusion_only_fixture()
-        reliable_conclusion["auditComparison"]["qcConclusion"] = "reliable"
-        mutations["reliable conclusion"] = reliable_conclusion
-
-        known_risk = self.conclusion_only_fixture()
-        known_risk["auditComparison"]["risk"] = "none"
-        mutations["known risk"] = known_risk
-
-        for name, mutation in mutations.items():
-            with self.subTest(mutation=name):
+    def test_rejects_conclusion_only_process_checks_and_direction_mismatches(self):
+        for index, dimension_name in enumerate(MODE2_DIMENSIONS[:3]):
+            fixture = self.conclusion_only_scenarios()[3][1]
+            fixture["dimensions"][index]["status"] = "passed"
+            fixture["dimensions"][index]["notCheckedReason"] = ""
+            with self.subTest(process_dimension=dimension_name):
                 with self.assertRaises(AssertionError):
-                    assert_valid_mode2(self, mutation)
+                    assert_valid_mode2(self, fixture)
+
+        mismatches = []
+
+        hidden_error_rejection = self.conclusion_only_fixture(
+            "不通过",
+            "meets",
+            "not_checked",
+            "uncertain",
+            "unknown",
+        )
+        mismatches.append(("hidden error rejection", hidden_error_rejection))
+
+        wrong_rejection_risk = self.conclusion_only_scenarios()[0][1]
+        wrong_rejection_risk["auditComparison"]["risk"] = "false_approval"
+        mismatches.append(("wrong rejection risk", wrong_rejection_risk))
+
+        missing_rejection_risk = self.conclusion_only_scenarios()[0][1]
+        missing_rejection_risk["auditComparison"]["risk"] = "none"
+        mismatches.append(("missing rejection risk", missing_rejection_risk))
+
+        hidden_consistency = self.conclusion_only_fixture(
+            "通过",
+            "meets",
+            "not_checked",
+            "uncertain",
+            "unknown",
+        )
+        mismatches.append(("hidden consistency", hidden_consistency))
+
+        invented_unknown_direction = self.conclusion_only_fixture(
+            "方向未明确",
+            "meets",
+            "passed",
+            "uncertain",
+            "unknown",
+        )
+        mismatches.append(("invented unknown direction", invented_unknown_direction))
+
+        unchecked_visible_standard = self.conclusion_only_scenarios()[3][1]
+        unchecked_visible_standard["dimensions"][4]["status"] = "not_checked"
+        unchecked_visible_standard["dimensions"][4]["summary"] = (
+            "错误地跳过可见标准"
+        )
+        unchecked_visible_standard["dimensions"][4]["notCheckedReason"] = (
+            "原审核过程不可见"
+        )
+        mismatches.append(("unchecked visible standard", unchecked_visible_standard))
+
+        expected = self.conclusion_only_scenarios()
+        expected_by_name = {
+            "hidden error rejection": expected[0][2:],
+            "wrong rejection risk": expected[0][2:],
+            "missing rejection risk": expected[0][2:],
+            "hidden consistency": expected[2][2:],
+            "invented unknown direction": expected[3][2:],
+            "unchecked visible standard": expected[3][2:],
+        }
+        for name, fixture in mismatches:
+            with self.subTest(mismatch=name):
+                with self.assertRaises(AssertionError):
+                    assert_conclusion_only_direction_scenario(
+                        self,
+                        fixture,
+                        *expected_by_name[name],
+                    )
 
     def natural_language_fixture(self):
         fixture = copy.deepcopy(self.fixture)
@@ -1319,6 +1645,12 @@ class Mode2FixtureContractTests(unittest.TestCase):
         reversed_approval = self.false_approval_fixture()
         reversed_approval["auditComparison"]["risk"] = "false_rejection"
 
+        missing_rejection_risk = copy.deepcopy(self.fixture)
+        missing_rejection_risk["auditComparison"]["risk"] = "none"
+
+        missing_approval_risk = self.false_approval_fixture()
+        missing_approval_risk["auditComparison"]["risk"] = "none"
+
         scenarios = (
             (
                 "reversed rejection",
@@ -1330,6 +1662,20 @@ class Mode2FixtureContractTests(unittest.TestCase):
             (
                 "reversed approval",
                 reversed_approval,
+                "通过",
+                "does_not_meet",
+                "false_approval",
+            ),
+            (
+                "missing rejection risk",
+                missing_rejection_risk,
+                "不通过",
+                "meets",
+                "false_rejection",
+            ),
+            (
+                "missing approval risk",
+                missing_approval_risk,
                 "通过",
                 "does_not_meet",
                 "false_approval",
@@ -1353,6 +1699,9 @@ class Mode2FixtureContractTests(unittest.TestCase):
             source
             for source in absent["sourceDocuments"]
             if source["type"] != "standard"
+        ]
+        absent["confirmation"]["inventoryShown"] = [
+            source["name"] for source in absent["sourceDocuments"]
         ]
         absent["analysisRecord"]["inputSummary"] = [
             "已收到患者材料和详细审核结果，未提供认定标准"
@@ -1391,6 +1740,9 @@ class Mode2FixtureContractTests(unittest.TestCase):
                 "content": "标准内容",
             }
         )
+        with_standard["confirmation"]["inventoryShown"] = [
+            source["name"] for source in with_standard["sourceDocuments"]
+        ]
         with_judgment = copy.deepcopy(absent)
         with_judgment["baseReview"]["ruleJudgments"] = [
             {
@@ -1505,7 +1857,6 @@ class Mode2DocumentationTests(unittest.TestCase):
             "`reliable` 时",
             "`problematic` 时",
             "`uncertain` 时",
-            "前四个维度",
             "连续且唯一",
             "不论 `auditDetail`",
             "`false_approval` 表示原审核通过",
@@ -1513,6 +1864,15 @@ class Mode2DocumentationTests(unittest.TestCase):
             "`both` 表示同时存在错误通过和错误拒绝风险",
             "影响结论的歧义",
             "`analysisRecord.uncertainties` 必须非空",
+            "`problematic` 时允许 `risk=none`",
+            "不改变通过/不通过方向",
+            "前三个过程依赖维度",
+            "第四个“审核条件与结论一致性”维度",
+            "规则维护质量不依赖 `auditDetail`",
+            "`confirmation.inventoryShown`",
+            "`sourceDocuments[].name`",
+            "顺序和内容完全一致",
+            "文档名不得重复",
             "<病种>-审核质控-flash-<日期>.json",
             "<病种>-审核质控-flash-<日期>.html",
         ):
@@ -1542,6 +1902,11 @@ class Mode2DocumentationTests(unittest.TestCase):
             "false_approval（错误通过）",
             "false_rejection（错误拒绝）",
             "both（双向风险）",
+            "problematic + none",
+            "前三个过程依赖维度",
+            "审核条件与结论一致性",
+            "confirmation.inventoryShown",
+            "sourceDocuments[].name",
         ):
             self.assertIn(marker, checklist)
 
