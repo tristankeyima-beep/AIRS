@@ -1773,6 +1773,102 @@ class AcceptanceCatalogTests(unittest.TestCase):
                 )
 
     @unittest.skipUnless(os.name == "posix", "POSIX mode contract")
+    def test_mode_failures_happen_before_replace_and_preserve_existing_output(self):
+        real_chmod = os.chmod
+
+        def fail_target_mode_once():
+            failed = False
+
+            def chmod(path, mode):
+                nonlocal failed
+                if not failed and mode == 0o640:
+                    failed = True
+                    raise OSError("private-target-mode")
+                return real_chmod(path, mode)
+
+            return chmod
+
+        failures = (
+            (
+                "fchmod",
+                mock.patch(
+                    "os.fchmod",
+                    side_effect=OSError("private-stage-mode"),
+                ),
+            ),
+            (
+                "chmod",
+                mock.patch(
+                    "os.chmod",
+                    side_effect=fail_target_mode_once(),
+                ),
+            ),
+        )
+        for label, failure_patch in failures:
+            with self.subTest(label=label):
+                case_dir = self.temp_path / label
+                case_dir.mkdir()
+                destination = case_dir / "output.html"
+                original = b"private-old-bytes"
+                destination.write_bytes(original)
+                destination.chmod(0o640)
+
+                with (
+                    failure_patch,
+                    mock.patch("os.replace", wraps=os.replace) as replace,
+                ):
+                    with self.assertRaises(BUILDER_MODULE.CatalogError) as caught:
+                        BUILDER_MODULE.write_text_atomically(
+                            destination,
+                            "new",
+                        )
+
+                self.assertEqual(str(caught.exception), "output_write_error")
+                replace.assert_not_called()
+                self.assertEqual(destination.read_bytes(), original)
+                self.assertEqual(
+                    stat.S_IMODE(destination.stat().st_mode),
+                    0o640,
+                )
+                self.assertEqual(
+                    list(case_dir.glob(".output.html.*.tmp")),
+                    [],
+                )
+
+    @unittest.skipUnless(os.name == "posix", "POSIX mode contract")
+    def test_cleanup_mode_failure_still_unlinks_stage_and_is_controlled(self):
+        destination = self.temp_path / "output.html"
+        destination.write_bytes(b"old bytes")
+        destination.chmod(0o640)
+        real_chmod = os.chmod
+
+        def fail_private_cleanup(path, mode):
+            if mode == 0o600:
+                raise OSError("private-tighten")
+            return real_chmod(path, mode)
+
+        with (
+            mock.patch(
+                "os.replace",
+                side_effect=OSError("private-replace"),
+            ),
+            mock.patch(
+                "os.chmod",
+                side_effect=fail_private_cleanup,
+            ),
+        ):
+            with self.assertRaises(BUILDER_MODULE.CatalogError) as caught:
+                BUILDER_MODULE.write_text_atomically(destination, "new")
+
+        self.assertEqual(str(caught.exception), "output_cleanup_error")
+        self.assertEqual(destination.read_bytes(), b"old bytes")
+        self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o640)
+        self.assertEqual(
+            list(self.temp_path.glob(".output.html.*.tmp")),
+            [],
+        )
+
+    @unittest.skipUnless(os.name == "posix", "POSIX mode contract")
     def test_replace_and_cleanup_failure_leaves_private_stage_and_cleanup_error(self):
         destination = self.temp_path / "output.html"
         destination.write_bytes(b"old bytes")

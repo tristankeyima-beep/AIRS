@@ -525,9 +525,9 @@ def write_text_atomically(destination, text, source_paths=()):
             handle.write(normalized)
             handle.flush()
             os.fsync(handle.fileno())
+        os.chmod(temporary, target_mode)
         os.replace(temporary, destination)
         temporary = None
-        os.chmod(destination, target_mode)
         _fsync_directory(parent)
     except CatalogError as error:
         operation_error = error
@@ -540,6 +540,10 @@ def write_text_atomically(destination, text, source_paths=()):
             except OSError:
                 cleanup_error = True
         if temporary is not None:
+            try:
+                os.chmod(temporary, 0o600)
+            except OSError:
+                cleanup_error = True
             try:
                 temporary.unlink(missing_ok=True)
             except OSError:
