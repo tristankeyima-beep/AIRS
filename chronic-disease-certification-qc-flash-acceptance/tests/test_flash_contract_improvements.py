@@ -79,6 +79,26 @@ class Mode1ContractImprovementTests(unittest.TestCase):
 
 
 class Mode2ContractImprovementTests(unittest.TestCase):
+    def test_skill_does_not_read_audit_content_before_base_review(self):
+        mode2 = section(
+            read("SKILL.md"),
+            "## 模式 2：生成智能审核质控报告",
+        )
+        base_review_position = mode2.index("`baseReview`")
+        before_base_review = mode2[:base_review_position]
+        after_base_review = mode2[base_review_position:]
+        self.assertNotIn(
+            "盘点患者材料、认定标准、审核过程与明细、最终结论",
+            before_base_review,
+        )
+        for marker in (
+            "第一阶段只盘点患者材料、认定标准和来源材料的名称与类型",
+            "原审核材料只登记存在",
+            "不得读取其主张、证据、推理或结论",
+        ):
+            self.assertIn(marker, before_base_review)
+        self.assertIn("完成后才读取原审核内容", after_base_review)
+
     def test_materials_are_one_to_one_and_confirmation_is_never_assumed(self):
         skill = read("SKILL.md")
         contract = read("references/mode2-contract.md")
@@ -145,6 +165,20 @@ class Mode2ContractImprovementTests(unittest.TestCase):
             contract,
         )
 
+    def test_problematic_none_preserves_directional_risk_priority(self):
+        contract = read("references/mode2-contract.md")
+        for marker in (
+            "`problematic`、`risk=none` 表示已确认存在局部问题",
+            "没有已确认的错误通过或错误拒绝方向",
+            "方向一致",
+            "方向不明确",
+            "一旦已确认方向相反",
+            "不得使用 `risk=none`",
+            "`false_approval` 或 `false_rejection`",
+            "规则维护问题不得覆盖",
+        ):
+            self.assertIn(marker, contract)
+
     def test_mode2_checklist_adds_atomic_improvement_checks(self):
         mode2 = section(read("references/output-checklist.md"), "## 模式 2")
         items = [
@@ -164,6 +198,17 @@ class Mode2ContractImprovementTests(unittest.TestCase):
         )
         for marker in expected_markers:
             self.assertTrue(any(marker in item for item in items), marker)
+
+    def test_mode2_checklist_keeps_confirmed_directional_risk(self):
+        mode2 = section(read("references/output-checklist.md"), "## 模式 2")
+        self.assertNotIn("无论方向是否一致", mode2)
+        for marker in (
+            "方向相反时始终保留",
+            "`false_approval` 或 `false_rejection`",
+            "无已确认方向性风险",
+            "`problematic + none`",
+        ):
+            self.assertIn(marker, mode2)
 
 
 class PreservedGuardrailTests(unittest.TestCase):

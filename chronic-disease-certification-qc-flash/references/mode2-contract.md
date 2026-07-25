@@ -44,7 +44,7 @@
 - `risk` 只能是 `none`、`false_approval`、`false_rejection`、`both`、`unknown`。
 - `false_approval` 表示原审核通过，但独立复核结果为不满足，存在错误通过风险；`false_rejection` 表示原审核不通过，但独立复核结果为满足，存在错误拒绝风险；`both` 表示同时存在错误通过和错误拒绝风险；`unknown` 表示现有信息不足以确定风险方向。
 - 仅当五个维度全部为 `passed` 且 `issues` 为空，才能使用 `reliable`；`reliable` 时 `risk` 必须为 `none`。
-- 存在任何实际问题时，必须使用 `problematic`；`problematic` 时必须至少有一个 `issue` 维度和对应问题记录。`problematic` 时允许 `risk=none`，但仅限方向一致的局部问题；这类问题使用 `problematic`、`risk=none`，表示问题不改变通过/不通过方向。
+- 存在任何实际问题时，必须使用 `problematic`；`problematic` 时必须至少有一个 `issue` 维度和对应问题记录。`problematic` 时允许 `risk=none`。`problematic`、`risk=none` 表示已确认存在局部问题，但没有已确认的错误通过或错误拒绝方向；适用于方向一致的局部问题（不改变通过/不通过方向），或方向不明确但无已确认方向性风险的局部问题。一旦已确认方向相反，不得使用 `risk=none`，必须使用对应的 `false_approval` 或 `false_rejection`；规则维护问题不得覆盖已确认的方向性风险。
 - 只有仅有 `not_checked` 且不存在实际问题时，才使用 `uncertain`、`risk=unknown`；`uncertain` 时 `risk` 必须为 `unknown`。任何实际问题的 `problematic` 优先级高于 `not_checked` 带来的不确定性。
 
 ## 五个质控维度
