@@ -42,6 +42,13 @@ CASE_FIELDS = frozenset(
 )
 INPUT_FIELDS = frozenset({"name", "format", "content"})
 STEP_FIELDS = frozenset({"actor", "action", "expected"})
+WORKFLOW_STAGES = (
+    ("输入清点", "确认材料、标准与审核结果的输入范围。"),
+    ("用户确认", "由用户确认当前输入清单完整。"),
+    ("独立复核", "在查看结果对比前完成独立复核。"),
+    ("结果对比", "对照独立结论与原审核结果。"),
+    ("正式报告", "确认关口满足后形成正式验收证据。"),
+)
 MODES = frozenset({"mode1", "mode2", "gate", "safety"})
 PRIORITIES = frozenset({"P0", "P1", "P2"})
 EXPECTED_IDS = (
@@ -283,9 +290,36 @@ def _render_text_list(title, values):
     return f"<section><h4>{title}</h4><ul>{items}</ul></section>"
 
 
+def _render_static_workflow_timeline():
+    items = "".join(
+        '<li class="gate-step">'
+        f'<p class="workflow-stage-name">{_html_text(name)}</p>'
+        f"<p>{_html_text(description)}</p>"
+        "</li>"
+        for name, description in WORKFLOW_STAGES
+    )
+    return (
+        '<section class="workflow-timeline-section">'
+        "<h3>五阶段关口时间线</h3>"
+        "<p>以下为固定验收流程，不代表当前运行状态。</p>"
+        f'<ol class="gate-timeline">{items}</ol>'
+        "</section>"
+    )
+
+
 def _render_case(case):
+    details_open = " open" if case["priority"] == "P0" else ""
     parts = [
         '<article class="acceptance-case">',
+        f'<details class="case-disclosure"{details_open}>',
+        '<summary class="case-summary">',
+        f'<span class="summary-id">{_html_text(case["id"])}</span>',
+        f'<span class="summary-title">{_html_text(case["title"])}</span>',
+        f'<span class="summary-meta">{_html_text(case["mode"])}</span>',
+        f'<span class="summary-meta">{_html_text(case["priority"])}</span>',
+        '<span class="summary-status" data-status="not-run">未执行</span>',
+        "</summary>",
+        '<div class="case-details">',
         "<header>",
         f"<p class=\"case-id\">{_html_text(case['id'])}</p>",
         f"<h2>{_html_text(case['title'])}</h2>",
@@ -310,7 +344,15 @@ def _render_case(case):
                 "</div>",
             )
         )
-    parts.extend(("</section>", "<section><h3>步骤</h3><ol>"))
+    parts.extend(
+        (
+            "</section>",
+            _render_static_workflow_timeline(),
+            '<section class="operational-steps-section">',
+            "<h3>操作步骤</h3>",
+            '<ol class="operation-steps">',
+        )
+    )
     for step in case["steps"]:
         parts.extend(
             (
@@ -330,6 +372,14 @@ def _render_case(case):
             _render_text_list("不得包含", case["mustNotContain"]),
             _render_text_list("验收项", case["acceptanceChecks"]),
             f"<section><h3>备注</h3><p>{_html_text(case['notes'])}</p></section>",
+            '<section class="print-result-summary" aria-label="打印验收记录">',
+            "<h3>验收记录</h3>",
+            '<p><strong>状态：</strong><span class="print-status">未执行</span></p>',
+            '<div><strong>实际结果：</strong><p class="print-result-value print-actual">未填写</p></div>',
+            '<div><strong>验收备注：</strong><p class="print-result-value print-notes">未填写</p></div>',
+            "</section>",
+            "</div>",
+            "</details>",
             "</article>",
         )
     )
@@ -708,6 +758,73 @@ main {
   }
 }
 
+.case-disclosure {
+  min-width: 0;
+}
+
+.case-summary {
+  display: grid;
+  grid-template-columns: auto minmax(12rem, 1fr) repeat(3, auto);
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 52px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-subtle);
+  cursor: pointer;
+  list-style-position: outside;
+}
+
+.case-summary:hover {
+  background: var(--color-not-run-soft);
+}
+
+.summary-id,
+.summary-title {
+  font-weight: 850;
+}
+
+.summary-id {
+  color: var(--color-surface-strong-2);
+  font-size: var(--text-sm);
+}
+
+.summary-title {
+  min-width: 0;
+}
+
+.summary-meta,
+.summary-status {
+  padding: 0.15rem var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  font-weight: 750;
+}
+
+.summary-status[data-status="passed"] {
+  border-color: var(--color-success);
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.summary-status[data-status="failed"] {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.summary-status[data-status="blocked"] {
+  border-color: var(--color-warning);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.case-details {
+  padding-top: var(--space-4);
+}
+
 .case-header {
   padding-bottom: var(--space-4);
   border-bottom: 1px solid var(--color-border);
@@ -787,7 +904,7 @@ main {
 }
 
 .copy-button {
-  min-height: 36px;
+  min-height: 44px;
   padding-inline: var(--space-3);
   font-size: var(--text-sm);
 }
@@ -860,16 +977,6 @@ code {
   font-weight: 850;
 }
 
-.gate-step.is-gate {
-  border-left: 4px solid var(--color-warning);
-  background: var(--color-warning-soft);
-}
-
-.gate-step.is-gate::before {
-  border-color: var(--color-warning);
-  color: var(--color-warning);
-}
-
 .step-label {
   color: var(--color-muted);
   font-size: var(--text-xs);
@@ -879,6 +986,34 @@ code {
 .step-expected {
   padding-top: var(--space-2);
   border-top: 1px solid var(--color-border);
+}
+
+.operation-steps {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+  padding-left: 1.5rem;
+}
+
+.operation-step {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-subtle);
+}
+
+.operation-step.is-focus {
+  border-left: 4px solid var(--color-warning);
+}
+
+.print-result-summary {
+  display: none;
+}
+
+.print-result-value {
+  margin: var(--space-1) 0 var(--space-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .result-editor {
@@ -1049,6 +1184,15 @@ code {
     flex-direction: column;
   }
 
+  .case-summary {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .summary-title {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
   .copy-button {
     width: 100%;
     min-height: 44px;
@@ -1082,6 +1226,28 @@ code {
   .notice,
   .empty-state {
     display: none !important;
+  }
+
+  .case-disclosure,
+  .case-details,
+  details:not([open]) > .case-details {
+    display: block !important;
+  }
+
+  .case-summary {
+    display: none !important;
+  }
+
+  .print-result-summary {
+    display: block !important;
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+    border-top: 1px solid #777777;
+  }
+
+  .print-result-value {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
   .catalog-header {
@@ -1149,7 +1315,19 @@ const STATUS_LABELS = {
   "failed": "失败",
   "blocked": "阻塞"
 };
+const WORKFLOW_STAGES = [
+  ["输入清点", "确认材料、标准与审核结果的输入范围。"],
+  ["用户确认", "由用户确认当前输入清单完整。"],
+  ["独立复核", "在查看结果对比前完成独立复核。"],
+  ["结果对比", "对照独立结论与原审核结果。"],
+  ["正式报告", "确认关口满足后形成正式验收证据。"]
+];
 const knownIds = new Set(acceptanceCatalog.cases.map((caseData) => caseData.id));
+const expandedCases = new Set(
+  acceptanceCatalog.cases
+    .filter((caseData, index) => caseData.priority === "P0" || index === 0)
+    .map((caseData) => caseData.id)
+);
 const storageKey = "chronic-disease-certification-qc-acceptance:" + acceptanceCatalog.catalogVersion;
 const caseList = document.getElementById("case-list");
 const resultCount = document.getElementById("result-count");
@@ -1167,6 +1345,8 @@ const filterControls = {
 let results = createDefaultResults();
 let noticeTimer = 0;
 let isInitialRender = true;
+let isPrintMode = false;
+let printOpenState = new Map();
 
 function createDefaultResults() {
   const defaults = {};
@@ -1384,24 +1564,44 @@ function appendInputs(parent, caseData) {
   parent.append(section);
 }
 
-function appendTimeline(parent, caseData) {
-  const section = createElement("section");
-  section.append(createElement("h3", "", "关口时间线"));
+function appendWorkflowTimeline(parent) {
+  const section = createElement("section", "workflow-timeline-section");
+  section.append(createElement("h3", "", "五阶段关口时间线"));
+  section.append(
+    createElement("p", "", "以下为固定验收流程，不代表当前运行状态。")
+  );
   const timeline = createElement("ol", "gate-timeline");
+  WORKFLOW_STAGES.forEach(([name, description]) => {
+    const item = createElement("li", "gate-step");
+    item.append(createElement("p", "workflow-stage-name", name));
+    item.append(createElement("p", "", description));
+    timeline.append(item);
+  });
+  section.append(timeline);
+  parent.append(section);
+}
+
+function appendOperationalSteps(parent, caseData) {
+  const section = createElement("section", "operational-steps-section");
+  section.append(createElement("h3", "", "操作步骤"));
+  const steps = createElement("ol", "operation-steps");
   caseData.steps.forEach((step) => {
-    const gate = isGateStep(step);
-    const item = createElement("li", "gate-step" + (gate ? " is-gate" : ""));
+    const focus = isGateStep(step);
+    const item = createElement(
+      "li",
+      "operation-step" + (focus ? " is-focus" : "")
+    );
     item.append(
-      createElement("p", "step-label", gate ? "关键确认 / 阻断点" : "操作节点")
+      createElement("p", "step-label", focus ? "关注 / 阻断操作" : "操作")
     );
     const action = createElement("p");
     const actor = createElement("strong", "", step.actor + "：");
     action.append(actor, document.createTextNode(step.action));
     item.append(action);
     item.append(createElement("p", "step-expected", "预期：" + step.expected));
-    timeline.append(item);
+    steps.append(item);
   });
-  section.append(timeline);
+  section.append(steps);
   parent.append(section);
 }
 
@@ -1412,7 +1612,49 @@ function setCaseStatus(caseData, status) {
   renderCases();
 }
 
-function appendResultEditor(parent, caseData) {
+function syncPrintSummary(caseData, printSummary) {
+  const result = results[caseData.id];
+  printSummary.printStatus.textContent = STATUS_LABELS[result.status];
+  printSummary.printActual.textContent = result.actual || "未填写";
+  printSummary.printNotes.textContent = result.notes || "未填写";
+}
+
+function appendPrintResultSummary(parent, caseData) {
+  const summary = createElement("section", "print-result-summary");
+  summary.setAttribute("aria-label", caseData.id + " 打印验收记录");
+  summary.append(createElement("h3", "", "验收记录"));
+
+  const statusLine = createElement("p");
+  statusLine.append(createElement("strong", "", "状态："));
+  const printStatus = createElement("span", "print-status");
+  statusLine.append(printStatus);
+  summary.append(statusLine);
+
+  const actualGroup = createElement("div");
+  actualGroup.append(createElement("strong", "", "实际结果："));
+  const printActual = createElement(
+    "p",
+    "print-result-value print-actual"
+  );
+  actualGroup.append(printActual);
+  summary.append(actualGroup);
+
+  const notesGroup = createElement("div");
+  notesGroup.append(createElement("strong", "", "验收备注："));
+  const printNotes = createElement(
+    "p",
+    "print-result-value print-notes"
+  );
+  notesGroup.append(printNotes);
+  summary.append(notesGroup);
+  parent.append(summary);
+
+  const printSummary = { printStatus, printActual, printNotes };
+  syncPrintSummary(caseData, printSummary);
+  return printSummary;
+}
+
+function appendResultEditor(parent, caseData, printSummary) {
   const editor = createElement("section", "result-editor");
   editor.append(createElement("h3", "", "验收记录"));
   const statusGroup = createElement("div", "status-selector");
@@ -1456,6 +1698,7 @@ function appendResultEditor(parent, caseData) {
       results[caseData.id][field] = textarea.value;
       persistResults();
       updateDashboard();
+      syncPrintSummary(caseData, printSummary);
     });
     fieldWrapper.append(label, textarea);
     editor.append(fieldWrapper);
@@ -1471,6 +1714,34 @@ function renderCase(caseData) {
   article.setAttribute("data-case-id", caseData.id);
   article.setAttribute("data-status", results[caseData.id].status);
 
+  const disclosure = createElement("details", "case-disclosure");
+  disclosure.dataset.caseId = caseData.id;
+  disclosure.open = expandedCases.has(caseData.id);
+  disclosure.addEventListener("toggle", () => {
+    if (isPrintMode) {
+      return;
+    }
+    if (disclosure.open) {
+      expandedCases.add(caseData.id);
+    } else {
+      expandedCases.delete(caseData.id);
+    }
+  });
+  const summary = createElement("summary", "case-summary");
+  summary.append(createElement("span", "summary-id", caseData.id));
+  summary.append(createElement("span", "summary-title", caseData.title));
+  summary.append(createElement("span", "summary-meta", caseData.mode));
+  summary.append(createElement("span", "summary-meta", caseData.priority));
+  const summaryStatus = createElement(
+    "span",
+    "summary-status",
+    STATUS_LABELS[results[caseData.id].status]
+  );
+  summaryStatus.setAttribute("data-status", results[caseData.id].status);
+  summary.append(summaryStatus);
+  disclosure.append(summary);
+  const caseDetails = createElement("div", "case-details");
+
   const header = createElement("header", "case-header");
   const headerTop = createElement("div", "case-header-top");
   headerTop.append(createElement("p", "case-id", caseData.id));
@@ -1482,30 +1753,34 @@ function renderCase(caseData) {
     meta.append(createElement("span", "", value));
   });
   header.append(meta);
-  article.append(header);
+  caseDetails.append(header);
 
   const objective = createElement("section");
   objective.append(createElement("h3", "", "目标"));
   objective.append(createElement("p", "", caseData.objective));
-  article.append(objective);
-  appendTextList(article, "输入类型", caseData.inputKinds);
-  appendTextList(article, "前置条件", caseData.preconditions);
-  appendInputs(article, caseData);
-  appendTimeline(article, caseData);
+  caseDetails.append(objective);
+  appendTextList(caseDetails, "输入类型", caseData.inputKinds);
+  appendTextList(caseDetails, "前置条件", caseData.preconditions);
+  appendInputs(caseDetails, caseData);
+  appendWorkflowTimeline(caseDetails);
+  appendOperationalSteps(caseDetails, caseData);
 
   const expectedOutcome = createElement("section");
   expectedOutcome.append(createElement("h3", "", "预期结果"));
   expectedOutcome.append(createElement("p", "", caseData.expectedOutcome));
-  article.append(expectedOutcome);
-  appendTextList(article, "必须包含", caseData.mustContain);
-  appendTextList(article, "不得包含", caseData.mustNotContain);
-  appendTextList(article, "验收项", caseData.acceptanceChecks);
+  caseDetails.append(expectedOutcome);
+  appendTextList(caseDetails, "必须包含", caseData.mustContain);
+  appendTextList(caseDetails, "不得包含", caseData.mustNotContain);
+  appendTextList(caseDetails, "验收项", caseData.acceptanceChecks);
 
   const caseNotes = createElement("section");
   caseNotes.append(createElement("h3", "", "用例备注"));
   caseNotes.append(createElement("p", "", caseData.notes));
-  article.append(caseNotes);
-  appendResultEditor(article, caseData);
+  caseDetails.append(caseNotes);
+  const printSummary = appendPrintResultSummary(caseDetails, caseData);
+  appendResultEditor(caseDetails, caseData, printSummary);
+  disclosure.append(caseDetails);
+  article.append(disclosure);
   return article;
 }
 
@@ -1638,6 +1913,27 @@ function resetResults() {
   showNotice("当前版本的验收记录已重置。");
 }
 
+function expandCasesForPrint() {
+  isPrintMode = true;
+  printOpenState = new Map();
+  caseList.querySelectorAll("details.case-disclosure").forEach((details) => {
+    printOpenState.set(details.dataset.caseId, details.open);
+    details.open = true;
+  });
+}
+
+function restoreCasesAfterPrint() {
+  caseList.querySelectorAll("details.case-disclosure").forEach((details) => {
+    if (printOpenState.has(details.dataset.caseId)) {
+      details.open = printOpenState.get(details.dataset.caseId);
+    }
+  });
+  printOpenState = new Map();
+  window.setTimeout(() => {
+    isPrintMode = false;
+  }, 0);
+}
+
 Object.values(filterControls).forEach((control) => {
   const eventName = control === filterControls.query ? "input" : "change";
   control.addEventListener(eventName, renderCases);
@@ -1656,6 +1952,8 @@ document.getElementById("reset-results").addEventListener("click", resetResults)
 document.getElementById("print-results").addEventListener("click", () => {
   window.print();
 });
+window.addEventListener("beforeprint", expandCasesForPrint);
+window.addEventListener("afterprint", restoreCasesAfterPrint);
 
 loadSavedResults();
 updateDashboard();
@@ -1770,11 +2068,11 @@ def render_acceptance_html(catalog, forbidden_terms=()):
 <section class="case-column" aria-labelledby="case-list-heading">
 <div class="case-section-heading">
 <h2 id="case-list-heading">验收用例</h2>
-<p id="result-count" class="result-count" aria-live="polite">当前显示 {count} / {count} 条</p>
+<p id="result-count" class="result-count" role="status" aria-live="polite" aria-atomic="true">当前显示 {count} / {count} 条</p>
 </div>
-<div id="case-list" class="case-list">
+<section id="case-list" class="case-list" aria-label="验收用例列表" aria-live="polite" aria-atomic="false" aria-relevant="additions removals">
 {cases_html}
-</div>
+</section>
 <p id="empty-state" class="empty-state" hidden>没有符合当前条件的用例，请调整或清除筛选。</p>
 </section>
 </div>

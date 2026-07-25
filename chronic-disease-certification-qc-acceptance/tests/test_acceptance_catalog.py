@@ -350,11 +350,12 @@ class AcceptanceArticleParser(HTMLParser):
         classes = dict(attributes).get("class", "").split()
         is_case = tag == "article" and "acceptance-case" in classes
         if is_case and self._current is None:
-            self._current = {"text": [], "attributes": []}
+            self._current = {"text": [], "attributes": [], "tags": []}
             self._article_depth = 1
         elif tag == "article" and self._current is not None:
             self._article_depth += 1
         if self._current is not None:
+            self._current["tags"].append(tag)
             self._current["attributes"].extend(
                 value
                 for pair in attributes
@@ -1816,6 +1817,218 @@ class AcceptanceCatalogTests(unittest.TestCase):
             check=False,
         )
 
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_print_view_keeps_status_actual_and_notes_with_full_text(self):
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+
+        self.assertIn("print-result-summary", rendered)
+        self.assertIn("syncPrintSummary", rendered)
+        self.assertIn("printStatus", rendered)
+        self.assertIn("printActual", rendered)
+        self.assertIn("printNotes", rendered)
+        self.assertIn('window.addEventListener("beforeprint"', rendered)
+        self.assertIn('window.addEventListener("afterprint"', rendered)
+        print_css = rendered.split("@media print", 1)[1].split("</style>", 1)[0]
+        self.assertRegex(
+            print_css,
+            r"\.print-result-summary\s*\{[^}]*display:\s*block",
+        )
+        self.assertRegex(
+            print_css,
+            r"\.print-result-value\s*\{[^}]*white-space:\s*pre-wrap",
+        )
+        self.assertNotRegex(
+            print_css,
+            r"\.print-result-summary[^}]*display:\s*none",
+        )
+
+    def test_every_article_has_fixed_five_stage_timeline_and_separate_steps(self):
+        catalog = BUILDER_MODULE.load_catalog(CATALOG)
+        rendered = BUILDER_MODULE.render_acceptance_html(catalog)
+        parser = AcceptanceArticleParser()
+        parser.feed(rendered)
+        parser.close()
+        expected_stages = (
+            "输入清点",
+            "用户确认",
+            "独立复核",
+            "结果对比",
+            "正式报告",
+        )
+
+        self.assertEqual(len(parser.articles), 40)
+        for article, case in zip(parser.articles, catalog["cases"]):
+            content = "\n".join(article["text"])
+            with self.subTest(case=case["id"]):
+                for stage in expected_stages:
+                    self.assertIn(stage, content)
+                self.assertIn("操作步骤", content)
+                for step in case["steps"]:
+                    self.assertIn(step["actor"], content)
+                    self.assertIn(step["action"], content)
+                    self.assertIn(step["expected"], content)
+        self.assertIn("WORKFLOW_STAGES", rendered)
+        self.assertIn("appendWorkflowTimeline", rendered)
+        self.assertIn("appendOperationalSteps", rendered)
+
+    def test_all_cards_are_native_collapsibles_with_complete_summaries(self):
+        catalog = BUILDER_MODULE.load_catalog(CATALOG)
+        rendered = BUILDER_MODULE.render_acceptance_html(catalog)
+        parser = AcceptanceArticleParser()
+        parser.feed(rendered)
+        parser.close()
+
+        self.assertEqual(len(parser.articles), 40)
+        for article, case in zip(parser.articles, catalog["cases"]):
+            content = "\n".join(article["text"] + article["attributes"])
+            with self.subTest(case=case["id"]):
+                self.assertEqual(article["tags"].count("details"), 1)
+                self.assertEqual(article["tags"].count("summary"), 1)
+                for value in (
+                    case["id"],
+                    case["title"],
+                    case["mode"],
+                    case["priority"],
+                    "未执行",
+                ):
+                    self.assertIn(value, content)
+        self.assertIn('createElement("details"', rendered)
+        self.assertIn('createElement("summary"', rendered)
+        self.assertIn('addEventListener("toggle"', rendered)
+        self.assertIn("expandedCases", rendered)
+
+    def test_copy_button_never_falls_below_44_pixels(self):
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+
+        copy_rules = re.findall(
+            r"\.copy-button\s*\{([^}]*)\}",
+            rendered,
+            flags=re.DOTALL,
+        )
+        self.assertTrue(copy_rules)
+        self.assertTrue(
+            all(
+                re.search(r"min-height:\s*44px", rule)
+                for rule in copy_rules
+            )
+        )
+        self.assertNotRegex(
+            rendered,
+            r"\.copy-button\s*\{[^}]*min-height:\s*(?:[0-3]?\d|4[0-3])px",
+        )
+
+    def test_case_list_is_a_live_section_with_atomic_result_count(self):
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+
+        self.assertRegex(
+            rendered,
+            r'<section id="case-list"[^>]*aria-live="polite"[^>]*>',
+        )
+        self.assertRegex(
+            rendered,
+            r'id="result-count"[^>]*role="status"[^>]*'
+            r'aria-live="polite"[^>]*aria-atomic="true"',
+        )
+        self.assertNotIn('<div id="case-list"', rendered)
+
+    @unittest.skipUnless(shutil.which("node"), "Node is optional")
+    def test_node_smoke_executes_print_sync_and_default_expansion_behavior(self):
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+        status_labels = re.search(
+            r"(const STATUS_LABELS = \{.*?\};)",
+            rendered,
+            flags=re.DOTALL,
+        )
+        workflow_stages = re.search(
+            r"(const WORKFLOW_STAGES = \[.*?\];)",
+            rendered,
+            flags=re.DOTALL,
+        )
+        expanded_cases = re.search(
+            r"(const expandedCases = new Set\(.*?\n\);)",
+            rendered,
+            flags=re.DOTALL,
+        )
+        sync_function = re.search(
+            r"(function syncPrintSummary\(.*?\n\})\n\n"
+            r"function appendPrintResultSummary",
+            rendered,
+            flags=re.DOTALL,
+        )
+        for match in (
+            status_labels,
+            workflow_stages,
+            expanded_cases,
+            sync_function,
+        ):
+            self.assertIsNotNone(match)
+
+        smoke = "\n".join(
+            (
+                '"use strict";',
+                status_labels.group(1),
+                workflow_stages.group(1),
+                (
+                    "const acceptanceCatalog = { cases: ["
+                    '{ id: "P1-FIRST", priority: "P1" },'
+                    '{ id: "P0-SECOND", priority: "P0" },'
+                    '{ id: "P1-THIRD", priority: "P1" }'
+                    "] };"
+                ),
+                expanded_cases.group(1),
+                (
+                    'const results = { CASE: { status: "failed", '
+                    'actual: "line 1\\nline 2", notes: "follow-up" } };'
+                ),
+                sync_function.group(1),
+                (
+                    "const printSummary = { printStatus: {}, "
+                    "printActual: {}, printNotes: {} };"
+                ),
+                'syncPrintSummary({ id: "CASE" }, printSummary);',
+                (
+                    'if (printSummary.printStatus.textContent !== "失败" || '
+                    'printSummary.printActual.textContent !== "line 1\\nline 2" || '
+                    'printSummary.printNotes.textContent !== "follow-up") '
+                    'throw new Error("print-sync");'
+                ),
+                (
+                    'if (WORKFLOW_STAGES.map((item) => item[0]).join("→") !== '
+                    '"输入清点→用户确认→独立复核→结果对比→正式报告") '
+                    'throw new Error("workflow-stages");'
+                ),
+                (
+                    'if (!expandedCases.has("P1-FIRST") || '
+                    '!expandedCases.has("P0-SECOND") || '
+                    'expandedCases.has("P1-THIRD")) '
+                    'throw new Error("default-expansion");'
+                ),
+            )
+        )
+        result = subprocess.run(
+            ["node", "--check", "-"],
+            input=smoke,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = subprocess.run(
+            ["node", "-"],
+            input=smoke,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_write_text_atomically_normalizes_lf_and_sets_mode(self):
