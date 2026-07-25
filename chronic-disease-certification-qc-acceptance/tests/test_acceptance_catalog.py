@@ -2878,7 +2878,7 @@ class AcceptanceCatalogTests(unittest.TestCase):
                 "(async () => {",
                 "  let oversizedRead = false;",
                 (
-                    '  const oversizedFile = { name: "results.json", size: 1048577, '
+                    '  const oversizedFile = { name: "results.json", size: 8388609, '
                     'async text() { oversizedRead = true; return "{}"; } };'
                 ),
                 "  await importResults(oversizedFile);",
@@ -2907,6 +2907,100 @@ class AcceptanceCatalogTests(unittest.TestCase):
                     "updates !== 1 || notices.length !== 1 || "
                     '!stored.includes("\\"actual\\":\\"new\\"")) '
                     'throw new Error("successful-import-not-applied");'
+                ),
+                "})().catch((error) => { console.error(error); process.exit(1); });",
+            )
+        )
+        result = subprocess.run(
+            ["node", "-"],
+            input=smoke,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_maximum_legal_export_can_be_reimported(self):
+        self.require_node()
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+        patterns = (
+            r"(function exactKeys\(.*?\n\})\n\n",
+            (
+                r"(function normalizeImportedResults\(payload\).*?\n\})\n\n"
+                r"function serializeResults"
+            ),
+            (
+                r"(function serializeResults\(nextResults\).*?\n\})\n\n"
+                r"function stringifyResultsDocument"
+            ),
+            (
+                r"(function stringifyResultsDocument\(.*?\n\})\n\n"
+                r"function persistResults"
+            ),
+            r"(function persistResults\(nextResults\).*?\n\})\n\n",
+            (
+                r"(async function importResults\(file\).*?\n\})\n\n"
+                r"function resetResults"
+            ),
+        )
+        definitions = []
+        for pattern in patterns:
+            match = re.search(pattern, rendered, flags=re.DOTALL)
+            self.assertIsNotNone(match, pattern)
+            definitions.append(match.group(1))
+
+        smoke = "\n".join(
+            (
+                '"use strict";',
+                (
+                    'const acceptanceCatalog = { catalogVersion: "V1", cases: '
+                    "Array.from({ length: 40 }, (_, index) => "
+                    '({ id: "CASE-" + String(index + 1).padStart(3, "0") })) };'
+                ),
+                'const STATUS_VALUES = ["not-run", "passed", "failed", "blocked"];',
+                (
+                    "const knownIds = new Set("
+                    "acceptanceCatalog.cases.map((item) => item.id));"
+                ),
+                'const storageKey = "acceptance:V1";',
+                'const SAVE_FAILURE_NOTICE = "save-failed";',
+                (
+                    "let results = Object.fromEntries("
+                    "acceptanceCatalog.cases.map(({ id }) => [id, { "
+                    'status: "passed", actual: "测".repeat(10000), '
+                    'notes: "试".repeat(10000) }]));'
+                ),
+                "let stored = '';",
+                "let hasPendingSave = true;",
+                "let updates = 0;",
+                "let renders = 0;",
+                "const notices = [];",
+                "const localStorage = { setItem(key, value) { stored = value; } };",
+                "function showNotice(message) { notices.push(message); }",
+                "function cancelPendingSave() {}",
+                "function updateDashboard() { updates += 1; }",
+                "function renderCases() { renders += 1; }",
+                *definitions,
+                "(async () => {",
+                "  const serialized = serializeResults(results);",
+                '  const byteLength = Buffer.byteLength(serialized, "utf8");',
+                (
+                    "  if (byteLength > 8388608) "
+                    'throw new Error("legal-export-exceeds-import-limit");'
+                ),
+                (
+                    '  const file = { name: "results.json", size: byteLength, '
+                    "async text() { return serialized; } };"
+                ),
+                "  await importResults(file);",
+                (
+                    "  if (updates !== 1 || renders !== 1 || "
+                    'notices.at(-1) !== "验收结果已导入并替换当前版本记录。" || '
+                    'results["CASE-001"].actual.length !== 10000 || '
+                    'results["CASE-040"].notes.length !== 10000 || !stored) '
+                    'throw new Error("maximum-export-did-not-round-trip");'
                 ),
                 "})().catch((error) => { console.error(error); process.exit(1); });",
             )

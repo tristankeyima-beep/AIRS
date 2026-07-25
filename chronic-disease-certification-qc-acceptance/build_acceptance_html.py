@@ -1960,7 +1960,7 @@ async function importResults(file) {
     if (
       !file ||
       !file.name.toLocaleLowerCase("zh-CN").endsWith(".json") ||
-      file.size > 1048576
+      file.size > 8388608
     ) {
       throw new Error("invalid-file-type");
     }
