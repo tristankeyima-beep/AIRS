@@ -2031,6 +2031,248 @@ class AcceptanceCatalogTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    @unittest.skipUnless(shutil.which("node"), "Node is optional")
+    def test_node_smoke_keeps_import_transactional_when_storage_write_fails(self):
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+        serialize_function = re.search(
+            r"(function serializeResults\(nextResults\).*?\n\})\n\n"
+            r"function stringifyResultsDocument",
+            rendered,
+            flags=re.DOTALL,
+        )
+        stringify_function = re.search(
+            r"(function stringifyResultsDocument\(.*?\n\})\n\n"
+            r"function persistResults",
+            rendered,
+            flags=re.DOTALL,
+        )
+        persist_function = re.search(
+            r"(function persistResults\(nextResults\).*?\n\})\n\n",
+            rendered,
+            flags=re.DOTALL,
+        )
+        import_function = re.search(
+            r"(async function importResults\(file\).*?\n\})\n\n"
+            r"function resetResults",
+            rendered,
+            flags=re.DOTALL,
+        )
+        for match in (
+            serialize_function,
+            stringify_function,
+            persist_function,
+            import_function,
+        ):
+            self.assertIsNotNone(match)
+
+        smoke = "\n".join(
+            (
+                '"use strict";',
+                (
+                    'const acceptanceCatalog = { catalogVersion: "V1", '
+                    'cases: [{ id: "CASE" }] };'
+                ),
+                'const storageKey = "acceptance:V1";',
+                (
+                    'const oldResults = { CASE: { status: "not-run", '
+                    'actual: "old", notes: "" } };'
+                ),
+                (
+                    'const candidateResults = { CASE: { status: "passed", '
+                    'actual: "new", notes: "imported" } };'
+                ),
+                "let results = oldResults;",
+                "let stored = 'old-storage';",
+                "let shouldFail = true;",
+                "let renders = 0;",
+                "let updates = 0;",
+                "let hasPendingSave = true;",
+                "const notices = [];",
+                (
+                    "const localStorage = { setItem(key, value) { "
+                    'if (shouldFail) throw new Error("quota"); stored = value; } };'
+                ),
+                "function showNotice(message) { notices.push(message); }",
+                "function validateResultsDocument() { return candidateResults; }",
+                "function updateDashboard() { updates += 1; }",
+                "function renderCases() { renders += 1; }",
+                "function cancelPendingSave() {}",
+                serialize_function.group(1),
+                stringify_function.group(1),
+                persist_function.group(1),
+                import_function.group(1),
+                "(async () => {",
+                (
+                    '  const file = { name: "results.json", '
+                    'async text() { return "{}"; } };'
+                ),
+                "  await importResults(file);",
+                (
+                    "  if (results !== oldResults || stored !== 'old-storage' || "
+                    "renders !== 0 || updates !== 0 || notices.length !== 1) "
+                    'throw new Error("failed-import-mutated-state");'
+                ),
+                "  shouldFail = false;",
+                "  notices.length = 0;",
+                "  await importResults(file);",
+                (
+                    "  if (results !== candidateResults || renders !== 1 || "
+                    "updates !== 1 || notices.length !== 1 || "
+                    '!stored.includes("\\"actual\\":\\"new\\"")) '
+                    'throw new Error("successful-import-not-applied");'
+                ),
+                "})().catch((error) => { console.error(error); process.exit(1); });",
+            )
+        )
+        result = subprocess.run(
+            ["node", "-"],
+            input=smoke,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    @unittest.skipUnless(shutil.which("node"), "Node is optional")
+    def test_risk_mapping_uses_expected_fields_and_locks_known_directions(self):
+        catalog = BUILDER_MODULE.load_catalog(CATALOG)
+        rendered = BUILDER_MODULE.render_acceptance_html(catalog)
+        derive_function = re.search(
+            r"(function deriveRisk\(caseData\).*?\n\})\n\n"
+            r"function isGateStep",
+            rendered,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(derive_function)
+        selected = {
+            case["id"]: case
+            for case in catalog["cases"]
+            if case["id"] in {
+                "M2-001",
+                "M2-002",
+                "M2-008",
+                "M2-009",
+                "M2-010",
+            }
+        }
+        expected = {
+            "M2-001": "其他",
+            "M2-002": "错误拒绝风险",
+            "M2-008": "错误放行风险",
+            "M2-009": "错误放行风险",
+            "M2-010": "错误拒绝风险",
+        }
+        smoke = "\n".join(
+            (
+                '"use strict";',
+                "const cases = " + json.dumps(selected, ensure_ascii=False) + ";",
+                "const expected = " + json.dumps(expected, ensure_ascii=False) + ";",
+                derive_function.group(1),
+                (
+                    "for (const [id, direction] of Object.entries(expected)) { "
+                    "if (deriveRisk(cases[id]) !== direction) "
+                    'throw new Error(id + ":" + deriveRisk(cases[id])); }'
+                ),
+                (
+                    "const both = { title: '错误放行风险', objective: '', "
+                    "expectedOutcome: '', mustContain: [], acceptanceChecks: [], "
+                    "steps: [{ action: '', expected: '错误拒绝风险' }] };"
+                ),
+                (
+                    "if (deriveRisk(both) !== '其他') "
+                    'throw new Error("dual-direction");'
+                ),
+            )
+        )
+        result = subprocess.run(
+            ["node", "-"],
+            input=smoke,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    @unittest.skipUnless(shutil.which("node"), "Node is optional")
+    def test_node_fake_timer_debounces_input_and_flushes_latest_value(self):
+        rendered = BUILDER_MODULE.render_acceptance_html(
+            BUILDER_MODULE.load_catalog(CATALOG)
+        )
+        debounce_block = re.search(
+            r"(function cancelPendingSave\(\).*?\n\})\n\n"
+            r"(function flushPendingResults\(\).*?\n\})\n\n"
+            r"(function scheduleResultsSave\(\).*?\n\})",
+            rendered,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(debounce_block)
+        self.assertIn("scheduleResultsSave();", rendered)
+        self.assertNotRegex(
+            rendered,
+            r'addEventListener\("input".*?persistResults\(',
+        )
+        self.assertIn('window.addEventListener("beforeunload"', rendered)
+        self.assertIn('document.addEventListener("visibilitychange"', rendered)
+
+        smoke = "\n".join(
+            (
+                '"use strict";',
+                "const SAVE_DELAY_MS = 250;",
+                "let pendingSaveTimer = 0;",
+                "let hasPendingSave = false;",
+                "let results = { CASE: { actual: '' } };",
+                "let nextTimerId = 1;",
+                "const timers = new Map();",
+                "const writes = [];",
+                (
+                    "const window = { setTimeout(callback, delay) { "
+                    "const id = nextTimerId++; timers.set(id, { callback, delay }); "
+                    "return id; }, clearTimeout(id) { timers.delete(id); } };"
+                ),
+                (
+                    "function persistResults(nextResults) { "
+                    "writes.push(JSON.stringify(nextResults)); return true; }"
+                ),
+                debounce_block.group(1),
+                debounce_block.group(2),
+                debounce_block.group(3),
+                "results.CASE.actual = 'a'; scheduleResultsSave();",
+                "results.CASE.actual = 'ab'; scheduleResultsSave();",
+                (
+                    "if (writes.length !== 0 || timers.size !== 1) "
+                    'throw new Error("not-debounced");'
+                ),
+                "const timer = Array.from(timers.values())[0];",
+                (
+                    "if (timer.delay !== 250) "
+                    'throw new Error("wrong-delay");'
+                ),
+                "timers.clear(); timer.callback();",
+                (
+                    "if (writes.length !== 1 || "
+                    '!writes[0].includes("\\"actual\\":\\"ab\\"")) '
+                    'throw new Error("latest-value-not-saved");'
+                ),
+                "results.CASE.actual = 'abc'; scheduleResultsSave();",
+                "flushPendingResults();",
+                (
+                    "if (writes.length !== 2 || "
+                    '!writes[1].includes("\\"actual\\":\\"abc\\"") || timers.size !== 0) '
+                    'throw new Error("flush-failed");'
+                ),
+            )
+        )
+        result = subprocess.run(
+            ["node", "-"],
+            input=smoke,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_write_text_atomically_normalizes_lf_and_sets_mode(self):
         destination = self.temp_path / "output.html"
 

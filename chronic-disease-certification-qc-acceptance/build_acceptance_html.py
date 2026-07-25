@@ -1309,6 +1309,8 @@ Object.defineProperty(window, "acceptanceCatalog", {
 });
 
 const STATUS_VALUES = ["not-run", "passed", "failed", "blocked"];
+const SAVE_DELAY_MS = 250;
+const SAVE_FAILURE_NOTICE = "本地记录保存失败；当前页面内容仍会保留。";
 const STATUS_LABELS = {
   "not-run": "未执行",
   "passed": "通过",
@@ -1347,6 +1349,8 @@ let noticeTimer = 0;
 let isInitialRender = true;
 let isPrintMode = false;
 let printOpenState = new Map();
+let pendingSaveTimer = 0;
+let hasPendingSave = false;
 
 function createDefaultResults() {
   const defaults = {};
@@ -1436,12 +1440,12 @@ function validateResultsDocument(value) {
   return candidateResults;
 }
 
-function serializeResults() {
+function serializeResults(nextResults) {
   const version = acceptanceCatalog.catalogVersion;
   const updatedAt = new Date().toISOString();
   const exportedResults = {};
   acceptanceCatalog.cases.forEach((caseData) => {
-    const item = results[caseData.id];
+    const item = nextResults[caseData.id];
     exportedResults[caseData.id] = {
       status: item.status,
       actual: item.actual,
@@ -1455,12 +1459,48 @@ function stringifyResultsDocument(version, updatedAt, results) {
   return JSON.stringify({ version, updatedAt, results });
 }
 
-function persistResults() {
+function persistResults(nextResults) {
   try {
-    localStorage.setItem(storageKey, serializeResults());
+    localStorage.setItem(storageKey, serializeResults(nextResults));
+    return true;
   } catch (error) {
-    showNotice("本地记录暂时无法保存；当前页面中的内容仍会保留。");
+    showNotice(SAVE_FAILURE_NOTICE);
+    return false;
   }
+}
+
+function cancelPendingSave() {
+  if (pendingSaveTimer) {
+    window.clearTimeout(pendingSaveTimer);
+    pendingSaveTimer = 0;
+  }
+}
+
+function flushPendingResults() {
+  cancelPendingSave();
+  if (!hasPendingSave) {
+    return true;
+  }
+  const saved = persistResults(results);
+  if (saved) {
+    hasPendingSave = false;
+  }
+  return saved;
+}
+
+function scheduleResultsSave() {
+  hasPendingSave = true;
+  cancelPendingSave();
+  pendingSaveTimer = window.setTimeout(() => {
+    pendingSaveTimer = 0;
+    if (!hasPendingSave) {
+      return;
+    }
+    const saved = persistResults(results);
+    if (saved) {
+      hasPendingSave = false;
+    }
+  }, SAVE_DELAY_MS);
 }
 
 function loadSavedResults() {
@@ -1498,15 +1538,19 @@ function deriveRisk(caseData) {
     caseData.title,
     caseData.objective,
     caseData.expectedOutcome,
-    ...caseData.mustContain
+    ...caseData.mustContain,
+    ...caseData.acceptanceChecks,
+    ...caseData.steps.flatMap((step) => [step.action, step.expected])
   ].join(" ");
-  if (riskText.includes("错误放行风险")) {
+  const hasFalseApproval = riskText.includes("错误放行风险");
+  const hasFalseRejection = riskText.includes("错误拒绝风险");
+  if (hasFalseApproval === hasFalseRejection) {
+    return "其他";
+  }
+  if (hasFalseApproval) {
     return "错误放行风险";
   }
-  if (riskText.includes("错误拒绝风险")) {
-    return "错误拒绝风险";
-  }
-  return "其他";
+  return "错误拒绝风险";
 }
 
 function isGateStep(step) {
@@ -1607,7 +1651,8 @@ function appendOperationalSteps(parent, caseData) {
 
 function setCaseStatus(caseData, status) {
   results[caseData.id].status = status;
-  persistResults();
+  hasPendingSave = true;
+  flushPendingResults();
   updateDashboard();
   renderCases();
 }
@@ -1696,7 +1741,7 @@ function appendResultEditor(parent, caseData, printSummary) {
     textarea.setAttribute("aria-label", caseData.id + " " + labelText);
     textarea.addEventListener("input", () => {
       results[caseData.id][field] = textarea.value;
-      persistResults();
+      scheduleResultsSave();
       updateDashboard();
       syncPrintSummary(caseData, printSummary);
     });
@@ -1860,7 +1905,7 @@ function clearFilters() {
 }
 
 function exportResults() {
-  const serialized = serializeResults();
+  const serialized = serializeResults(results);
   const now = new Date();
   const pad = (value) => String(value).padStart(2, "0");
   const stamp =
@@ -1888,8 +1933,12 @@ async function importResults(file) {
     }
     const text = await file.text();
     const candidateResults = validateResultsDocument(JSON.parse(text));
+    if (!persistResults(candidateResults)) {
+      return;
+    }
+    cancelPendingSave();
+    hasPendingSave = false;
     results = candidateResults;
-    persistResults();
     updateDashboard();
     renderCases();
     showNotice("验收结果已导入并替换当前版本记录。");
@@ -1902,6 +1951,8 @@ function resetResults() {
   if (!window.confirm("确定重置当前版本的全部验收记录吗？此操作不可撤销。")) {
     return;
   }
+  cancelPendingSave();
+  hasPendingSave = false;
   results = createDefaultResults();
   try {
     localStorage.removeItem(storageKey);
@@ -1954,6 +2005,14 @@ document.getElementById("print-results").addEventListener("click", () => {
 });
 window.addEventListener("beforeprint", expandCasesForPrint);
 window.addEventListener("afterprint", restoreCasesAfterPrint);
+window.addEventListener("beforeunload", () => {
+  flushPendingResults();
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") {
+    flushPendingResults();
+  }
+});
 
 loadSavedResults();
 updateDashboard();
