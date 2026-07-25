@@ -229,7 +229,7 @@
         {
           "name": "完整标准",
           "format": "JSON",
-          "content": "{\n  \"synthetic\": true,\n  \"diseaseName\": \"测试病种\",\n  \"diseaseCode\": \"TEST01\",\n  \"version\": \"V1\",\n  \"rules\": [\n    {\n      \"ruleCode\": \"R001\",\n      \"title\": \"条件A\",\n      \"guideCodes\": [\n        \"G001\"\n      ]\n    },\n    {\n      \"ruleCode\": \"R002\",\n      \"title\": \"条件B\",\n      \"guideCodes\": [\n        \"G002\"\n      ]\n    }\n  ],\n  \"extractionGuides\": [\n    {\n      \"guideCode\": \"G001\",\n      \"field\": \"conditionA\",\n      \"enumCode\": \"E_BOOL\"\n    },\n    {\n      \"guideCode\": \"G002\",\n      \"field\": \"conditionB\",\n      \"enumCode\": \"E_BOOL\"\n    }\n  ],\n  \"enums\": [\n    {\n      \"enumCode\": \"E_BOOL\",\n      \"values\": [\n        \"满足\",\n        \"不满足\"\n      ]\n    }\n  ],\n  \"logic\": {\n    \"operator\": \"AND\",\n    \"children\": [\n      {\n        \"ruleCode\": \"R001\"\n      },\n      {\n        \"ruleCode\": \"R002\"\n      }\n    ]\n  }\n}"
+          "content": "{\n  \"meta\": {\n    \"version\": \"V20260725\",\n    \"chronicDiseaseName\": \"测试病种\",\n    \"chronicDiseaseCode\": \"CS01\",\n    \"createdAt\": \"2026-07-25\",\n    \"description\": \"【合成测试数据】完整正式结构化标准\",\n    \"sourceFile\": \"synthetic-standard.txt\"\n  },\n  \"ruleRepository\": [\n    {\n      \"ruleCode\": \"01001\",\n      \"ruleContent\": \"需满足条件A\",\n      \"ruleSource\": \"synthetic-standard.txt\",\n      \"experience\": \"\",\n      \"sourceRuleContent\": \"需满足条件A\",\n      \"sourceMdFile\": \"synthetic-standard.txt\",\n      \"sourceSection\": \"认定标准\",\n      \"ruleKeywordGuide\": [\n        {\n          \"keywordCode\": \"01001001\",\n          \"dataType\": \"enum\",\n          \"required\": true,\n          \"keywordContent\": \"提取条件A是否满足\",\n          \"enumOptions\": [\n            \"是\",\n            \"否\",\n            \"无法判断\"\n          ]\n        }\n      ]\n    },\n    {\n      \"ruleCode\": \"01002\",\n      \"ruleContent\": \"需满足条件B\",\n      \"ruleSource\": \"synthetic-standard.txt\",\n      \"experience\": \"\",\n      \"sourceRuleContent\": \"需满足条件B\",\n      \"sourceMdFile\": \"synthetic-standard.txt\",\n      \"sourceSection\": \"认定标准\",\n      \"ruleKeywordGuide\": [\n        {\n          \"keywordCode\": \"01002001\",\n          \"dataType\": \"enum\",\n          \"required\": true,\n          \"keywordContent\": \"提取条件B是否满足\",\n          \"enumOptions\": [\n            \"是\",\n            \"否\",\n            \"无法判断\"\n          ]\n        }\n      ]\n    }\n  ],\n  \"logicTopology\": {\n    \"type\": \"GROUP\",\n    \"operator\": \"AND\",\n    \"children\": [\n      {\n        \"type\": \"RULE_REF\",\n        \"ruleCode\": \"01001\"\n      },\n      {\n        \"type\": \"RULE_REF\",\n        \"ruleCode\": \"01002\"\n      }\n    ]\n  }\n}"
         }
       ],
       "steps": [
@@ -269,7 +269,7 @@
       "inputKinds": [
         "不完整结构化标准"
       ],
-      "objective": "识别 extractionGuides 与 enums 缺口并指导补齐。",
+      "objective": "按正式标准合同识别 ruleKeywordGuide 为空导致的提取指南缺口并指导补齐。",
       "preconditions": [
         "规则引用了提取指南与枚举"
       ],
@@ -277,25 +277,25 @@
         {
           "name": "缺组件标准",
           "format": "JSON",
-          "content": "{\n  \"synthetic\": true,\n  \"diseaseName\": \"测试病种\",\n  \"diseaseCode\": \"TEST02\",\n  \"version\": \"V1\",\n  \"rules\": [\n    {\n      \"ruleCode\": \"R001\",\n      \"title\": \"条件A\",\n      \"guideCodes\": [\n        \"G001\"\n      ]\n    }\n  ],\n  \"extractionGuides\": [],\n  \"enums\": [],\n  \"logic\": {\n    \"operator\": \"ALL\",\n    \"children\": [\n      {\n        \"ruleCode\": \"R001\"\n      }\n    ]\n  }\n}"
+          "content": "{\n  \"meta\": {\n    \"version\": \"V20260725\",\n    \"chronicDiseaseName\": \"测试病种\",\n    \"chronicDiseaseCode\": \"CS01\",\n    \"createdAt\": \"2026-07-25\",\n    \"description\": \"【合成测试数据】缺提取指南的正式结构化标准\",\n    \"sourceFile\": \"synthetic-standard.txt\"\n  },\n  \"ruleRepository\": [\n    {\n      \"ruleCode\": \"01001\",\n      \"ruleContent\": \"需满足条件A\",\n      \"ruleSource\": \"synthetic-standard.txt\",\n      \"experience\": \"\",\n      \"sourceRuleContent\": \"需满足条件A\",\n      \"sourceMdFile\": \"synthetic-standard.txt\",\n      \"sourceSection\": \"认定标准\",\n      \"ruleKeywordGuide\": []\n    }\n  ],\n  \"logicTopology\": {\n    \"type\": \"GROUP\",\n    \"operator\": \"AND\",\n    \"children\": [\n      {\n        \"type\": \"RULE_REF\",\n        \"ruleCode\": \"01001\"\n      }\n    ]\n  }\n}"
         }
       ],
       "steps": [
         {
           "actor": "系统",
           "action": "执行结构完整性检查。",
-          "expected": "分别列出 extractionGuides 与 enums 缺失。"
+          "expected": "在 ruleRepository[0].ruleKeywordGuide 报告 keyword_guide_required。"
         },
         {
           "actor": "系统",
           "action": "给出补齐要求并暂停生成。",
-          "expected": "提示所需提取项和枚举值，不生成正式文件。"
+          "expected": "提示补齐正式 ruleKeywordGuide 的 keywordCode、dataType、required、keywordContent 与 enumOptions，不生成正式文件。"
         }
       ],
       "expectedOutcome": "缺口被定位并提示补齐，生成流程受控暂停。",
       "mustContain": [
-        "extractionGuides",
-        "enums",
+        "ruleKeywordGuide",
+        "keyword_guide_required",
         "补齐"
       ],
       "mustNotContain": [
@@ -407,14 +407,14 @@
     },
     {
       "id": "M1-009",
-      "title": "规则与指南代码格式错误",
+      "title": "规则与关键词代码格式错误",
       "mode": "mode1",
       "category": "code-validation",
       "priority": "P1",
       "inputKinds": [
         "代码格式异常标准"
       ],
-      "objective": "验证 ruleCode 与 guideCode 格式错误能被准确定位。",
+      "objective": "验证正式 ruleCode 与 keywordCode 格式错误能被准确定位。",
       "preconditions": [
         "代码格式规则已配置"
       ],
@@ -422,13 +422,13 @@
         {
           "name": "非法代码标准",
           "format": "JSON",
-          "content": "{\n  \"synthetic\": true,\n  \"diseaseName\": \"测试病种\",\n  \"rules\": [\n    {\n      \"ruleCode\": \"bad rule\",\n      \"title\": \"条件A\",\n      \"guideCodes\": [\n        \"G#1\"\n      ]\n    }\n  ],\n  \"extractionGuides\": [\n    {\n      \"guideCode\": \"G#1\",\n      \"field\": \"conditionA\"\n    }\n  ]\n}"
+          "content": "{\n  \"meta\": {\n    \"version\": \"V20260725\",\n    \"chronicDiseaseName\": \"测试病种\",\n    \"chronicDiseaseCode\": \"CS01\",\n    \"createdAt\": \"2026-07-25\",\n    \"description\": \"【合成测试数据】非法代码正式结构\",\n    \"sourceFile\": \"synthetic-standard.txt\"\n  },\n  \"ruleRepository\": [\n    {\n      \"ruleCode\": \"bad rule\",\n      \"ruleContent\": \"需满足条件A\",\n      \"ruleSource\": \"synthetic-standard.txt\",\n      \"experience\": \"\",\n      \"sourceRuleContent\": \"需满足条件A\",\n      \"sourceMdFile\": \"synthetic-standard.txt\",\n      \"sourceSection\": \"认定标准\",\n      \"ruleKeywordGuide\": [\n        {\n          \"keywordCode\": \"G#1\",\n          \"dataType\": \"enum\",\n          \"required\": true,\n          \"keywordContent\": \"提取条件A是否满足\",\n          \"enumOptions\": [\n            \"是\",\n            \"否\",\n            \"无法判断\"\n          ]\n        }\n      ]\n    }\n  ],\n  \"logicTopology\": {\n    \"type\": \"GROUP\",\n    \"operator\": \"AND\",\n    \"children\": [\n      {\n        \"type\": \"RULE_REF\",\n        \"ruleCode\": \"bad rule\"\n      }\n    ]\n  }\n}"
         }
       ],
       "steps": [
         {
           "actor": "系统",
-          "action": "校验 ruleCode 和 guideCode。",
+          "action": "用正式 validator 校验 ruleCode 和 keywordCode。",
           "expected": "分别报告两个格式错误及合法格式示例。"
         },
         {
@@ -440,7 +440,7 @@
       "expectedOutcome": "两个非法代码均被指出且不被静默改写。",
       "mustContain": [
         "ruleCode",
-        "guideCode",
+        "keywordCode",
         "格式错误"
       ],
       "mustNotContain": [
@@ -470,7 +470,7 @@
         {
           "name": "异常拓扑",
           "format": "JSON",
-          "content": "{\n  \"synthetic\": true,\n  \"diseaseName\": \"测试病种\",\n  \"rules\": [\n    {\n      \"ruleCode\": \"R001\",\n      \"text\": \"条件A\"\n    },\n    {\n      \"ruleCode\": \"R002\",\n      \"text\": \"条件B\"\n    }\n  ],\n  \"logic\": {\n    \"operator\": \"ALL\",\n    \"children\": [\n      {\n        \"ruleCode\": \"R001\"\n      },\n      {\n        \"ruleCode\": \"R404\"\n      }\n    ]\n  }\n}"
+          "content": "{\n  \"meta\": {\n    \"version\": \"V20260725\",\n    \"chronicDiseaseName\": \"测试病种\",\n    \"chronicDiseaseCode\": \"CS01\",\n    \"createdAt\": \"2026-07-25\",\n    \"description\": \"【合成测试数据】拓扑错误正式结构\",\n    \"sourceFile\": \"synthetic-standard.txt\"\n  },\n  \"ruleRepository\": [\n    {\n      \"ruleCode\": \"01001\",\n      \"ruleContent\": \"需满足条件A\",\n      \"ruleSource\": \"synthetic-standard.txt\",\n      \"experience\": \"\",\n      \"sourceRuleContent\": \"需满足条件A\",\n      \"sourceMdFile\": \"synthetic-standard.txt\",\n      \"sourceSection\": \"认定标准\",\n      \"ruleKeywordGuide\": [\n        {\n          \"keywordCode\": \"01001001\",\n          \"dataType\": \"enum\",\n          \"required\": true,\n          \"keywordContent\": \"提取条件A是否满足\",\n          \"enumOptions\": [\n            \"是\",\n            \"否\",\n            \"无法判断\"\n          ]\n        }\n      ]\n    },\n    {\n      \"ruleCode\": \"01002\",\n      \"ruleContent\": \"需满足条件B\",\n      \"ruleSource\": \"synthetic-standard.txt\",\n      \"experience\": \"\",\n      \"sourceRuleContent\": \"需满足条件B\",\n      \"sourceMdFile\": \"synthetic-standard.txt\",\n      \"sourceSection\": \"认定标准\",\n      \"ruleKeywordGuide\": [\n        {\n          \"keywordCode\": \"01002001\",\n          \"dataType\": \"enum\",\n          \"required\": true,\n          \"keywordContent\": \"提取条件B是否满足\",\n          \"enumOptions\": [\n            \"是\",\n            \"否\",\n            \"无法判断\"\n          ]\n        }\n      ]\n    }\n  ],\n  \"logicTopology\": {\n    \"type\": \"GROUP\",\n    \"operator\": \"AND\",\n    \"children\": [\n      {\n        \"type\": \"RULE_REF\",\n        \"ruleCode\": \"01001\"\n      },\n      {\n        \"type\": \"RULE_REF\",\n        \"ruleCode\": \"R404\"\n      }\n    ]\n  }\n}"
         }
       ],
       "steps": [
@@ -1311,7 +1311,7 @@
         {
           "name": "完整五维样本",
           "format": "JSON",
-          "content": "{\n  \"synthetic\": true,\n  \"materials\": [\n    {\n      \"materialId\": \"M001\",\n      \"name\": \"测试材料\",\n      \"content\": \"条件A：满足；条件B：满足。\"\n    }\n  ],\n  \"standard\": {\n    \"diseaseName\": \"测试病种\",\n    \"rules\": [\n      {\n        \"ruleCode\": \"R001\",\n        \"text\": \"条件A\"\n      },\n      {\n        \"ruleCode\": \"R002\",\n        \"text\": \"条件B\"\n      }\n    ],\n    \"logic\": {\n      \"operator\": \"AND\",\n      \"children\": [\n        \"R001\",\n        \"R002\"\n      ]\n    }\n  },\n  \"auditResult\": {\n    \"kind\": \"detailed\",\n    \"conditionResults\": [\n      {\n        \"ruleCode\": \"R001\",\n        \"result\": \"满足\",\n        \"evidence\": {\n          \"materialId\": \"M001\",\n          \"rawText\": \"条件A：满足\"\n        }\n      },\n      {\n        \"ruleCode\": \"R002\",\n        \"result\": \"满足\",\n        \"evidence\": {\n          \"materialId\": \"M001\",\n          \"rawText\": \"条件B：满足\"\n        }\n      }\n    ],\n    \"finalRecommendation\": \"通过\"\n  }\n}"
+          "content": "{\n  \"synthetic\": true,\n  \"materials\": [\n    {\n      \"materialId\": \"M001\",\n      \"name\": \"测试材料\",\n      \"content\": \"【合成测试数据】条件A：满足；条件B：满足。\"\n    }\n  ],\n  \"standard\": {\n    \"meta\": {\n      \"version\": \"V20260725\",\n      \"chronicDiseaseName\": \"测试病种\",\n      \"chronicDiseaseCode\": \"CS01\",\n      \"createdAt\": \"2026-07-25\",\n      \"description\": \"【合成测试数据】完整正式结构化标准\",\n      \"sourceFile\": \"synthetic-standard.txt\"\n    },\n    \"ruleRepository\": [\n      {\n        \"ruleCode\": \"01001\",\n        \"ruleContent\": \"需满足条件A\",\n        \"ruleSource\": \"synthetic-standard.txt\",\n        \"experience\": \"\",\n        \"sourceRuleContent\": \"需满足条件A\",\n        \"sourceMdFile\": \"synthetic-standard.txt\",\n        \"sourceSection\": \"认定标准\",\n        \"ruleKeywordGuide\": [\n          {\n            \"keywordCode\": \"01001001\",\n            \"dataType\": \"enum\",\n            \"required\": true,\n            \"keywordContent\": \"提取条件A是否满足\",\n            \"enumOptions\": [\n              \"是\",\n              \"否\",\n              \"无法判断\"\n            ]\n          }\n        ]\n      },\n      {\n        \"ruleCode\": \"01002\",\n        \"ruleContent\": \"需满足条件B\",\n        \"ruleSource\": \"synthetic-standard.txt\",\n        \"experience\": \"\",\n        \"sourceRuleContent\": \"需满足条件B\",\n        \"sourceMdFile\": \"synthetic-standard.txt\",\n        \"sourceSection\": \"认定标准\",\n        \"ruleKeywordGuide\": [\n          {\n            \"keywordCode\": \"01002001\",\n            \"dataType\": \"enum\",\n            \"required\": true,\n            \"keywordContent\": \"提取条件B是否满足\",\n            \"enumOptions\": [\n              \"是\",\n              \"否\",\n              \"无法判断\"\n            ]\n          }\n        ]\n      }\n    ],\n    \"logicTopology\": {\n      \"type\": \"GROUP\",\n      \"operator\": \"AND\",\n      \"children\": [\n        {\n          \"type\": \"RULE_REF\",\n          \"ruleCode\": \"01001\"\n        },\n        {\n          \"type\": \"RULE_REF\",\n          \"ruleCode\": \"01002\"\n        }\n      ]\n    }\n  },\n  \"auditResult\": {\n    \"kind\": \"detailed\",\n    \"conditionResults\": [\n      {\n        \"ruleCode\": \"01001\",\n        \"result\": \"满足\",\n        \"evidence\": {\n          \"materialId\": \"M001\",\n          \"rawText\": \"条件A：满足\"\n        }\n      },\n      {\n        \"ruleCode\": \"01002\",\n        \"result\": \"满足\",\n        \"evidence\": {\n          \"materialId\": \"M001\",\n          \"rawText\": \"条件B：满足\"\n        }\n      }\n    ],\n    \"finalRecommendation\": \"通过\"\n  }\n}"
         }
       ],
       "steps": [
@@ -1939,8 +1939,8 @@
       "inputs": [
         {
           "name": "输出异常矩阵",
-          "format": "JSON",
-          "content": "{\n  \"synthetic\": true,\n  \"tempRoot\": \"/tmp/chronic-qc-acceptance-safe-005\",\n  \"fixtures\": {\n    \"input\": \"input.json\",\n    \"existingHtml\": \"report.html\",\n    \"existingText\": \"report.txt\",\n    \"pathAlias\": \"./sub/../input.json\",\n    \"hardLink\": \"input-hardlink.json\",\n    \"symbolicLink\": \"input-symlink.json\"\n  },\n  \"failureInjection\": {\n    \"operation\": \"replace_staged_text_output\",\n    \"failOnCall\": 2,\n    \"error\": \"synthetic replace failure\"\n  },\n  \"cleanup\": {\n    \"removeTempRoot\": true,\n    \"preserveUserPaths\": true\n  }\n}"
+          "format": "多文件 bundle",
+          "content": "=== FILE: input.json ===\n{\n  \"meta\": {\n    \"version\": \"V20260725\",\n    \"chronicDiseaseName\": \"测试病种\",\n    \"chronicDiseaseCode\": \"CS01\",\n    \"createdAt\": \"2026-07-25\",\n    \"description\": \"【合成测试数据】路径与原子写安全 fixture\",\n    \"sourceFile\": \"synthetic-standard.txt\"\n  },\n  \"ruleRepository\": [\n    {\n      \"ruleCode\": \"01001\",\n      \"ruleContent\": \"需满足条件A\",\n      \"ruleSource\": \"synthetic-standard.txt\",\n      \"experience\": \"\",\n      \"sourceRuleContent\": \"需满足条件A\",\n      \"sourceMdFile\": \"synthetic-standard.txt\",\n      \"sourceSection\": \"认定标准\",\n      \"ruleKeywordGuide\": [\n        {\n          \"keywordCode\": \"01001001\",\n          \"dataType\": \"enum\",\n          \"required\": true,\n          \"keywordContent\": \"提取条件A是否满足\",\n          \"enumOptions\": [\n            \"是\",\n            \"否\",\n            \"无法判断\"\n          ]\n        }\n      ]\n    }\n  ],\n  \"logicTopology\": {\n    \"type\": \"GROUP\",\n    \"operator\": \"AND\",\n    \"children\": [\n      {\n        \"type\": \"RULE_REF\",\n        \"ruleCode\": \"01001\"\n      }\n    ]\n  }\n}\n=== FILE: report.html ===\n【合成测试数据】existing html\n=== FILE: report.txt ===\n【合成测试数据】existing text\n=== FILE: harness.py ===\n# 【合成测试数据】仅在标准库临时目录内运行。\nimport importlib.util\nimport json\nimport os\nimport shutil\nimport sys\nimport tempfile\nfrom pathlib import Path\nfrom unittest import mock\n\nvalidator_path = Path(sys.argv[1]).resolve()\nspec = importlib.util.spec_from_file_location(\"safe005_validator\", validator_path)\nvalidator = importlib.util.module_from_spec(spec)\nspec.loader.exec_module(validator)\nfixture_root = Path.cwd()\nstandard = json.loads((fixture_root / \"input.json\").read_text(encoding=\"utf-8\"))\nassert validator.validate_certification(standard)[\"valid\"] is True\n\nwith tempfile.TemporaryDirectory(prefix=\"chronic-qc-safe005-\") as directory:\n    root = Path(directory)\n    source = root / \"input.json\"\n    html_output = root / \"report.html\"\n    text_output = root / \"report.txt\"\n    shutil.copy2(fixture_root / \"input.json\", source)\n    shutil.copy2(fixture_root / \"report.html\", html_output)\n    shutil.copy2(fixture_root / \"report.txt\", text_output)\n    (root / \"sub\").mkdir()\n    relative_alias = root / \"sub\" / \"..\" / \"input.json\"\n    hard_link = root / \"input-hardlink.json\"\n    symbolic_link = root / \"input-symlink.json\"\n    os.link(source, hard_link)\n    symbolic_link.symlink_to(source)\n    for candidate in (relative_alias, hard_link, symbolic_link):\n        try:\n            validator.ensure_output_not_alias(candidate, (source,))\n        except ValueError:\n            pass\n        else:\n            raise AssertionError(\"path alias was not rejected\")\n    old_html = html_output.read_bytes()\n    old_text = text_output.read_bytes()\n    with mock.patch.object(validator.os, \"replace\", side_effect=OSError(\"synthetic replace failure\")):\n        try:\n            validator.atomic_write_text(text_output, \"new text\")\n        except OSError:\n            pass\n        else:\n            raise AssertionError(\"replace failure was not propagated\")\n    assert html_output.read_bytes() == old_html\n    assert text_output.read_bytes() == old_text\n    assert list(root.glob(\".report.txt.*.tmp\")) == []\n\nprint(\"harness_ok\")"
         }
       ],
       "steps": [
@@ -1999,8 +1999,8 @@
       "inputs": [
         {
           "name": "容量与视口样本",
-          "format": "JSON",
-          "content": "{\n  \"synthetic\": true,\n  \"generator\": {\n    \"recordCount\": 2000,\n    \"recordTemplate\": {\n      \"ruleCodePattern\": \"R{index:04d}\",\n      \"evidenceText\": \"【合成测试数据】条件A证据长文本0123456789\",\n      \"result\": \"满足\"\n    },\n    \"outputEncoding\": \"UTF-8\"\n  },\n  \"viewports\": [\n    {\n      \"name\": \"narrow\",\n      \"width\": 320,\n      \"height\": 800\n    },\n    {\n      \"name\": \"desktop\",\n      \"width\": 1440,\n      \"height\": 900\n    }\n  ],\n  \"assertions\": {\n    \"textHtmlSameSource\": true,\n    \"noHorizontalInformationLoss\": true,\n    \"longTextWraps\": true\n  }\n}"
+          "format": "多文件 bundle",
+          "content": "=== FILE: report.json ===\n{\n  \"case\": {\n    \"patientName\": \"合成测试患者\",\n    \"diseaseName\": \"测试病种\",\n    \"auditId\": \"QC-SAFE-006\"\n  },\n  \"inputScope\": {\n    \"confirmedByUser\": true,\n    \"materials\": [\n      \"出院记录\"\n    ],\n    \"standardKind\": \"natural_language\",\n    \"auditResultKind\": \"detailed\",\n    \"inventory\": {\n      \"revision\": 1,\n      \"materials\": [\n        \"出院记录\"\n      ],\n      \"standardKind\": \"natural_language\",\n      \"auditResultKind\": \"detailed\",\n      \"hasAuditProcess\": true,\n      \"hasFinalConclusion\": true,\n      \"referencedButMissing\": [],\n      \"rawInputSha256\": \"ac9b6b596f9b9f76aec068bf25ea96a3b409fcb0536b3b2d2a55ad6433054372\"\n    },\n    \"confirmation\": {\n      \"confirmedRevision\": 1,\n      \"inventorySha256\": \"5a68cc09c8755d2f62d3f3ec3267633d577502d3f45e567464f4256558cded9f\",\n      \"userStatement\": \"我确认完整\",\n      \"outcome\": \"confirmed_complete\",\n      \"confirmedAfterInventory\": true\n    },\n    \"independentReview\": {\n      \"mode\": \"isolated_blind\",\n      \"completedBeforeComparison\": true,\n      \"artifact\": {\n        \"materialFacts\": [\n          {\n            \"materialId\": \"M001\",\n            \"fact\": \"长期治疗三年\"\n          }\n        ],\n        \"standardKind\": \"natural_language\",\n        \"ruleResults\": [\n          {\n            \"ruleCode\": \"TMP-R001\",\n            \"result\": \"不满足\"\n          }\n        ],\n        \"finalResult\": \"不满足\"\n      },\n      \"artifactSha256\": \"657d298caa2472751b57f6b500c05d739c0a2c70f7c88a9ff0e84c2e65930f1e\"\n    }\n  },\n  \"capabilities\": [\n    {\n      \"name\": \"材料缺失判断准确性\",\n      \"status\": \"completed\",\n      \"reason\": \"\"\n    },\n    {\n      \"name\": \"证据提取准确性\",\n      \"status\": \"completed\",\n      \"reason\": \"\"\n    },\n    {\n      \"name\": \"过度推理\",\n      \"status\": \"completed\",\n      \"reason\": \"\"\n    },\n    {\n      \"name\": \"审核条件与结论一致性\",\n      \"status\": \"partial\",\n      \"reason\": \"自然语言标准存在解释限制\"\n    },\n    {\n      \"name\": \"规则维护质量\",\n      \"status\": \"partial\",\n      \"reason\": \"临时模型不作为正式标准\"\n    }\n  ],\n  \"originalResult\": \"不通过\",\n  \"qcConclusion\": \"不可靠\",\n  \"riskDirection\": \"错误拒绝风险\",\n  \"recommendedAction\": \"重新执行智能审核\",\n  \"issues\": [\n    {\n      \"category\": \"材料缺失判断准确性\",\n      \"issueType\": \"误报缺失\",\n      \"severity\": \"high\",\n      \"ruleCode\": \"TMP-R001\",\n      \"keywordCode\": \"\",\n      \"modelClaim\": \"缺少长期治疗证据\",\n      \"evidenceStatus\": \"CONTRADICTED\",\n      \"materialEvidence\": [\n        {\n          \"materialId\": \"M001\",\n          \"materialName\": \"合成测试出院记录\",\n          \"page\": 1,\n          \"section\": \"治疗经过\",\n          \"rawText\": \"患者规律接受长期治疗三年\",\n          \"normalizedText\": \"\",\n          \"location\": {\n            \"start\": 5,\n            \"end\": 17\n          }\n        }\n      ],\n      \"qcFinding\": \"材料中已经存在长期治疗证据，缺失判断不成立\",\n      \"possibleImpact\": \"可能造成错误拒绝\",\n      \"impactOnFinalResult\": \"potentially_changed\",\n      \"riskDirection\": \"false_rejection\",\n      \"recommendation\": \"修正证据提取后重新计算规则和最终结论\",\n      \"confidence\": \"high\"\n    }\n  ],\n  \"ruleReviews\": [],\n  \"unperformedChecks\": [],\n  \"rawInput\": {\n    \"materials\": [\n      {\n        \"materialId\": \"M001\",\n        \"materialName\": \"合成测试出院记录\",\n        \"content\": \"出院记录：患者规律接受长期治疗三年。【合成测试数据】LONG_EVIDENCE_BLOCK_长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789长文本0123456789\"\n      }\n    ],\n    \"standard\": \"需有长期治疗证据\",\n    \"auditResult\": {\n      \"finalResult\": \"不通过\",\n      \"advice\": \"缺少长期治疗证据\"\n    }\n  }\n}\n=== FILE: viewports.json ===\n{\n  \"synthetic\": true,\n  \"viewports\": [\n    {\n      \"name\": \"narrow\",\n      \"width\": 320,\n      \"height\": 800\n    },\n    {\n      \"name\": \"desktop\",\n      \"width\": 1440,\n      \"height\": 900\n    }\n  ]\n}\n=== FILE: harness.py ===\n# 【合成测试数据】调用正式校验器和双渲染器。\nimport importlib.util\nimport json\nimport sys\nfrom pathlib import Path\n\nrenderer_path = Path(sys.argv[1]).resolve()\nspec = importlib.util.spec_from_file_location(\"safe006_renderer\", renderer_path)\nrenderer = importlib.util.module_from_spec(spec)\nspec.loader.exec_module(renderer)\nroot = Path.cwd()\nreport = json.loads((root / \"report.json\").read_text(encoding=\"utf-8\"))\nviewports = json.loads((root / \"viewports.json\").read_text(encoding=\"utf-8\"))\nvalidated = renderer.validate_qc_report(report)\ntext = renderer.render_qc_text(validated)\nhtml = renderer.render_qc_html(validated)\nmarker = \"LONG_EVIDENCE_BLOCK_\"\nassert marker in text and marker in html\nassert \"http://\" not in html and \"https://\" not in html\nassert {(item[\"width\"], item[\"height\"]) for item in viewports[\"viewports\"]} == {(320, 800), (1440, 900)}\n(root / \"rendered-report.txt\").write_text(text, encoding=\"utf-8\")\n(root / \"rendered-report.html\").write_text(html, encoding=\"utf-8\")\nprint(\"harness_ok\")"
         }
       ],
       "steps": [

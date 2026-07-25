@@ -18,6 +18,18 @@ QC_RENDERER_PATH = (
     / "scripts"
     / "render_qc_html.py"
 )
+CERT_VALIDATOR_PATH = (
+    ROOT.parent
+    / "chronic-disease-certification-qc"
+    / "scripts"
+    / "validate_certification.py"
+)
+STANDARD_INSPECTOR_PATH = (
+    ROOT.parent
+    / "chronic-disease-certification-qc"
+    / "scripts"
+    / "inspect_standard.py"
+)
 
 EXPECTED_GENERATED_FILE = "慢特病认定标准与审核质控-验收测试用例.html"
 EXPECTED_METADATA = {
@@ -105,28 +117,10 @@ PLAIN_TEXT_CASES = {
 }
 JSON_CASE_KEYS = {
     "M1-004": {"synthetic", "revision", "status", "proposal"},
-    "M1-005": {
-        "synthetic",
-        "diseaseName",
-        "diseaseCode",
-        "version",
-        "rules",
-        "extractionGuides",
-        "enums",
-        "logic",
-    },
-    "M1-006": {
-        "synthetic",
-        "diseaseName",
-        "diseaseCode",
-        "version",
-        "rules",
-        "extractionGuides",
-        "enums",
-        "logic",
-    },
-    "M1-009": {"synthetic", "diseaseName", "rules", "extractionGuides"},
-    "M1-010": {"synthetic", "diseaseName", "rules", "logic"},
+    "M1-005": {"meta", "ruleRepository", "logicTopology"},
+    "M1-006": {"meta", "ruleRepository", "logicTopology"},
+    "M1-009": {"meta", "ruleRepository", "logicTopology"},
+    "M1-010": {"meta", "ruleRepository", "logicTopology"},
     "M2-008": {"synthetic", "standard", "conditionResults", "finalRecommendation"},
     "M2-015": {"synthetic", "materials", "standard", "auditResult"},
     "GATE-002": {"synthetic", "before", "supplement", "after"},
@@ -141,14 +135,6 @@ JSON_CASE_KEYS = {
     },
     "SAFE-002": {"synthetic", "rawInput"},
     "SAFE-003": {"synthetic", "tempRoot", "networkPolicy", "files", "cleanup"},
-    "SAFE-005": {
-        "synthetic",
-        "tempRoot",
-        "fixtures",
-        "failureInjection",
-        "cleanup",
-    },
-    "SAFE-006": {"synthetic", "generator", "viewports", "assertions"},
 }
 BUNDLE_CASE_FILES = {
     "M1-011": {"cycle.json", "depth.json"},
@@ -173,6 +159,8 @@ BUNDLE_CASE_FILES = {
         "audit-result.json",
     },
     "GATE-001": {"materials.txt", "audit-result.json"},
+    "SAFE-005": {"input.json", "report.html", "report.txt", "harness.py"},
+    "SAFE-006": {"report.json", "viewports.json", "harness.py"},
 }
 BUNDLE_JSON_REQUIRED_KEYS = {
     ("M1-011", "cycle.json"): {"synthetic", "rootNode", "nodes"},
@@ -283,6 +271,25 @@ BUNDLE_JSON_REQUIRED_KEYS = {
         "auditResultKind",
         "finalRecommendation",
     },
+    ("SAFE-005", "input.json"): {
+        "meta",
+        "ruleRepository",
+        "logicTopology",
+    },
+    ("SAFE-006", "report.json"): {
+        "case",
+        "inputScope",
+        "capabilities",
+        "originalResult",
+        "qcConclusion",
+        "riskDirection",
+        "recommendedAction",
+        "issues",
+        "ruleReviews",
+        "unperformedChecks",
+        "rawInput",
+    },
+    ("SAFE-006", "viewports.json"): {"synthetic", "viewports"},
 }
 SPECIAL_FORMAT_CASES = {
     "M1-007": "重复键 JSON",
@@ -346,8 +353,27 @@ def load_qc_renderer_module():
     return module
 
 
+def load_contract_module(path, module_name):
+    if not path.is_file():
+        raise AssertionError(f"missing contract module: {path.name}")
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise AssertionError(f"unable to load contract module: {path.name}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 BUILDER_MODULE = load_builder_module()
 QC_RENDERER_MODULE = load_qc_renderer_module()
+CERT_VALIDATOR_MODULE = load_contract_module(
+    CERT_VALIDATOR_PATH,
+    "acceptance_cert_validator",
+)
+STANDARD_INSPECTOR_MODULE = load_contract_module(
+    STANDARD_INSPECTOR_PATH,
+    "acceptance_standard_inspector",
+)
 
 
 class AcceptanceCatalogTests(unittest.TestCase):
@@ -473,14 +499,20 @@ class AcceptanceCatalogTests(unittest.TestCase):
                 elif case_id in JSON_CASE_KEYS:
                     payload = json.loads(item["content"])
                     self.assertEqual(set(payload), JSON_CASE_KEYS[case_id])
-                    self.assertIs(payload["synthetic"], True)
+                    if "synthetic" in payload:
+                        self.assertIs(payload["synthetic"], True)
+                    else:
+                        self.assertIn("【合成测试数据】", item["content"])
                 elif case_id in BUNDLE_CASE_FILES:
                     files = parse_file_bundle(item["content"])
                     self.assertEqual(set(files), BUNDLE_CASE_FILES[case_id])
                     for name, body in files.items():
                         if name.endswith(".json"):
                             payload = json.loads(body)
-                            self.assertIs(payload["synthetic"], True)
+                            if "synthetic" in payload:
+                                self.assertIs(payload["synthetic"], True)
+                            else:
+                                self.assertIn("【合成测试数据】", body)
                             bundle_json_files.add((case_id, name))
                             self.assertEqual(
                                 set(payload),
@@ -490,29 +522,78 @@ class AcceptanceCatalogTests(unittest.TestCase):
                             self.assertIn("【合成测试数据】", body)
         self.assertEqual(bundle_json_files, set(BUNDLE_JSON_REQUIRED_KEYS))
 
-    def test_m1_005_is_a_complete_parseable_structured_standard(self):
+    def test_mode1_structured_cases_use_the_real_certification_validator(self):
         cases = {
             case["id"]: case
             for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
         }
-        standard = json.loads(cases["M1-005"]["inputs"][0]["content"])
+        results = {}
+        for case_id in ("M1-005", "M1-006", "M1-009", "M1-010"):
+            standard = json.loads(cases[case_id]["inputs"][0]["content"])
+            results[case_id] = CERT_VALIDATOR_MODULE.validate_certification(
+                standard
+            )
 
-        self.assertEqual(standard["diseaseName"], "测试病种")
-        self.assertEqual(standard["diseaseCode"], "TEST01")
-        self.assertEqual(standard["version"], "V1")
-        self.assertEqual(
-            {rule["ruleCode"] for rule in standard["rules"]},
-            {"R001", "R002"},
+        self.assertIs(results["M1-005"]["valid"], True)
+        self.assertEqual(results["M1-005"]["errors"], [])
+
+        error_contracts = {
+            "M1-006": {
+                (
+                    "ruleRepository[0].ruleKeywordGuide",
+                    "keyword_guide_required",
+                )
+            },
+            "M1-009": {
+                (
+                    "ruleRepository[0].ruleCode",
+                    "invalid_rule_code_format",
+                ),
+                (
+                    "ruleRepository[0].ruleKeywordGuide[0].keywordCode",
+                    "invalid_keyword_code_format",
+                ),
+            },
+            "M1-010": {
+                (
+                    "logicTopology.children[1].ruleCode",
+                    "unknown_rule_reference",
+                ),
+                ("logicTopology", "unreferenced_rule"),
+            },
+        }
+        for case_id, expected_errors in error_contracts.items():
+            with self.subTest(case=case_id):
+                self.assertIs(results[case_id]["valid"], False)
+                actual = {
+                    (item["path"], item["code"])
+                    for item in results[case_id]["errors"]
+                }
+                self.assertTrue(expected_errors.issubset(actual))
+
+    def test_m2_015_standard_is_structured_complete_by_real_inspector(self):
+        cases = {
+            case["id"]: case
+            for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
+        }
+        payload = json.loads(cases["M2-015"]["inputs"][0]["content"])
+        inspection = STANDARD_INSPECTOR_MODULE.inspect_standard(
+            payload["standard"]
         )
+
+        self.assertEqual(inspection["kind"], "structured_complete")
+        self.assertIs(inspection["completeness"]["structural"], True)
+        self.assertIs(inspection["completeness"]["executable"], True)
+        self.assertIs(inspection["completeness"]["traceable"], True)
         self.assertEqual(
-            {guide["guideCode"] for guide in standard["extractionGuides"]},
-            {"G001", "G002"},
-        )
-        self.assertEqual(standard["enums"][0]["enumCode"], "E_BOOL")
-        self.assertEqual(standard["logic"]["operator"], "AND")
-        self.assertEqual(
-            {child["ruleCode"] for child in standard["logic"]["children"]},
-            {"R001", "R002"},
+            {
+                item["ruleCode"]
+                for item in payload["auditResult"]["conditionResults"]
+            },
+            {
+                item["ruleCode"]
+                for item in payload["standard"]["ruleRepository"]
+            },
         )
 
     def test_m1_007_contains_a_real_nested_duplicate_key(self):
@@ -573,7 +654,7 @@ class AcceptanceCatalogTests(unittest.TestCase):
             for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
         }
 
-        for case_id in ("GATE-005", "SAFE-003", "SAFE-005"):
+        for case_id in ("GATE-005", "SAFE-003"):
             with self.subTest(case=case_id):
                 fixture = json.loads(cases[case_id]["inputs"][0]["content"])
                 self.assertTrue(
@@ -586,33 +667,90 @@ class AcceptanceCatalogTests(unittest.TestCase):
                 self.assertTrue(any("创建" in action for action in actions))
                 self.assertTrue(any("清理" in action for action in actions))
 
-        safe_output = json.loads(cases["SAFE-005"]["inputs"][0]["content"])
+    def test_safe_005_bundle_harness_runs_path_and_atomic_guards(self):
+        cases = {
+            case["id"]: case
+            for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
+        }
+        files = parse_file_bundle(cases["SAFE-005"]["inputs"][0]["content"])
+
+        with tempfile.TemporaryDirectory() as directory:
+            temp_root = Path(directory)
+            for name, body in files.items():
+                (temp_root / name).write_text(body, encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(temp_root / "harness.py"),
+                    str(CERT_VALIDATOR_PATH),
+                ],
+                cwd=temp_root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "harness_ok")
+            self.assertEqual(result.stderr, "")
+            self.assertEqual(
+                (temp_root / "report.html").read_text(encoding="utf-8"),
+                "【合成测试数据】existing html",
+            )
+            self.assertEqual(
+                (temp_root / "report.txt").read_text(encoding="utf-8"),
+                "【合成测试数据】existing text",
+            )
+
+    def test_safe_006_report_and_harness_run_real_renderers(self):
+        cases = {
+            case["id"]: case
+            for case in BUILDER_MODULE.load_catalog(CATALOG)["cases"]
+        }
+        files = parse_file_bundle(cases["SAFE-006"]["inputs"][0]["content"])
+        report = json.loads(files["report.json"])
+        viewports = json.loads(files["viewports.json"])
+
+        validated = QC_RENDERER_MODULE.validate_qc_report(report)
+        rendered_text = QC_RENDERER_MODULE.render_qc_text(validated)
+        rendered_html = QC_RENDERER_MODULE.render_qc_html(validated)
+        long_marker = "LONG_EVIDENCE_BLOCK_"
+        self.assertIn(long_marker, rendered_text)
+        self.assertIn(long_marker, rendered_html)
+        self.assertNotIn("https://", rendered_html)
+        self.assertNotIn("http://", rendered_html)
         self.assertEqual(
-            set(safe_output["fixtures"]),
-            {
-                "input",
-                "existingHtml",
-                "existingText",
-                "pathAlias",
-                "hardLink",
-                "symbolicLink",
-            },
-        )
-        self.assertEqual(
-            safe_output["failureInjection"],
-            {
-                "operation": "replace_staged_text_output",
-                "failOnCall": 2,
-                "error": "synthetic replace failure",
-            },
+            {(item["width"], item["height"]) for item in viewports["viewports"]},
+            {(320, 800), (1440, 900)},
         )
 
-        capacity = json.loads(cases["SAFE-006"]["inputs"][0]["content"])
-        self.assertGreaterEqual(capacity["generator"]["recordCount"], 2000)
-        self.assertEqual(
-            {viewport["width"] for viewport in capacity["viewports"]},
-            {320, 1440},
-        )
+        with tempfile.TemporaryDirectory() as directory:
+            temp_root = Path(directory)
+            for name, body in files.items():
+                (temp_root / name).write_text(body, encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(temp_root / "harness.py"),
+                    str(QC_RENDERER_PATH),
+                ],
+                cwd=temp_root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "harness_ok")
+            self.assertEqual(result.stderr, "")
+            self.assertIn(
+                long_marker,
+                (temp_root / "rendered-report.txt").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                long_marker,
+                (temp_root / "rendered-report.html").read_text(encoding="utf-8"),
+            )
 
     def test_safe_002_fixture_is_detected_without_using_a_real_secret(self):
         cases = {
