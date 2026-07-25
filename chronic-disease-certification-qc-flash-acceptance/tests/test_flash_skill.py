@@ -2429,5 +2429,275 @@ class FlashCertificationTemplateTests(unittest.TestCase):
         )
 
 
+class FlashQcReportTemplateTests(unittest.TestCase):
+    def setUp(self):
+        self.template_path = SKILL_ROOT / "assets" / "qc-report-template.html"
+        self.fixture_path = ACCEPTANCE_ROOT / "fixtures" / "valid-mode2.json"
+        self.template = read(self.template_path)
+
+    def assert_embedded_fixture_has_error_contract(
+        self,
+        fixture,
+        condition,
+        message,
+    ):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture_path = Path(directory) / "invalid.json"
+            fixture_path.write_text(
+                json.dumps(fixture, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            html = embedded_html(self.template_path, fixture_path)
+
+        match = re.search(
+            r'<script id="flash-data" type="application/json">'
+            r"(?P<payload>.*?)</script>",
+            html,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(match)
+        self.assertEqual(fixture, json.loads(match.group("payload")))
+        self.assertIn(condition, self.template)
+        self.assertIn(f'throw new Error("{message}")', self.template)
+        self.assertIn("error.message", self.template)
+
+    def test_template_has_one_safe_data_slot_and_offline_renderer(self):
+        self.assertEqual(1, self.template.count("__FLASH_DATA_JSON__"))
+        script_tags = re.findall(r"<script\b[^>]*>", self.template, re.IGNORECASE)
+        self.assertEqual(2, len(script_tags))
+        self.assertIn(
+            '<script id="flash-data" type="application/json">'
+            "__FLASH_DATA_JSON__</script>",
+            self.template,
+        )
+        for forbidden in ("innerHTML", "document.write"):
+            self.assertNotIn(forbidden, self.template)
+        self.assertNotRegex(self.template, r"\beval\s*\(")
+        for required in (
+            "textContent",
+            "JSON.parse",
+            "createElement",
+            "IntersectionObserver",
+            "prefers-reduced-motion",
+        ):
+            self.assertIn(required, self.template)
+        self.assertNotRegex(
+            self.template,
+            r"https?://|<script\b[^>]*\bsrc\s*=|<link\b[^>]*\bhref\s*=",
+        )
+
+    def test_template_has_exact_navigation_and_sections(self):
+        navigation = (
+            ("summary", "报告摘要"),
+            ("scope", "输入范围"),
+            ("dimensions", "五维复核"),
+            ("issues", "问题清单"),
+            ("rules", "规则判断"),
+            ("recommendations", "改进建议"),
+            ("analysis", "分析记录"),
+            ("sources", "原始材料"),
+            ("confirmation", "确认记录"),
+        )
+        for section_id, label in navigation:
+            self.assertIn(f'<a href="#{section_id}">{label}</a>', self.template)
+            self.assertEqual(
+                1,
+                len(
+                    re.findall(
+                        rf'<section\b[^>]*\bid="{section_id}"[^>]*>',
+                        self.template,
+                    )
+                ),
+            )
+
+    def test_template_exposes_accessible_navigation_and_print_details(self):
+        self.assertRegex(
+            self.template,
+            r'<a\b[^>]*class="skip-link"[^>]*href="#main"[^>]*>',
+        )
+        self.assertRegex(self.template, r'<main\b[^>]*\bid="main"[^>]*>')
+        self.assertRegex(
+            self.template,
+            r'<nav\b[^>]*\bid="page-navigation"[^>]*'
+            r'\baria-label="页面导航"[^>]*>',
+        )
+        self.assertRegex(
+            self.template,
+            r'<button\b[^>]*class="nav-toggle"[^>]*'
+            r'\btype="button"[^>]*\baria-expanded="false"[^>]*'
+            r'\baria-controls="page-navigation"[^>]*>',
+        )
+        self.assertEqual(1, len(re.findall(r"<h1\b", self.template, re.IGNORECASE)))
+        self.assertIn(":focus-visible", self.template)
+        self.assertIn(
+            "details:not([open]) > :not(summary)",
+            self.template,
+        )
+        self.assertRegex(
+            self.template,
+            r"details:not\(\[open\]\) > :not\(summary\)\s*\{\s*"
+            r"display:\s*block\s*!important;",
+        )
+
+    def test_renderer_declares_all_approved_chinese_mappings(self):
+        mappings = (
+            'structured: "结构化标准"',
+            'natural_language: "自然语言标准"',
+            'absent: "未提供标准"',
+            'detailed: "详细审核结果"',
+            'brief: "简要审核结果"',
+            'conclusion_only: "仅审核结论"',
+            'met: "满足"',
+            'not_met: "不满足"',
+            'unknown: "无法判断"',
+            'meets: "符合"',
+            'does_not_meet: "不符合"',
+            'uncertain: "无法确定"',
+            'reliable: "可靠"',
+            'problematic: "存在问题"',
+            'none: "未发现明显风险"',
+            'false_approval: "错误放行风险"',
+            'false_rejection: "错误拒绝风险"',
+            'both: "双向风险"',
+            'passed: "已通过"',
+            'issue: "发现问题"',
+            'not_checked: "未检查"',
+            'high: "高"',
+            'medium: "中"',
+            'low: "低"',
+            'patient_material: "患者材料"',
+            'standard: "认定标准"',
+            'audit_result: "原审核结果"',
+            'true: "已确认"',
+            'false: "未确认"',
+        )
+        for mapping in mappings:
+            self.assertIn(mapping, self.template)
+
+    def test_renderer_declares_complete_mode2_fields_and_empty_states(self):
+        for field in (
+            "standardKind",
+            "auditDetail",
+            "materialsConfirmedComplete",
+            "materialFacts",
+            "ruleJudgments",
+            "preliminaryResult",
+            "originalConclusion",
+            "qcConclusion",
+            "risk",
+            "dimensions",
+            "notCheckedReason",
+            "auditClaim",
+            "actualEvidence",
+            "sourceReference",
+            "impact",
+            "recommendation",
+            "inputSummary",
+            "interpretations",
+            "evidenceFindings",
+            "uncertainties",
+            "preliminaryConclusion",
+            "inventoryShown",
+            "userResponse",
+        ):
+            self.assertIn(field, self.template)
+        for empty_state in (
+            "未发现质控问题",
+            "暂无改进建议",
+            "无",
+        ):
+            self.assertIn(empty_state, self.template)
+
+    def test_empty_dimensions_raise_visible_chinese_contract_error(self):
+        fixture = json.loads(read(self.fixture_path))
+        fixture["dimensions"] = []
+        self.assert_embedded_fixture_has_error_contract(
+            fixture,
+            "if (!data.dimensions.length)",
+            "未提供五维复核结果",
+        )
+
+    def test_empty_sources_raise_visible_chinese_contract_error(self):
+        fixture = json.loads(read(self.fixture_path))
+        fixture["sourceDocuments"] = []
+        self.assert_embedded_fixture_has_error_contract(
+            fixture,
+            "if (!data.sourceDocuments.length)",
+            "未提供原始材料",
+        )
+
+    def test_missing_required_field_and_bad_json_have_visible_chinese_errors(self):
+        self.assertIn(
+            'if (!data || data.mode !== "qc")',
+            self.template,
+        )
+        self.assertIn(
+            'throw new Error("数据不是模式 2 质控报告")',
+            self.template,
+        )
+        self.assertIn("无法解析报告数据", self.template)
+        self.assertIn("报告数据不完整", self.template)
+
+    def test_template_embeds_exact_mode2_fixture(self):
+        fixture = json.loads(read(self.fixture_path))
+        html = embedded_html(self.template_path, self.fixture_path)
+        self.assertNotIn("__FLASH_DATA_JSON__", html)
+        self.assertIn("测试审核质控报告", html)
+        self.assertIn("I002", html)
+        match = re.search(
+            r'<script id="flash-data" type="application/json">'
+            r"(?P<payload>.*?)</script>",
+            html,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(match)
+        self.assertEqual(fixture, json.loads(match.group("payload")))
+
+    def test_hostile_source_content_cannot_break_out_of_data_slot(self):
+        hostile = "</script><script>document.body.textContent='owned'</script>"
+        fixture = json.loads(read(self.fixture_path))
+        fixture["sourceDocuments"][0]["content"] = hostile
+        with tempfile.TemporaryDirectory() as directory:
+            fixture_path = Path(directory) / "hostile.json"
+            fixture_path.write_text(
+                json.dumps(fixture, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            hostile_html = embedded_html(self.template_path, fixture_path)
+        self.assertNotIn(hostile, hostile_html)
+        self.assertIn("\\u003c/script", hostile_html)
+        script_tags = re.findall(r"<script\b[^>]*>", hostile_html, re.IGNORECASE)
+        executable_scripts = [
+            tag for tag in script_tags if 'type="application/json"' not in tag
+        ]
+        self.assertEqual(2, len(script_tags))
+        self.assertEqual(1, len(executable_scripts))
+
+    def test_navigation_uses_final_anchor_fallback_without_observer_override(self):
+        set_active = self.template.index("const setActive = target =>")
+        at_bottom = self.template.index("const isAtDocumentBottom = () =>")
+        observer = self.template.index("new IntersectionObserver")
+        scroll_handler = self.template.index('window.addEventListener("scroll"')
+        self.assertLess(set_active, at_bottom)
+        self.assertLess(at_bottom, observer)
+        self.assertLess(observer, scroll_handler)
+        self.assertIn("setActive(entry.target)", self.template)
+        self.assertIn("setActive(link)", self.template)
+        self.assertGreaterEqual(
+            self.template.count('setActive("confirmation")'),
+            2,
+        )
+        observer_body = self.template[observer:scroll_handler]
+        self.assertLess(
+            observer_body.index("if (isAtDocumentBottom())"),
+            observer_body.index("const visible"),
+        )
+        self.assertIn(
+            'link.setAttribute("aria-current", "location")',
+            self.template,
+        )
+        self.assertIn('link.removeAttribute("aria-current")', self.template)
+
+
 if __name__ == "__main__":
     unittest.main()
