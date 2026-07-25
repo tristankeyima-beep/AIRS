@@ -716,6 +716,7 @@ def assert_runtime_offline_contract(testcase, script):
         set(safe_tags),
         {
             "a",
+            "article",
             "button",
             "code",
             "details",
@@ -2083,6 +2084,29 @@ class AcceptanceCatalogTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(syntax.returncode, 0, syntax.stderr)
+
+    def test_safe_element_allowlist_covers_every_literal_factory_tag(self):
+        script = parse_offline_html(
+            BUILDER_MODULE.render_acceptance_html(
+                BUILDER_MODULE.load_catalog(CATALOG)
+            )
+        ).runtime_script
+        safe_tags_match = re.search(
+            r"const SAFE_ELEMENT_TAGS = Object\.freeze\(\[(.*?)\]\);",
+            script,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(safe_tags_match)
+        safe_tags = set(json.loads("[" + safe_tags_match.group(1) + "]"))
+        literal_factory_tags = set(
+            re.findall(
+                r"(?<![\w.])createElement\(\s*[\"']([a-z0-9-]+)[\"']",
+                script,
+                flags=re.IGNORECASE,
+            )
+        )
+        self.assertIn("article", literal_factory_tags)
+        self.assertEqual(literal_factory_tags - safe_tags, set())
 
     def test_runtime_navigation_mutations_are_rejected_independently_of_csp(self):
         script = parse_offline_html(

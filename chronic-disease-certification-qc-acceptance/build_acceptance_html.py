@@ -1326,6 +1326,7 @@ const WORKFLOW_STAGES = [
 ];
 const SAFE_ELEMENT_TAGS = Object.freeze([
   "a",
+  "article",
   "button",
   "code",
   "details",
