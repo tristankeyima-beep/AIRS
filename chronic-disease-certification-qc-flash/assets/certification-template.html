@@ -261,23 +261,93 @@
       overflow-wrap: anywhere;
     }
 
-    .rule-grid,
-    .extraction-grid,
     .source-list {
       display: grid;
       gap: 0.85rem;
     }
 
-    .rule-card,
-    .extraction-card {
-      padding: 1.1rem;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-md);
-      background: var(--surface);
+    .logic-intro {
+      margin-bottom: 1rem;
+      border-left: 4px solid var(--brand);
     }
 
-    .rule-card {
+    .logic-intro p:last-child {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: var(--type-sm);
+    }
+
+    .logic-tree {
+      display: grid;
+      gap: 0.9rem;
+    }
+
+    .logic-group {
+      min-width: 0;
+      padding: 1rem;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+    }
+
+    .logic-operator {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      margin-bottom: 0.8rem;
+      font-weight: 800;
+    }
+
+    .logic-operator .badge {
+      margin-bottom: 0;
+    }
+
+    .logic-children,
+    .extraction-list {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .logic-children {
+      padding-left: 0.9rem;
+      border-left: 3px solid var(--brand-soft);
+    }
+
+    .rule-node {
       border-left: 4px solid var(--brand);
+    }
+
+    .rule-body,
+    .extraction-body {
+      padding: 1rem;
+    }
+
+    .rule-body > blockquote:first-child {
+      margin-top: 0;
+    }
+
+    .extraction-list {
+      margin-top: 1rem;
+    }
+
+    .extraction-node {
+      background: var(--surface-2);
+    }
+
+    .guide-title {
+      margin-bottom: 0.75rem;
+      color: var(--brand);
+    }
+
+    .weak-warning {
+      margin: 0.75rem 0 0;
+      padding: 0.7rem 0.85rem;
+      color: var(--status-pending-ink);
+      background: var(--status-pending-bg);
+      border-left: 3px solid currentColor;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      font-size: var(--type-sm);
+      font-weight: 700;
     }
 
     .badge {
@@ -311,16 +381,6 @@
       background: var(--surface-2);
       border-left: 3px solid var(--line);
       border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-    }
-
-    .logic-card {
-      margin-top: 0.65rem;
-      background: var(--surface);
-    }
-
-    .logic-card .logic-card {
-      border-left: 3px solid var(--brand-soft);
-      box-shadow: none;
     }
 
     ul {
@@ -470,6 +530,10 @@
       details:not([open]) > :not(summary) {
         display: block !important;
       }
+
+      details {
+        overflow: visible;
+      }
     }
   </style>
 </head>
@@ -503,16 +567,6 @@
       <section id="logic" aria-labelledby="logic-title">
         <h2 id="logic-title">逻辑关系</h2>
         <div id="logic-content"></div>
-      </section>
-
-      <section id="rules" aria-labelledby="rules-title">
-        <h2 id="rules-title">认定规则</h2>
-        <div id="rules-content"></div>
-      </section>
-
-      <section id="extractions" aria-labelledby="extractions-title">
-        <h2 id="extractions-title">提取项</h2>
-        <div id="extractions-content"></div>
       </section>
 
       <section id="analysis" aria-labelledby="analysis-title">
@@ -590,97 +644,182 @@
         root.append(list);
       };
 
-      const renderLogic = (logic, ruleMap) => {
-        const box = node("div", null, "card logic-card");
-        if (logic.type === "rule") {
-          const rule = ruleMap.get(logic.ruleId);
-          box.append(
+      const sourceQuoteIsLocated = (rule, sourceDocuments) =>
+        sourceDocuments.some(source =>
+          typeof source.content === "string" &&
+          source.content.includes(rule.sourceQuote)
+        );
+
+      const renderExtraction = (item, anchorState) => {
+        const details = node("details", null, "extraction-node");
+        if (!anchorState.extractionsAssigned) {
+          details.setAttribute("id", "extractions");
+          details.setAttribute("tabindex", "-1");
+          anchorState.extractionsAssigned = true;
+        }
+        details.append(
+          node(
+            "summary",
+            `${item.id} · ${item.name} · ${
+              LABELS[item.dataType] || item.dataType
+            }`
+          )
+        );
+        const body = node("div", null, "extraction-body");
+        body.append(node("h3", "取证与判断指引", "guide-title"));
+        appendRows(body, [
+          ["肯定证据（expectedEvidence）", item.expectedEvidence],
+          ["反向证据（negativeEvidence）", item.negativeEvidence],
+          ["无法判断边界（unknownWhen）", item.unknownWhen],
+          ["优先材料位置（preferredSource）", item.preferredSource]
+        ]);
+        details.append(body);
+        return details;
+      };
+
+      const renderRule = (
+        logic,
+        ruleMap,
+        sourceDocuments,
+        anchorState
+      ) => {
+        const rule = ruleMap.get(logic.ruleId);
+        if (!rule) {
+          const missing = node("div", null, "error");
+          missing.append(
             node(
-              "span",
-              `${LABELS.rule} · ${displayValue(logic.ruleId)}`,
-              "badge"
-            )
+              "strong",
+              `${LABELS.rule} · ${displayValue(logic.ruleId)}`
+            ),
+            node("p", "引用的规则不存在")
           );
-          box.append(
+          return missing;
+        }
+
+        const details = node("details", null, "rule-node");
+        if (!anchorState.rulesAssigned) {
+          details.setAttribute("id", "rules");
+          details.setAttribute("tabindex", "-1");
+          anchorState.rulesAssigned = true;
+        }
+        details.append(
+          node("summary", `${rule.id} · ${rule.content}`)
+        );
+
+        const body = node("div", null, "rule-body");
+        body.append(node("blockquote", rule.sourceQuote));
+        if (!sourceQuoteIsLocated(rule, sourceDocuments)) {
+          body.append(
             node(
               "p",
-              rule ? rule.content : "引用的规则不存在",
-              rule ? null : "error"
+              "原文引用未能在来源材料中精确定位",
+              "weak-warning"
             )
           );
-          return box;
+        }
+        const extractionList = node("div", null, "extraction-list");
+        rule.extractionItems.forEach(item => {
+          extractionList.append(renderExtraction(item, anchorState));
+        });
+        body.append(extractionList);
+        details.append(body);
+        return details;
+      };
+
+      const renderLogicNode = (
+        logic,
+        ruleMap,
+        sourceDocuments,
+        anchorState
+      ) => {
+        if (logic.type === "rule") {
+          return renderRule(
+            logic,
+            ruleMap,
+            sourceDocuments,
+            anchorState
+          );
         }
         if (logic.type !== "group" || !Array.isArray(logic.children)) {
           throw new Error("无效的逻辑节点");
         }
-        box.append(
+        const group = node("div", null, "logic-group");
+        const operator = node("div", null, "logic-operator");
+        operator.append(
+          node("span", LABELS.group, "badge"),
           node(
             "span",
-            `${LABELS.group} · ${LABELS[logic.operator] || logic.operator}`,
-            "badge"
+            `${logic.operator} · ${
+              LABELS[logic.operator] || logic.operator
+            }`
           )
         );
-        const children = node("div", null, "card-grid");
+        group.append(operator);
+        const children = node("div", null, "logic-children");
         logic.children.forEach(child => {
-          children.append(renderLogic(child, ruleMap));
+          children.append(
+            renderLogicNode(
+              child,
+              ruleMap,
+              sourceDocuments,
+              anchorState
+            )
+          );
         });
-        box.append(children);
-        return box;
+        group.append(children);
+        return group;
+      };
+
+      const renderLogic = data => {
+        const root = byId("logic-content");
+        const intro = node("div", null, "card logic-intro");
+        intro.append(
+          node("h3", "本次标准整理初步结论"),
+          node(
+            "p",
+            displayValue(data.analysisRecord.preliminaryConclusion)
+          ),
+          node("p", "本次分析结果，不是政策原文")
+        );
+        root.append(intro);
+
+        const tree = node("div", null, "logic-tree");
+        const ruleMap = new Map(
+          data.rules.map(rule => [rule.id, rule])
+        );
+        const anchorState = {
+          rulesAssigned: false,
+          extractionsAssigned: false
+        };
+        tree.append(
+          renderLogicNode(
+            data.logic,
+            ruleMap,
+            data.sourceDocuments,
+            anchorState
+          )
+        );
+        root.append(tree);
       };
 
       const renderOverview = data => {
         const meta = data.meta;
+        const versionLabel = /^V\d{8}$/.test(meta.version)
+          ? "成果生成日期"
+          : "版本";
         byId("report-title").textContent =
           meta.diseaseName || "门诊慢特病认定标准";
         byId("report-description").textContent =
           meta.description || "未提供标准说明";
         appendRows(byId("overview-content"), [
           ["病种名称", meta.diseaseName],
-          ["病种编码", meta.diseaseCode],
-          ["版本", meta.version],
+          [
+            "病种编码",
+            meta.diseaseCode === "" ? "未提供编码" : meta.diseaseCode
+          ],
+          [versionLabel, meta.version],
           ["数据模式", data.mode]
         ]);
-      };
-
-      const renderRules = rules => {
-        const root = byId("rules-content");
-        const grid = node("div", null, "rule-grid");
-        rules.forEach(rule => {
-          const card = node("article", null, "rule-card");
-          card.append(
-            node("span", rule.id, "badge"),
-            node("h3", rule.content),
-            node("blockquote", rule.sourceQuote)
-          );
-          grid.append(card);
-        });
-        root.append(grid);
-      };
-
-      const renderExtractions = rules => {
-        const root = byId("extractions-content");
-        const grid = node("div", null, "extraction-grid");
-        rules.forEach(rule => {
-          rule.extractionItems.forEach(item => {
-            const card = node("article", null, "extraction-card");
-            card.append(
-              node("span", item.id, "badge"),
-              node("h3", item.name)
-            );
-            appendRows(card, [
-              ["所属规则", rule.id],
-              ["ID", item.id],
-              ["名称", item.name],
-              ["数据类型", LABELS[item.dataType] || item.dataType],
-              ["肯定证据", item.expectedEvidence],
-              ["反向证据", item.negativeEvidence],
-              ["无法判断边界", item.unknownWhen],
-              ["优先材料位置", item.preferredSource]
-            ]);
-            grid.append(card);
-          });
-        });
-        root.append(grid);
       };
 
       const renderAnalysis = analysisRecord => {
@@ -769,10 +908,7 @@
           throw new Error("未提供原始材料");
         }
         renderOverview(data);
-        const ruleMap = new Map(data.rules.map(rule => [rule.id, rule]));
-        byId("logic-content").append(renderLogic(data.logic, ruleMap));
-        renderRules(data.rules);
-        renderExtractions(data.rules);
+        renderLogic(data);
         renderAnalysis(data.analysisRecord);
         renderSources(data.sourceDocuments);
         renderConfirmation(data.confirmation);
@@ -792,8 +928,6 @@
         [
           "overview-content",
           "logic-content",
-          "rules-content",
-          "extractions-content",
           "analysis-content",
           "sources-content",
           "confirmation-content"

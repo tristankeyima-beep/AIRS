@@ -53,9 +53,6 @@ MODE1_RENDERER_TARGET_IDS = {
     "confirmation",
     "confirmation-content",
     "confirmation-title",
-    "extractions",
-    "extractions-content",
-    "extractions-title",
     "flash-data",
     "logic",
     "logic-content",
@@ -67,9 +64,6 @@ MODE1_RENDERER_TARGET_IDS = {
     "report-description",
     "report-error",
     "report-title",
-    "rules",
-    "rules-content",
-    "rules-title",
     "sources",
     "sources-content",
     "sources-title",
@@ -311,6 +305,7 @@ class Element {
     const stringValue = String(value);
     this.attributes.set(name, stringValue);
     if (name === "href") this.hash = stringValue;
+    if (name === "id") this.id = stringValue;
   }
   getAttribute(name) {
     return this.attributes.has(name) ? this.attributes.get(name) : null;
@@ -452,6 +447,25 @@ const collectText = element => element ? [
   element.textContent,
   ...element.children.flatMap(collectText)
 ].join(" ") : "";
+const descendantsWithClass = (element, className) => {
+  if (!element) return [];
+  return element.children.flatMap(child => [
+    ...(child.className.split(/\s+/).includes(className) ? [child] : []),
+    ...descendantsWithClass(child, className)
+  ]);
+};
+const directChild = (element, tagName) =>
+  element.children.find(child => child.tagName === tagName) || null;
+const serializeTree = element => element ? {
+  tag: element.tagName.toLowerCase(),
+  id: element.id,
+  className: element.className,
+  text: element.textContent,
+  children: element.children.map(serializeTree)
+} : null;
+const walk = element => element
+  ? [element, ...element.children.flatMap(walk)]
+  : [];
 const shell = templateModel.reportKind === "certification"
   ? elements.get("main")
   : elements.get("report-shell");
@@ -462,6 +476,21 @@ const summary = templateModel.reportKind === "certification"
   ? elements.get("overview-content")
   : elements.get("summary-content");
 const rules = elements.get("rules-content");
+const logicContent = elements.get("logic-content");
+const ruleNodes = descendantsWithClass(logicContent, "rule-node");
+const extractionNodes = descendantsWithClass(
+  logicContent,
+  "extraction-node"
+);
+const logicGroups = descendantsWithClass(logicContent, "logic-group");
+const logicChildren = descendantsWithClass(logicContent, "logic-children");
+const allElements = Array.from(new Set(
+  Array.from(elements.values()).flatMap(walk)
+));
+const idCounts = {};
+allElements.forEach(element => {
+  if (element.id) idCounts[element.id] = (idCounts[element.id] || 0) + 1;
+});
 const scopeHeading = elements.get("scope-heading");
 process.stdout.write(JSON.stringify({
   shellHidden: shell ? shell.hidden : null,
@@ -469,6 +498,46 @@ process.stdout.write(JSON.stringify({
   errorText: collectText(errorPanel),
   summaryChildCount: summary ? summary.children.length : null,
   rulesChildCount: rules ? rules.children.length : null,
+  ...(templateModel.reportKind === "certification" ? {
+    logicTreeShape: {
+      groupCount: logicGroups.length,
+      childrenCount: logicChildren.length,
+      ruleCount: ruleNodes.length,
+      extractionCount: extractionNodes.length,
+      rulesContainOwnExtractions: ruleNodes.map(rule =>
+        descendantsWithClass(rule, "extraction-node").length
+      ),
+      structure: serializeTree(logicContent)
+    },
+    ruleNodeCount: ruleNodes.length,
+    extractionNodeCount: extractionNodes.length,
+    ruleNodeTags: ruleNodes.map(rule => rule.tagName.toLowerCase()),
+    extractionNodeTags: extractionNodes.map(
+      item => item.tagName.toLowerCase()
+    ),
+    ruleSummaryTexts: ruleNodes.map(rule =>
+      collectText(directChild(rule, "SUMMARY"))
+    ),
+    extractionSummaryTexts: extractionNodes.map(item =>
+      collectText(directChild(item, "SUMMARY"))
+    ),
+    ruleExtractionSummaryTexts: ruleNodes.map(rule =>
+      descendantsWithClass(rule, "extraction-node").map(item =>
+        collectText(directChild(item, "SUMMARY"))
+      )
+    ),
+    warningCountsPerRule: ruleNodes.map(rule =>
+      descendantsWithClass(rule, "weak-warning").length
+    ),
+    logicText: collectText(logicContent),
+    overviewText: collectText(summary),
+    idCounts,
+    rulesTabIndex: allElements.find(element => element.id === "rules")
+      ?.getAttribute("tabindex") ?? null,
+    extractionsTabIndex: allElements.find(
+      element => element.id === "extractions"
+    )?.getAttribute("tabindex") ?? null
+  } : {}),
   focusId: document.activeElement ? document.activeElement.id : null,
   focusTabIndex: scopeHeading
     ? scopeHeading.getAttribute("tabindex")
@@ -2684,6 +2753,13 @@ class FlashCertificationTemplateTests(unittest.TestCase):
                 f'<a href="#{section_id}">{label}</a>',
                 self.template,
             )
+        for section_id in (
+            "overview",
+            "logic",
+            "analysis",
+            "sources",
+            "confirmation",
+        ):
             self.assertEqual(
                 1,
                 len(
@@ -2692,6 +2768,11 @@ class FlashCertificationTemplateTests(unittest.TestCase):
                         self.template,
                     )
                 ),
+            )
+        for nested_anchor in ("rules", "extractions"):
+            self.assertNotRegex(
+                self.template,
+                rf'<section\b[^>]*\bid="{nested_anchor}"[^>]*>',
             )
 
     def test_all_renderer_target_ids_exist_exactly_once(self):
@@ -2791,7 +2872,7 @@ class FlashCertificationTemplateTests(unittest.TestCase):
         self.assertFalse(state["shellHidden"])
         self.assertTrue(state["errorHidden"])
         self.assertGreater(state["summaryChildCount"], 0)
-        self.assertGreater(state["rulesChildCount"], 0)
+        self.assertGreater(state["ruleNodeCount"], 0)
 
     def test_node_vm_harness_fail_closes_delivery_gate_violations(self):
         fixture = json.loads(read(self.fixture_path))
