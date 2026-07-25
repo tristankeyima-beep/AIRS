@@ -141,8 +141,8 @@
     },
     {
       "name": "证据提取准确性",
-      "status": "issue",
-      "summary": "原审核未正确提取患者材料中的证据 A",
+      "status": "passed",
+      "summary": "复核能够从患者材料中准确定位证据 A",
       "notCheckedReason": ""
     },
     {

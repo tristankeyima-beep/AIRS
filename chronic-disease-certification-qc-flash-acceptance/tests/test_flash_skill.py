@@ -800,6 +800,10 @@ class Mode2FixtureContractTests(unittest.TestCase):
     def test_valid_mode2_fixture_has_canonical_contract(self):
         assert_valid_mode2(self, self.fixture)
         self.assertEqual(
+            ["issue", "passed", "passed", "issue", "passed"],
+            [dimension["status"] for dimension in self.fixture["dimensions"]],
+        )
+        self.assertEqual(
             [
                 {
                     "name": "患者材料",
