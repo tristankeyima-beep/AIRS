@@ -37,6 +37,7 @@ STANDARD_INSPECTOR_PATH = (
 )
 
 EXPECTED_GENERATED_FILE = "慢特病认定标准与审核质控-验收测试用例.html"
+REPOSITORY_OUTPUT = ROOT / EXPECTED_GENERATED_FILE
 EXPECTED_METADATA = {
     "catalogVersion": "2026.07.25.1",
     "title": "门诊慢特病认定标准与智能审核质控验收测试用例",
@@ -1609,8 +1610,25 @@ class AcceptanceCatalogTests(unittest.TestCase):
                 del value
                 raise OSError("private-write")
 
+        class FlushFailingHandle:
+            def __init__(self, descriptor, *args, **kwargs):
+                self._handle = real_fdopen(descriptor, *args, **kwargs)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return self._handle.__exit__(exc_type, exc_value, traceback)
+
+            def write(self, value):
+                return self._handle.write(value)
+
+            def flush(self):
+                raise OSError("private-flush")
+
         failure_patches = (
             ("write", mock.patch("os.fdopen", side_effect=WriteFailingHandle)),
+            ("flush", mock.patch("os.fdopen", side_effect=FlushFailingHandle)),
             ("fsync", mock.patch("os.fsync", side_effect=OSError("private-fsync"))),
             ("replace", mock.patch("os.replace", side_effect=OSError("private-replace"))),
         )
@@ -1628,6 +1646,7 @@ class AcceptanceCatalogTests(unittest.TestCase):
                         BUILDER_MODULE.write_text_atomically(destination, "new")
 
                 self.assertNotIn("private-", str(caught.exception))
+                self.assertEqual(str(caught.exception), "output_write_error")
                 self.assertEqual(destination.read_bytes(), original)
                 self.assertEqual(
                     stat.S_IMODE(destination.stat().st_mode),
@@ -1642,6 +1661,7 @@ class AcceptanceCatalogTests(unittest.TestCase):
         catalog = BUILDER_MODULE.load_catalog(CATALOG)
         rendered = BUILDER_MODULE.render_acceptance_html(catalog)
         destination = self.temp_path / "output.html"
+        cli_destination = self.temp_path / "cli-output.html"
 
         BUILDER_MODULE.write_text_atomically(
             destination,
@@ -1657,6 +1677,13 @@ class AcceptanceCatalogTests(unittest.TestCase):
         second = hashlib.sha256(destination.read_bytes()).hexdigest()
 
         self.assertEqual(first, second)
+        expected_bytes = destination.read_bytes()
+        self.assertEqual(REPOSITORY_OUTPUT.read_bytes(), expected_bytes)
+        cli_result = self.run_cli(CATALOG, output=cli_destination)
+        self.assertEqual(cli_result.returncode, 0, cli_result.stderr)
+        self.assertEqual(cli_result.stdout.strip(), "catalog_built")
+        self.assertEqual(cli_result.stderr, "")
+        self.assertEqual(cli_destination.read_bytes(), expected_bytes)
 
     def test_cli_success(self):
         output = self.temp_path / EXPECTED_GENERATED_FILE
