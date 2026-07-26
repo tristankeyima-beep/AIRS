@@ -1334,6 +1334,21 @@
         )) {
           throw new Error("问题严重程度无效");
         }
+        if (data.auditComparison.qcConclusion === "reliable") {
+          const hasActualIssue = (
+            data.dimensions.some(dimension => dimension.status === "issue")
+            || data.issues.length > 0
+          );
+          if (hasActualIssue) {
+            throw new Error(
+              "reliable 要求五维全 passed 且 issues 为空；"
+              + "当前存在实际问题，应改为 problematic"
+            );
+          }
+          if (data.auditComparison.risk !== "none") {
+            throw new Error("reliable 时 risk 必须为 none");
+          }
+        }
         const issueDimensionSet = new Set(
           data.dimensions
             .filter(dimension => dimension.status === "issue")

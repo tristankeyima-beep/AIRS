@@ -16,13 +16,17 @@
 `schemaVersion`、`mode`、`meta`、`inputProfile`、`sourceDocuments`、`analysisRecord`、`baseReview`、`auditComparison`、`dimensions`、`issues`、`recommendations`、`confirmation`。
 
 - `schemaVersion` 固定为 `flash-1.0`；`mode` 固定为 `qc`。
-- `meta` 字段恰好为 `reportTitle`、`diseaseName`、`generatedAt`，均为非空字符串。
+- `meta` 字段恰好为 `reportTitle`、`diseaseName`、`generatedAt`，均为非空字符串；病种填写规则详见下方“病种名与标题来源约束”。
 - `inputProfile` 字段恰好为 `standardKind`、`auditDetail`、`materialsConfirmedComplete`。`standardKind` 只能是 `structured`、`natural_language`、`absent`；`auditDetail` 只能是 `detailed`、`brief`、`conclusion_only`；正式成果中的完整性字段必须是布尔值 `true`。
 - `sourceDocuments` 是非空数组。一份输入材料对应 `sourceDocuments` 中的一条记录，不得合并材料或以摘要替代，`content` 保存该份材料的完整原文。每项字段恰好为 `name`、`type`、`content`，均为非空字符串；文档名不得重复；`type` 只能是 `patient_material`、`standard`、`audit_result`。每份报告必须包含至少一项 `patient_material` 和至少一项 `audit_result`；`structured`、`natural_language` 必须至少有一项 `standard`，`absent` 不得有 `standard`。不得删节或改写 `content`。
 - `analysisRecord` 字段恰好为 `inputSummary`、`interpretations`、`evidenceFindings`、`uncertainties`、`preliminaryConclusion`。前四项都是字符串数组，结论是非空字符串。
 - `recommendations` 是字符串数组，允许为空数组；数组中的字符串不得为空。
 
 所有下述对象同样不得出现额外字段。
+
+## 病种名与标题来源约束
+
+`meta.diseaseName` 与 `meta.reportTitle` 中的病种必须严格来自本轮输入所针对的病种，不得沿用上一轮模式 1、其他历史病种，也不得拼接“上轮病种+转+本轮病种”。单一审核对象以审核对象病种为准。填写后，所有病种名都必须能在本轮认定标准或患者材料中找到依据。
 
 ## `baseReview`
 
@@ -46,6 +50,16 @@
 - 仅当五个维度全部为 `passed` 且 `issues` 为空，才能使用 `reliable`；`reliable` 时 `risk` 必须为 `none`。
 - 存在任何实际问题时，必须使用 `problematic`；`problematic` 时必须至少有一个 `issue` 维度和对应问题记录。`problematic` 时允许 `risk=none`。`problematic`、`risk=none` 表示已确认存在局部问题，但没有已确认的错误通过或错误拒绝方向；适用于方向一致的局部问题（不改变通过/不通过方向），或方向不明确但无已确认方向性风险的局部问题。一旦已确认方向相反，不得使用 `risk=none`，必须使用对应的 `false_approval` 或 `false_rejection`；规则维护问题不得覆盖已确认的方向性风险。
 - 只有仅有 `not_checked` 且不存在实际问题时，才使用 `uncertain`、`risk=unknown`；`uncertain` 时 `risk` 必须为 `unknown`。任何实际问题的 `problematic` 优先级高于 `not_checked` 带来的不确定性。
+
+### qcConclusion 速查表
+
+| 五维与方向情况 | `qcConclusion` | `risk` |
+| --- | --- | --- |
+| 全 `passed` 且 `issues` 为空 | `reliable` | `none` |
+| 有 `issue`，方向一致或不明确 | `problematic` | `none` |
+| 原审核通过、独立复核不通过 | `problematic` | `false_approval` |
+| 原审核不通过、独立复核通过 | `problematic` | `false_rejection` |
+| 仅有 `not_checked` 且无实际问题 | `uncertain` | `unknown` |
 
 ## 五个质控维度
 

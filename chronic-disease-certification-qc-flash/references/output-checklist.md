@@ -37,6 +37,7 @@
 - [ ] 五个质控维度各出现一次。
 - [ ] `baseReview` 三部分在 `auditComparison` 之前形成，形成期间未读取任何 `audit_result`。
 - [ ] `standardKind=structured` 时，`ruleJudgments[].ruleId` 复用正式规则码并覆盖逻辑树全部规则；自然语言标准仍使用 `TMP-R001` 分支。
+- [ ] 病种来源：`meta.diseaseName`、`meta.reportTitle` 中的病种名均来自本轮输入，未沿用上一轮上下文。
 - [ ] 原审核引用的所有材料 ID 均已在患者材料名称或完整原文定位；未定位项已按证据提取问题记录，严重程度至少为 `medium`，且 ID 原样进入 `sourceReference`。
 - [ ] 每个问题都有证据、来源、影响和建议。
 - [ ] 无标准、简要结果或仅结论输入的受限检查标记为 `not_checked`。
@@ -49,4 +50,14 @@
 - [ ] 仅结论存在规则维护实际问题：方向相反时始终保留对应的 `false_approval` 或 `false_rejection`；仅在无已确认方向性风险时使用 `problematic + none`，并记录规则维护质量问题。
 - [ ] 仅结论且方向未知：第四维标为 `not_checked`，总体结论为 `uncertain`、风险为 `unknown`；只有此分支已由现有信息证实的局部规则维护问题可例外使用 `problematic + none`。
 - [ ] 仅结论且标准缺失（标准缺失且仅有原审核结论）：第四维和规则维护质量均标为 `not_checked`，总体结论为 `uncertain`、风险为 `unknown`。
+
+### 模式 2 结论语义自检（生成前必做）
+
+- [ ] 只有五维全 `passed` 且 `issues` 为空时，结论才是 `reliable`，并且 `risk=none`。
+- [ ] 任一维度为 `issue` 或 `issues` 非空时，结论必须为 `problematic`，不受方向一致影响。
+- [ ] `problematic` 且方向相反时，按原审核通过/独立复核不通过或原审核不通过/独立复核通过，分别使用对应的 `false_approval` 或 `false_rejection`。
+- [ ] 问题为局部问题且方向一致或方向不明确时，使用 `problematic + none`。
+- [ ] 只有 `not_checked` 且无实际问题时，才使用 `uncertain + unknown`。
+- [ ] 任何实际问题的 `problematic` 优先于 `not_checked` 带来的 `uncertain`。
+
 - [ ] 确认清单：`confirmation.inventoryShown` 必须与 `sourceDocuments[].name` 顺序和内容完全一致，且文档名不得重复。
