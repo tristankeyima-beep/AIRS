@@ -45,6 +45,18 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
         fixture["auditComparison"]["risk"] = "unknown"
         return fixture
 
+    def make_absent_conclusion_only_candidate(self):
+        fixture = self.make_conclusion_only_candidate(
+            original_conclusion="方向未明确",
+            preliminary_result="uncertain",
+        )
+        fixture["inputProfile"]["standardKind"] = "absent"
+        fixture["baseReview"]["ruleJudgments"] = []
+        for dimension in fixture["dimensions"][3:]:
+            dimension["status"] = "not_checked"
+            dimension["notCheckedReason"] = "缺少认定标准，无法核查"
+        return fixture
+
     def test_sources_is_section_03_in_navigation_and_body(self):
         nav = re.search(
             r'<nav\b[^>]*id="page-navigation"[^>]*>(.*?)</nav>',
@@ -502,6 +514,91 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
         invalid_candidates["absent standard fifth must be not checked"] = (
             absent_standard_checked
         )
+
+        for name, candidate in invalid_candidates.items():
+            with self.subTest(case=name):
+                state = run_qc_renderer(self.template_path, candidate)
+                self.assertTrue(state["shellHidden"])
+                self.assertIn(
+                    "风险方向与复核结论不一致",
+                    state["errorText"],
+                )
+
+    def test_absent_conclusion_only_is_strictly_uncertain_and_unchecked(self):
+        valid = self.make_absent_conclusion_only_candidate()
+        state = run_qc_renderer(self.template_path, valid)
+        self.assertFalse(state["shellHidden"], state["errorText"])
+
+        invalid_candidates = {}
+        for original, preliminary in (
+            ("通过", "meets"),
+            ("不通过", "does_not_meet"),
+        ):
+            same_direction = self.make_absent_conclusion_only_candidate()
+            same_direction["auditComparison"][
+                "originalConclusion"
+            ] = original
+            same_direction["baseReview"][
+                "preliminaryResult"
+            ] = preliminary
+            same_direction["dimensions"][3]["status"] = "passed"
+            same_direction["dimensions"][3]["notCheckedReason"] = ""
+            invalid_candidates[
+                f"same direction {preliminary} cannot be accepted"
+            ] = same_direction
+
+        with_rule_judgments = self.make_absent_conclusion_only_candidate()
+        with_rule_judgments["baseReview"]["ruleJudgments"] = json.loads(
+            json.dumps(
+                self.fixture["baseReview"]["ruleJudgments"],
+                ensure_ascii=False,
+            )
+        )
+        invalid_candidates[
+            "absent standard cannot have rule judgments"
+        ] = with_rule_judgments
+
+        fourth_passed = self.make_absent_conclusion_only_candidate()
+        fourth_passed["dimensions"][3]["status"] = "passed"
+        fourth_passed["dimensions"][3]["notCheckedReason"] = ""
+        invalid_candidates["fourth dimension cannot pass"] = fourth_passed
+
+        fourth_issue = self.make_absent_conclusion_only_candidate()
+        fourth_issue["dimensions"][3]["status"] = "issue"
+        fourth_issue["dimensions"][3]["notCheckedReason"] = ""
+        fourth_issue["issues"] = [
+            json.loads(json.dumps(self.fixture["issues"][1], ensure_ascii=False))
+        ]
+        fourth_issue["auditComparison"]["qcConclusion"] = "problematic"
+        fourth_issue["auditComparison"]["risk"] = "none"
+        invalid_candidates["fourth dimension cannot be issue"] = fourth_issue
+
+        fifth_passed = self.make_absent_conclusion_only_candidate()
+        fifth_passed["dimensions"][4]["status"] = "passed"
+        fifth_passed["dimensions"][4]["notCheckedReason"] = ""
+        invalid_candidates["fifth dimension cannot pass"] = fifth_passed
+
+        fifth_issue = self.make_absent_conclusion_only_candidate()
+        fifth_issue["dimensions"][4]["status"] = "issue"
+        fifth_issue["dimensions"][4]["notCheckedReason"] = ""
+        issue = json.loads(
+            json.dumps(self.fixture["issues"][1], ensure_ascii=False)
+        )
+        issue["dimension"] = "规则维护质量"
+        fifth_issue["issues"] = [issue]
+        fifth_issue["auditComparison"]["qcConclusion"] = "problematic"
+        fifth_issue["auditComparison"]["risk"] = "none"
+        invalid_candidates["fifth dimension cannot be issue"] = fifth_issue
+
+        problematic = self.make_absent_conclusion_only_candidate()
+        problematic["auditComparison"]["qcConclusion"] = "problematic"
+        problematic["auditComparison"]["risk"] = "none"
+        invalid_candidates["qc cannot be problematic"] = problematic
+
+        reliable = self.make_absent_conclusion_only_candidate()
+        reliable["auditComparison"]["qcConclusion"] = "reliable"
+        reliable["auditComparison"]["risk"] = "none"
+        invalid_candidates["qc cannot be reliable"] = reliable
 
         for name, candidate in invalid_candidates.items():
             with self.subTest(case=name):

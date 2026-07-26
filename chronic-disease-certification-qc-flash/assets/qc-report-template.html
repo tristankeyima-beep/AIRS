@@ -1063,18 +1063,29 @@
           const ruleDimension = data.dimensions.find(
             dimension => dimension.name === "规则维护质量"
           );
+          if (data.inputProfile.standardKind === "absent") {
+            return (
+              processDimensionsAreUnchecked
+              && independent === "uncertain"
+              && data.baseReview.ruleJudgments.length === 0
+              && conditionDimension
+              && conditionDimension.status === "not_checked"
+              && ruleDimension
+              && ruleDimension.status === "not_checked"
+              && !hasDimensionIssue
+              && !hasIssueRecords
+              && comparison.qcConclusion === "uncertain"
+              && comparison.risk === "unknown"
+            );
+          }
           const expectedConditionStatus = directionOpposite
             ? "issue"
             : (directionKnown ? "passed" : "not_checked");
           const ruleStatusIsValid = (
             ruleDimension
             && (
-              data.inputProfile.standardKind === "absent"
-                ? ruleDimension.status === "not_checked"
-                : (
-                  ruleDimension.status === "passed"
-                  || ruleDimension.status === "issue"
-                )
+              ruleDimension.status === "passed"
+              || ruleDimension.status === "issue"
             )
           );
           if (
