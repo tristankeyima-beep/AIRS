@@ -89,19 +89,24 @@
   },
   "sourceDocuments": [
     {
-      "name": "患者材料",
+      "name": "患者材料-2079388752224174082",
       "type": "patient_material",
-      "content": "患者材料明确记载证据 A。"
+      "content": "材料ID2079388752224174082原文：患者材料明确记载证据 A。"
+    },
+    {
+      "name": "患者补充材料-2079388752224174083",
+      "type": "patient_material",
+      "content": "材料ID2079388752224174083原文：患者补充材料明确记载证据 B。"
     },
     {
       "name": "认定标准",
       "type": "standard",
-      "content": "认定标准要求满足证据 A。"
+      "content": "正式规则码1001：要求满足证据 A；逻辑引用1001。"
     },
     {
       "name": "原审核结果",
       "type": "audit_result",
-      "content": "原审核认定证据 A 缺失，结论为不通过。"
+      "content": "finalResult=不通过；ruleResults：1001 不通过；1001_01: 原审核认定证据 A 缺失，引用材料ID2079388752224174082；advice：重新核验材料后复核结论。"
     }
   ],
   "analysisRecord": {
@@ -124,7 +129,7 @@
     ],
     "ruleJudgments": [
       {
-        "ruleId": "R001",
+        "ruleId": "1001",
         "result": "met",
         "evidence": [
           "患者材料：证据 A"
@@ -179,7 +184,7 @@
       "severity": "high",
       "auditClaim": "原审核主张证据 A 缺失",
       "actualEvidence": "患者材料明确记载证据 A",
-      "sourceReference": "患者材料：测试段落",
+      "sourceReference": "患者材料-2079388752224174082：测试段落",
       "impact": "可能导致符合条件的申请被错误拒绝",
       "recommendation": "重新提取证据 A 并复核审核结论"
     },
@@ -189,7 +194,7 @@
       "severity": "high",
       "auditClaim": "原审核以证据 A 缺失为由给出不通过结论",
       "actualEvidence": "患者材料中的证据 A 满足认定标准要求",
-      "sourceReference": "患者材料：测试段落；认定标准：测试条款",
+      "sourceReference": "患者材料-2079388752224174082：测试段落；认定标准：测试条款",
       "impact": "可能导致审核条件判断与最终结论不一致并造成错误拒绝",
       "recommendation": "根据证据 A 已满足的事实重新判定审核条件并修正结论"
     }
@@ -201,7 +206,8 @@
   "confirmation": {
     "confirmed": true,
     "inventoryShown": [
-      "患者材料",
+      "患者材料-2079388752224174082",
+      "患者补充材料-2079388752224174083",
       "认定标准",
       "原审核结果"
     ],

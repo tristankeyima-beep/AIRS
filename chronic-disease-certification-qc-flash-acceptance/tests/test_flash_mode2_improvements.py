@@ -25,6 +25,14 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
             )
         )
 
+    def audit_result_source(self, fixture=None):
+        candidate = self.fixture if fixture is None else fixture
+        return next(
+            source
+            for source in candidate["sourceDocuments"]
+            if source["type"] == "audit_result"
+        )
+
     def make_conclusion_only_candidate(
         self,
         original_conclusion="通过",
@@ -185,7 +193,7 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
             },
             ensure_ascii=False,
         )
-        self.fixture["sourceDocuments"][2]["content"] = raw
+        self.audit_result_source()["content"] = raw
         state = run_qc_renderer(self.template_path, self.fixture)
         self.assertIn("结构化摘要", state["sourcesText"])
         self.assertIn("查看完整原文", state["sourcesText"])
@@ -200,7 +208,7 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
             "advice: 请补充\n"
             "rawText: 引用原文逐字内容"
         )
-        self.fixture["sourceDocuments"][2]["content"] = raw
+        self.audit_result_source()["content"] = raw
         state = run_qc_renderer(self.template_path, self.fixture)
         self.assertIn("结构化摘要", state["sourcesText"])
         self.assertIn("最终结论", state["sourcesText"])
@@ -218,7 +226,7 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
             "1001_02: value=否；"
             "advice：复核"
         )
-        self.fixture["sourceDocuments"][2]["content"] = raw
+        self.audit_result_source()["content"] = raw
         state = run_qc_renderer(self.template_path, self.fixture)
         self.assertFalse(state["shellHidden"], state["errorText"])
         self.assertIn("结构化摘要", state["sourcesText"])
@@ -233,8 +241,8 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
         )
 
     def test_ambiguous_plain_audit_result_falls_back_locally(self):
-        raw = "finalResult: 只有一个明确标签，其余自由叙述不作医学推断"
-        self.fixture["sourceDocuments"][2]["content"] = raw
+        raw = "原审核仅有自由叙述，未提供可识别的结论、规则结果或建议标签。"
+        self.audit_result_source()["content"] = raw
         state = run_qc_renderer(self.template_path, self.fixture)
         self.assertFalse(state["shellHidden"], state["errorText"])
         self.assertIn(
@@ -255,7 +263,7 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
         ):
             with self.subTest(size=len(raw)):
                 fixture = json.loads(json.dumps(self.fixture, ensure_ascii=False))
-                fixture["sourceDocuments"][2]["content"] = raw
+                self.audit_result_source(fixture)["content"] = raw
                 state = run_qc_renderer(self.template_path, fixture)
                 self.assertFalse(state["shellHidden"], state["errorText"])
                 self.assertIn(
@@ -269,7 +277,7 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
         for index in range(8):
             boundary = {f"level{index}": boundary}
         raw = json.dumps(boundary, ensure_ascii=False)
-        self.fixture["sourceDocuments"][2]["content"] = raw
+        self.audit_result_source()["content"] = raw
         state = run_qc_renderer(self.template_path, self.fixture)
         self.assertFalse(state["shellHidden"], state["errorText"])
         self.assertIn("结构化摘要", state["sourcesText"])
@@ -282,7 +290,7 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
 
     def test_audit_json_over_character_limit_skips_structuring_and_keeps_raw(self):
         raw = json.dumps("甲" * 200001, ensure_ascii=False)
-        self.fixture["sourceDocuments"][2]["content"] = raw
+        self.audit_result_source()["content"] = raw
         state = run_qc_renderer(self.template_path, self.fixture)
         self.assertFalse(state["shellHidden"], state["errorText"])
         self.assertIn("内容较多，请查看完整原文", state["sourcesText"])
@@ -311,7 +319,12 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
         self.fixture["issues"][0]["sourceReference"] = "引用材料 12345678"
         self.fixture["issues"][1]["sourceReference"] = "引用材料 87654321"
         state = run_qc_renderer(self.template_path, self.fixture)
-        self.assertEqual(["source-1", "source-2", "source-3"], state["sourceIds"])
+        expected_source_ids = [
+            f"source-{index}"
+            for index in range(1, len(self.fixture["sourceDocuments"]) + 1)
+        ]
+        self.assertEqual(expected_source_ids, state["sourceIds"])
+        self.assertEqual(len(state["sourceIds"]), len(set(state["sourceIds"])))
         self.assertIn("#source-1", state["issueLinkTargets"])
         self.assertIn(
             "引用材料未在本报告材料清单中",

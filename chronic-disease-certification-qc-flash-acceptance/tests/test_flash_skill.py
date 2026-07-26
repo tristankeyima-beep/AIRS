@@ -42,10 +42,14 @@ MODE2_DIMENSIONS = [
     "审核条件与结论一致性",
     "规则维护质量",
 ]
-MODE2_KNOWN_CONCLUSION_RESULTS = {
-    "通过": "meets",
-    "不通过": "does_not_meet",
-}
+MODE2_REJECTION_MARKERS = (
+    "未予通过",
+    "不能通过",
+    "不予通过",
+    "未通过",
+    "不通过",
+    "拒绝",
+)
 MODE1_RENDERER_TARGET_IDS = {
     "analysis",
     "analysis-content",
@@ -854,6 +858,15 @@ def assert_string_array(test_case, value, path, allow_empty=True):
         assert_nonempty_string(test_case, item, f"{path}[{index}]")
 
 
+def normalize_mode2_conclusion_direction(conclusion):
+    normalized = re.sub(r"\s+", "", conclusion)
+    if any(marker in normalized for marker in MODE2_REJECTION_MARKERS):
+        return "does_not_meet"
+    if "通过" in normalized:
+        return "meets"
+    return None
+
+
 def assert_valid_mode2(test_case, fixture):
     test_case.assertIsInstance(fixture, dict)
     test_case.assertEqual(MODE2_REQUIRED_KEYS, set(fixture))
@@ -1116,17 +1129,91 @@ def assert_valid_mode2(test_case, fixture):
         "issue dimensions and issue records must cover the same dimensions",
     )
 
+    patient_source_text = "\n".join(
+        f"{source['name']}\n{source['content']}"
+        for source in sources
+        if source["type"] == "patient_material"
+    )
+    audit_material_ids = {
+        material_id
+        for source in sources
+        if source["type"] == "audit_result"
+        for material_id in re.findall(r"\d{8,}", source["content"])
+    }
+    for material_id in audit_material_ids:
+        if material_id in patient_source_text:
+            continue
+        qualified_issues = [
+            issue
+            for issue in issues
+            if issue["dimension"] == "证据提取准确性"
+            and issue["severity"] in {"medium", "high"}
+            and material_id in issue["sourceReference"]
+        ]
+        test_case.assertTrue(
+            qualified_issues,
+            (
+                f"audit material ID {material_id} must resolve to patient "
+                "material or a medium/high evidence-extraction issue"
+            ),
+        )
+
     qc_conclusion = comparison["qcConclusion"]
     risk = comparison["risk"]
-    if qc_conclusion == "reliable":
-        test_case.assertFalse(issue_status_dimensions)
-        test_case.assertEqual([], issues)
-        test_case.assertEqual("none", risk)
-    elif qc_conclusion == "problematic":
-        test_case.assertTrue(issue_status_dimensions)
-        test_case.assertTrue(issues)
+    has_issues = bool(issue_status_dimensions)
+    has_not_checked = any(
+        dimension["status"] == "not_checked"
+        for dimension in dimensions
+    )
+    original_result = normalize_mode2_conclusion_direction(
+        comparison["originalConclusion"]
+    )
+    preliminary_result = base_review["preliminaryResult"]
+    condition_status = dimension_statuses["审核条件与结论一致性"]
+    directional_mismatch = (
+        original_result is not None
+        and preliminary_result in {"meets", "does_not_meet"}
+        and original_result != preliminary_result
+    )
+    directional_match = (
+        original_result is not None
+        and preliminary_result in {"meets", "does_not_meet"}
+        and original_result == preliminary_result
+    )
+
+    if directional_mismatch:
+        test_case.assertEqual("issue", condition_status)
+        test_case.assertEqual("problematic", qc_conclusion)
+        expected_risk = (
+            "false_rejection"
+            if original_result == "does_not_meet"
+            else "false_approval"
+        )
+        test_case.assertEqual(expected_risk, risk)
+    elif directional_match:
+        test_case.assertEqual("passed", condition_status)
     else:
+        test_case.assertEqual("not_checked", condition_status)
+
+    if has_issues:
+        test_case.assertEqual("problematic", qc_conclusion)
+        test_case.assertTrue(issues)
+        if not directional_mismatch:
+            test_case.assertEqual("none", risk)
+    elif has_not_checked:
+        test_case.assertEqual("uncertain", qc_conclusion)
         test_case.assertEqual("unknown", risk)
+    else:
+        test_case.assertEqual(
+            {"passed"},
+            set(dimension_statuses.values()),
+        )
+        test_case.assertTrue(
+            directional_match,
+            "reliable requires a known aligned audit direction",
+        )
+        test_case.assertEqual("reliable", qc_conclusion)
+        test_case.assertEqual("none", risk)
 
     assert_string_array(
         test_case,
@@ -1162,6 +1249,7 @@ def assert_valid_mode2(test_case, fixture):
         test_case.assertEqual("uncertain", base_review["preliminaryResult"])
         rule_dimension = dimensions[MODE2_DIMENSIONS.index("规则维护质量")]
         test_case.assertEqual("not_checked", rule_dimension["status"])
+        test_case.assertNotEqual("reliable", qc_conclusion)
 
     if profile["standardKind"] == "natural_language":
         test_case.assertEqual(
@@ -1190,10 +1278,6 @@ def assert_valid_mode2(test_case, fixture):
             test_case.assertEqual("unknown", risk)
         else:
             test_case.assertNotEqual("not_checked", rule_dimension["status"])
-            original_result = MODE2_KNOWN_CONCLUSION_RESULTS.get(
-                comparison["originalConclusion"]
-            )
-            preliminary_result = base_review["preliminaryResult"]
             rule_issue = rule_dimension["status"] == "issue"
             if (
                 original_result is None
@@ -1211,8 +1295,12 @@ def assert_valid_mode2(test_case, fixture):
                     test_case.assertEqual("unknown", risk)
             elif preliminary_result == original_result:
                 test_case.assertEqual("passed", condition_dimension["status"])
-                test_case.assertEqual("uncertain", qc_conclusion)
-                test_case.assertEqual("unknown", risk)
+                if rule_issue:
+                    test_case.assertEqual("problematic", qc_conclusion)
+                    test_case.assertEqual("none", risk)
+                else:
+                    test_case.assertEqual("uncertain", qc_conclusion)
+                    test_case.assertEqual("unknown", risk)
             else:
                 test_case.assertEqual("issue", condition_dimension["status"])
                 test_case.assertEqual("problematic", qc_conclusion)
@@ -1562,22 +1650,48 @@ class Mode2FixtureContractTests(unittest.TestCase):
         self.assertEqual(
             [
                 {
-                    "name": "患者材料",
+                    "name": "患者材料-2079388752224174082",
                     "type": "patient_material",
-                    "content": "患者材料明确记载证据 A。",
+                    "content": (
+                        "材料ID2079388752224174082原文："
+                        "患者材料明确记载证据 A。"
+                    ),
+                },
+                {
+                    "name": "患者补充材料-2079388752224174083",
+                    "type": "patient_material",
+                    "content": (
+                        "材料ID2079388752224174083原文："
+                        "患者补充材料明确记载证据 B。"
+                    ),
                 },
                 {
                     "name": "认定标准",
                     "type": "standard",
-                    "content": "认定标准要求满足证据 A。",
+                    "content": (
+                        "正式规则码1001：要求满足证据 A；"
+                        "逻辑引用1001。"
+                    ),
                 },
                 {
                     "name": "原审核结果",
                     "type": "audit_result",
-                    "content": "原审核认定证据 A 缺失，结论为不通过。",
+                    "content": (
+                        "finalResult=不通过；ruleResults：1001 不通过；"
+                        "1001_01: 原审核认定证据 A 缺失，"
+                        "引用材料ID2079388752224174082；"
+                        "advice：重新核验材料后复核结论。"
+                    ),
                 },
             ],
             self.fixture["sourceDocuments"],
+        )
+        self.assertEqual(
+            ["1001"],
+            [
+                judgment["ruleId"]
+                for judgment in self.fixture["baseReview"]["ruleJudgments"]
+            ],
         )
         source_names = [
             source["name"] for source in self.fixture["sourceDocuments"]
@@ -1873,7 +1987,7 @@ class Mode2FixtureContractTests(unittest.TestCase):
                 "患者材料未记载证据 A"
             ]
             fixture["baseReview"]["ruleJudgments"][0] = {
-                "ruleId": "R001",
+                "ruleId": "1001",
                 "result": "not_met",
                 "evidence": ["患者材料：未记载证据 A"],
                 "reason": "材料中缺少标准要求的证据 A",
@@ -2155,15 +2269,17 @@ class Mode2FixtureContractTests(unittest.TestCase):
                 "recommendation": "统一规则编号格式",
             }
         ]
-        return fixture
-
-    def test_direction_consistent_rule_issue_remains_uncertain(self):
-        assert_valid_mode2(self, self.direction_consistent_rule_issue_fixture())
-
-    def test_rejects_problematic_none_for_direction_consistent_rule_issue(self):
-        fixture = self.direction_consistent_rule_issue_fixture()
         fixture["auditComparison"]["qcConclusion"] = "problematic"
         fixture["auditComparison"]["risk"] = "none"
+        return fixture
+
+    def test_accepts_direction_consistent_rule_issue_as_problematic_none(self):
+        assert_valid_mode2(self, self.direction_consistent_rule_issue_fixture())
+
+    def test_rejects_uncertain_unknown_when_an_actual_issue_exists(self):
+        fixture = self.direction_consistent_rule_issue_fixture()
+        fixture["auditComparison"]["qcConclusion"] = "uncertain"
+        fixture["auditComparison"]["risk"] = "unknown"
 
         with self.assertRaises(AssertionError):
             assert_valid_mode2(self, fixture)
@@ -2320,6 +2436,19 @@ class Mode2FixtureContractTests(unittest.TestCase):
         fixture["auditComparison"]["summary"] = (
             "自然语言标准的关键含义不明确，无法确定原审核是否可靠"
         )
+        fixture["baseReview"]["preliminaryResult"] = "uncertain"
+        fixture["issues"] = []
+        for dimension in fixture["dimensions"]:
+            dimension["status"] = "passed"
+            dimension["summary"] = "本维度未发现实际问题"
+            dimension["notCheckedReason"] = ""
+        fixture["dimensions"][3]["status"] = "not_checked"
+        fixture["dimensions"][3]["summary"] = (
+            "独立复核方向不确定，无法比较结论一致性"
+        )
+        fixture["dimensions"][3]["notCheckedReason"] = (
+            "自然语言标准存在影响结论的歧义"
+        )
         return fixture
 
     def test_accepts_natural_language_conclusion_ambiguity_degradation(self):
@@ -2364,7 +2493,7 @@ class Mode2FixtureContractTests(unittest.TestCase):
         )
         fixture["baseReview"]["materialFacts"] = ["患者材料未记载证据 A"]
         fixture["baseReview"]["ruleJudgments"][0] = {
-            "ruleId": "R001",
+            "ruleId": "1001",
             "result": "not_met",
             "evidence": ["患者材料：未记载证据 A"],
             "reason": "材料中缺少标准要求的证据 A",
@@ -2499,7 +2628,7 @@ class Mode2FixtureContractTests(unittest.TestCase):
         )
         absent["baseReview"]["ruleJudgments"] = []
         absent["baseReview"]["preliminaryResult"] = "uncertain"
-        absent["auditComparison"]["risk"] = "unknown"
+        absent["auditComparison"]["risk"] = "none"
         absent["auditComparison"]["summary"] = (
             "材料缺失主张与患者材料不符，但无标准时无法判断独立资格"
         )
@@ -2531,7 +2660,7 @@ class Mode2FixtureContractTests(unittest.TestCase):
         with_judgment = copy.deepcopy(absent)
         with_judgment["baseReview"]["ruleJudgments"] = [
             {
-                "ruleId": "R001",
+                "ruleId": "1001",
                 "result": "met",
                 "evidence": ["证据 A"],
                 "reason": "错误地执行了规则判断",
