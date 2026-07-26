@@ -291,6 +291,135 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
         )
         self.assertIn(raw, state["sourcePreTexts"])
 
+    def test_real_plain_audit_rule_blocks_keep_nested_extraction_values(self):
+        raw = (
+            "finalResult=不通过。"
+            "ruleResults：1001 不通过（"
+            "1001_01 found=true value=已确诊，"
+            "引用材料2079388752224174082；"
+            "1001_02 found=true value=否，"
+            "引用材料2079388752224174085，"
+            "rawText“出院情况: 目前患者神志清楚；"
+            "言语清晰流利”，标注为“住院病历-5”"
+            "）；"
+            "1002 不通过（"
+            "1002_01 value=否，"
+            "引用2079388752224174084/2079388752224174083/"
+            "2079388752215785472；"
+            "1002_02 value=否，"
+            "引用2079388752224174083/2079388752224174084"
+            "）。"
+            "advice：出院时神志清楚、言语清晰无遗留神经症状，"
+            "不符合“仍需继续治疗”；"
+            "影像未提示急性梗死灶或血管中重度狭窄。"
+        )
+        self.audit_result_source()["content"] = raw
+        state = run_qc_renderer(self.template_path, self.fixture)
+        self.assertFalse(state["shellHidden"], state["errorText"])
+        self.assertEqual(2, state["auditRuleNodeCount"])
+        self.assertEqual(
+            ["规则 1001｜不通过", "规则 1002｜不通过"],
+            state["auditRuleSummaryTexts"],
+        )
+        self.assertEqual([2, 2], state["auditRuleExtractionCounts"])
+        self.assertEqual(
+            [
+                "提取项 1001_01",
+                "提取项 1001_02",
+                "提取项 1002_01",
+                "提取项 1002_02",
+            ],
+            state["auditExtractionSummaryTexts"],
+        )
+        self.assertEqual(
+            [
+                "found=true value=已确诊，"
+                "引用材料2079388752224174082",
+                "found=true value=否，"
+                "引用材料2079388752224174085，"
+                "rawText“出院情况: 目前患者神志清楚；"
+                "言语清晰流利”，标注为“住院病历-5”",
+                "value=否，"
+                "引用2079388752224174084/2079388752224174083/"
+                "2079388752215785472",
+                "value=否，"
+                "引用2079388752224174083/2079388752224174084",
+            ],
+            state["auditExtractionBodyTexts"],
+        )
+        summaries = " ".join(
+            state["auditRuleSummaryTexts"]
+            + state["auditExtractionSummaryTexts"]
+        )
+        self.assertNotIn("2079388752224174082", summaries)
+        self.assertIn(
+            "影像未提示急性梗死灶或血管中重度狭窄。",
+            state["sourcesText"],
+        )
+        self.assertIn(raw, state["sourcePreTexts"])
+        self.assertNotIn(
+            "原审核结果无法自动结构化，以下按原文展示",
+            state["sourcesText"],
+        )
+
+    def test_plain_audit_tokenizer_declares_rule_and_extraction_budgets(self):
+        self.assertRegex(
+            self.template,
+            r"const MAX_PLAIN_AUDIT_RULES = \d+;",
+        )
+        self.assertRegex(
+            self.template,
+            r"const MAX_PLAIN_AUDIT_EXTRACTIONS = \d+;",
+        )
+        self.assertIn("MAX_STRUCTURED_SOURCE_CHARS", self.template)
+
+    def test_plain_audit_tokenizer_falls_back_when_unbalanced_or_over_budget(self):
+        rule_limit = int(re.search(
+            r"const MAX_PLAIN_AUDIT_RULES = (\d+);",
+            self.template,
+        ).group(1))
+        extraction_limit = int(re.search(
+            r"const MAX_PLAIN_AUDIT_EXTRACTIONS = (\d+);",
+            self.template,
+        ).group(1))
+        too_many_rules = "；".join(
+            f"{1000 + index} 通过"
+            for index in range(rule_limit + 1)
+        )
+        too_many_extractions = "；".join(
+            f"1001_{index} value=否"
+            for index in range(1, extraction_limit + 2)
+        )
+        candidates = (
+            (
+                "finalResult=不通过。"
+                "ruleResults：1001 不通过（"
+                "1001_01 value=否；"
+                "advice：括号不完整"
+            ),
+            (
+                "finalResult=通过；"
+                f"ruleResults：{too_many_rules}；"
+                "advice：超出规则预算"
+            ),
+            (
+                "finalResult=不通过；"
+                f"ruleResults：1001 不通过（{too_many_extractions}）；"
+                "advice：超出提取项预算"
+            ),
+        )
+        for raw in candidates:
+            with self.subTest(length=len(raw)):
+                fixture = json.loads(
+                    json.dumps(self.fixture, ensure_ascii=False)
+                )
+                self.audit_result_source(fixture)["content"] = raw
+                state = run_qc_renderer(self.template_path, fixture)
+                self.assertFalse(state["shellHidden"], state["errorText"])
+                self.assertEqual(0, state["auditRuleNodeCount"])
+                self.assertIn("按原文", state["sourcesText"])
+                self.assertIn(raw, state["sourcePreTexts"])
+
     def test_plain_audit_result_does_not_treat_long_material_id_as_rule(self):
         raw = (
             "finalResult=不通过；"

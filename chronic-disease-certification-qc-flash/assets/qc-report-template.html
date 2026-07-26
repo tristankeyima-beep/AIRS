@@ -1001,6 +1001,9 @@
       const MAX_STRUCTURED_SOURCE_CHARS = 200000;
       const MAX_STRUCTURED_DEPTH = 8;
       const MAX_STRUCTURED_NODES = 500;
+      const MAX_PLAIN_AUDIT_TOKENS = 1000;
+      const MAX_PLAIN_AUDIT_RULES = 100;
+      const MAX_PLAIN_AUDIT_EXTRACTIONS = 400;
 
       const byId = id => document.getElementById(id);
       const text = value => value === undefined || value === null || value === ""
@@ -1652,10 +1655,112 @@
         parent.appendChild(list);
       };
 
+      const plainAuditQuotePairs = {
+        "\"": "\"",
+        "'": "'",
+        "“": "”",
+        "‘": "’"
+      };
+      const plainAuditClosingQuotes = new Set(["”", "’"]);
+      const plainAuditParenPairs = {
+        "(": ")",
+        "（": "）"
+      };
+      const plainAuditClosingParens = new Set([")", "）"]);
+
+      const isEscapedPlainAuditChar = (value, index) => {
+        let backslashes = 0;
+        for (
+          let cursor = index - 1;
+          cursor >= 0 && value[cursor] === "\\";
+          cursor -= 1
+        ) {
+          backslashes += 1;
+        }
+        return backslashes % 2 === 1;
+      };
+
+      const scanPlainAudit = (value, visitTopLevel) => {
+        const parenStack = [];
+        let closingQuote = null;
+        for (let index = 0; index < value.length; index += 1) {
+          const character = value[index];
+          if (!closingQuote && parenStack.length === 0) {
+            visitTopLevel(index, character);
+          }
+          if (closingQuote) {
+            if (
+              character === closingQuote
+              && !isEscapedPlainAuditChar(value, index)
+            ) {
+              closingQuote = null;
+            }
+            continue;
+          }
+          if (
+            Object.prototype.hasOwnProperty.call(
+              plainAuditQuotePairs,
+              character
+            )
+            && !isEscapedPlainAuditChar(value, index)
+          ) {
+            closingQuote = plainAuditQuotePairs[character];
+            continue;
+          }
+          if (plainAuditClosingQuotes.has(character)) return false;
+          if (
+            Object.prototype.hasOwnProperty.call(
+              plainAuditParenPairs,
+              character
+            )
+          ) {
+            parenStack.push(plainAuditParenPairs[character]);
+            continue;
+          }
+          if (plainAuditClosingParens.has(character)) {
+            if (parenStack.pop() !== character) return false;
+          }
+        }
+        return closingQuote === null && parenStack.length === 0;
+      };
+
+      const splitPlainAuditTopLevel = (value, separators) => {
+        const boundaries = [];
+        const balanced = scanPlainAudit(value, (index, character) => {
+          if (separators.has(character)) boundaries.push(index);
+        });
+        if (
+          !balanced
+          || boundaries.length > MAX_PLAIN_AUDIT_TOKENS
+        ) {
+          return null;
+        }
+        const fragments = [];
+        let start = 0;
+        boundaries.forEach(boundary => {
+          const fragment = value.slice(start, boundary).trim();
+          if (fragment) fragments.push(fragment);
+          start = boundary + 1;
+        });
+        const tail = value.slice(start).trim();
+        if (tail) fragments.push(tail);
+        return fragments;
+      };
+
       const explicitAuditSegments = content => {
-        const marker = /(?:^|[\n;；])\s*(finalResult|最终结论|ruleResults|逐规则审核结果|advice|审核建议|rawText|引用原文)\s*[:：=]\s*/g;
-        const matches = Array.from(content.matchAll(marker));
-        if (matches.length < 2) return null;
+        const fieldSeparators = new Set([
+          "\n", "\r", ";", "；", ".", "。"
+        ]);
+        const boundaries = [-1];
+        const balanced = scanPlainAudit(content, (index, character) => {
+          if (fieldSeparators.has(character)) boundaries.push(index);
+        });
+        if (
+          !balanced
+          || boundaries.length > MAX_PLAIN_AUDIT_TOKENS
+        ) {
+          return null;
+        }
         const labelMap = {
           finalResult: "最终结论",
           最终结论: "最终结论",
@@ -1666,11 +1771,34 @@
           rawText: "引用原文",
           引用原文: "引用原文"
         };
+        const fieldPattern = /^(finalResult|最终结论|ruleResults|逐规则审核结果|advice|审核建议|rawText|引用原文)\s*[:：=]\s*/;
+        const matches = [];
+        boundaries.forEach(boundary => {
+          let markerStart = boundary + 1;
+          while (
+            markerStart < content.length
+            && /\s/.test(content[markerStart])
+          ) {
+            markerStart += 1;
+          }
+          const match = content
+            .slice(markerStart, markerStart + 64)
+            .match(fieldPattern);
+          if (!match) return;
+          matches.push({
+            boundary,
+            label: labelMap[match[1]],
+            valueStart: markerStart + match[0].length
+          });
+        });
+        if (matches.length < 2) return null;
         return matches.map((match, index) => ({
-          label: labelMap[match[1]],
+          label: match.label,
           value: content.slice(
-            match.index + match[0].length,
-            index + 1 < matches.length ? matches[index + 1].index : content.length
+            match.valueStart,
+            index + 1 < matches.length
+              ? matches[index + 1].boundary
+              : content.length
           ).trim()
         }));
       };
@@ -1680,46 +1808,99 @@
         const rulePattern = new RegExp(
           `^(${ruleCode})\\s+(不通过|通过)\\s*[。.]?$`
         );
-        const extractionPattern = new RegExp(
-          `^(?:提取项\\s*)?(${ruleCode}_[0-9]{1,3})\\s*[:：=]\\s*(\\S[\\s\\S]*)$`
+        const ruleBlockPattern = new RegExp(
+          `^(${ruleCode})\\s+(不通过|通过)\\s*([（(])`
         );
-        const fragments = value
-          .split(/[\n;；]+/)
-          .map(fragment => fragment.trim())
-          .filter(Boolean);
-        if (!fragments.length) return null;
+        const extractionPattern = new RegExp(
+          `^(?:提取项\\s*)?(${ruleCode}_[0-9]{1,3})(?:\\s*[:：=]\\s*|\\s+)(\\S[\\s\\S]*)$`
+        );
+        const fragments = splitPlainAuditTopLevel(
+          value,
+          new Set(["\n", "\r", ";", "；"])
+        );
+        if (!fragments || !fragments.length) return null;
 
         const rules = [];
         const rulesById = new Map();
         const extractionIds = new Set();
-        for (const fragment of fragments) {
-          const ruleMatch = fragment.match(rulePattern);
-          if (ruleMatch) {
-            if (rulesById.has(ruleMatch[1])) return null;
-            const rule = {
-              id: ruleMatch[1],
-              result: ruleMatch[2],
-              extractions: []
-            };
-            rules.push(rule);
-            rulesById.set(rule.id, rule);
-            continue;
-          }
+        let extractionCount = 0;
 
+        const addRule = (id, result) => {
+          if (
+            rulesById.has(id)
+            || rules.length >= MAX_PLAIN_AUDIT_RULES
+          ) {
+            return null;
+          }
+          const rule = { id, result, extractions: [] };
+          rules.push(rule);
+          rulesById.set(id, rule);
+          return rule;
+        };
+
+        const addExtraction = (fragment, requiredParent = null) => {
           const extractionMatch = fragment.match(extractionPattern);
-          if (!extractionMatch) return null;
+          if (!extractionMatch) return false;
           const extractionId = extractionMatch[1];
           const parentId = extractionId.slice(
             0,
             extractionId.lastIndexOf("_")
           );
           const parentRule = rulesById.get(parentId);
-          if (!parentRule || extractionIds.has(extractionId)) return null;
+          if (
+            !parentRule
+            || (requiredParent && parentRule !== requiredParent)
+            || extractionIds.has(extractionId)
+            || extractionCount >= MAX_PLAIN_AUDIT_EXTRACTIONS
+          ) {
+            return false;
+          }
           extractionIds.add(extractionId);
+          extractionCount += 1;
           parentRule.extractions.push({
             id: extractionId,
             value: extractionMatch[2].trim()
           });
+          return true;
+        };
+
+        for (const fragment of fragments) {
+          const ruleBlockMatch = fragment.match(ruleBlockPattern);
+          if (ruleBlockMatch) {
+            const openingParen = ruleBlockMatch[3];
+            const closingParen = plainAuditParenPairs[openingParen];
+            const blockEnd = fragment.endsWith(closingParen)
+              ? fragment.length - 1
+              : -1;
+            if (blockEnd < ruleBlockMatch[0].length) return null;
+            const rule = addRule(
+              ruleBlockMatch[1],
+              ruleBlockMatch[2]
+            );
+            if (!rule) return null;
+            const extractionFragments = splitPlainAuditTopLevel(
+              fragment.slice(ruleBlockMatch[0].length, blockEnd),
+              new Set(["\n", "\r", ";", "；"])
+            );
+            if (
+              !extractionFragments
+              || !extractionFragments.length
+            ) {
+              return null;
+            }
+            for (const extraction of extractionFragments) {
+              if (!addExtraction(extraction, rule)) return null;
+            }
+            continue;
+          }
+
+          const ruleMatch = fragment.match(rulePattern);
+          if (ruleMatch) {
+            if (!addRule(ruleMatch[1], ruleMatch[2])) return null;
+            continue;
+          }
+
+          if (!addExtraction(fragment)) return null;
         }
         return rules.length ? rules : null;
       };
