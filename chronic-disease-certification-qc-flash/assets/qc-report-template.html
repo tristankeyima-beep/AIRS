@@ -1675,42 +1675,100 @@
         }));
       };
 
+      const parsePlainRuleResults = value => {
+        const ruleCode = "(?:TMP-[A-Z][A-Z0-9-]*|[A-Z][A-Z0-9-]*|\\d{1,7})";
+        const rulePattern = new RegExp(
+          `^(${ruleCode})\\s+(不通过|通过)\\s*[。.]?$`
+        );
+        const extractionPattern = new RegExp(
+          `^(?:提取项\\s*)?(${ruleCode}_[0-9]{1,3})\\s*[:：=]\\s*(\\S[\\s\\S]*)$`
+        );
+        const fragments = value
+          .split(/[\n;；]+/)
+          .map(fragment => fragment.trim())
+          .filter(Boolean);
+        if (!fragments.length) return null;
+
+        const rules = [];
+        const rulesById = new Map();
+        const extractionIds = new Set();
+        for (const fragment of fragments) {
+          const ruleMatch = fragment.match(rulePattern);
+          if (ruleMatch) {
+            if (rulesById.has(ruleMatch[1])) return null;
+            const rule = {
+              id: ruleMatch[1],
+              result: ruleMatch[2],
+              extractions: []
+            };
+            rules.push(rule);
+            rulesById.set(rule.id, rule);
+            continue;
+          }
+
+          const extractionMatch = fragment.match(extractionPattern);
+          if (!extractionMatch) return null;
+          const extractionId = extractionMatch[1];
+          const parentId = extractionId.slice(
+            0,
+            extractionId.lastIndexOf("_")
+          );
+          const parentRule = rulesById.get(parentId);
+          if (!parentRule || extractionIds.has(extractionId)) return null;
+          extractionIds.add(extractionId);
+          parentRule.extractions.push({
+            id: extractionId,
+            value: extractionMatch[2].trim()
+          });
+        }
+        return rules.length ? rules : null;
+      };
+
+      const appendPlainRuleResults = (card, value) => {
+        const rules = parsePlainRuleResults(value);
+        if (!rules) return false;
+        rules.forEach(rule => {
+          const ruleDetails = node("details", null, "audit-rule-node");
+          add(
+            ruleDetails,
+            node("summary", `规则 ${rule.id}｜${rule.result}`)
+          );
+          rule.extractions.forEach(extraction => {
+            const extractionDetails = node(
+              "details",
+              null,
+              "audit-extraction-node"
+            );
+            add(
+              extractionDetails,
+              node("summary", `提取项 ${extraction.id}`),
+              node("p", extraction.value, "detail-body")
+            );
+            ruleDetails.appendChild(extractionDetails);
+          });
+          card.appendChild(ruleDetails);
+        });
+        return true;
+      };
+
       const appendPlainAuditSegments = (parent, segments) => {
         segments.forEach(segment => {
           const card = node("article", null, "card");
-          add(
-            card,
-            node("h4", segment.label),
-            node("p", segment.value)
-          );
-          const hasExplicitRule = /(?:\b(?:TMP-)?[A-Z][A-Z0-9_-]*\b|\b\d{1,7}\b)\s+(?:不通过|通过)(?=$|[\s,，;；。])/.test(
-            segment.value
-          );
-          const extractionCodes = segment.value.match(
-            /\b\d{1,7}_\d{1,3}\b(?=\s*[:：])/g
-          ) || [];
+          card.appendChild(node("h4", segment.label));
           if (
-            segment.label === "逐规则审核结果"
-            && hasExplicitRule
-            && extractionCodes.length
+            segment.label !== "逐规则审核结果"
+            || !appendPlainRuleResults(card, segment.value)
           ) {
-            const ruleDetails = node("details");
-            add(
-              ruleDetails,
-              node("summary", "规则明细"),
-              node("p", segment.value, "detail-body")
-            );
-            const extractionDetails = node("details");
-            add(
-              extractionDetails,
-              node("summary", "提取项卡"),
-              node(
-                "p",
-                extractionCodes.join("、"),
-                "detail-body"
-              )
-            );
-            add(card, ruleDetails, extractionDetails);
+            card.appendChild(node("p", segment.value));
+            if (segment.label === "逐规则审核结果") {
+              card.appendChild(
+                node(
+                  "p",
+                  "逐规则结果未能完整拆分，按原文片段展示",
+                  "source-warning"
+                )
+              );
+            }
           }
           parent.appendChild(card);
         });

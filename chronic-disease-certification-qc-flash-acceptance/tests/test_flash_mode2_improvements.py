@@ -222,23 +222,87 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
         raw = (
             "finalResult=不通过；"
             "ruleResults：1001 不通过；"
-            "1001_01: value=否；"
-            "1001_02: value=否；"
+            "1001_01: 原审核认定证据 A 缺失，"
+            "引用材料ID2079388752224174082；"
+            "1001_02：value=否；"
             "advice：复核"
         )
         self.audit_result_source()["content"] = raw
         state = run_qc_renderer(self.template_path, self.fixture)
         self.assertFalse(state["shellHidden"], state["errorText"])
         self.assertIn("结构化摘要", state["sourcesText"])
-        self.assertIn("规则明细", state["sourcesText"])
-        self.assertIn("1001 不通过", state["sourcesText"])
-        self.assertIn("提取项卡", state["sourcesText"])
-        self.assertIn("1001_01", state["sourcesText"])
-        self.assertIn("1001_02", state["sourcesText"])
+        self.assertEqual(1, state["auditRuleNodeCount"])
+        self.assertEqual(
+            ["规则 1001｜不通过"],
+            state["auditRuleSummaryTexts"],
+        )
+        self.assertEqual([2], state["auditRuleExtractionCounts"])
+        self.assertEqual(
+            ["提取项 1001_01", "提取项 1001_02"],
+            state["auditExtractionSummaryTexts"],
+        )
+        self.assertEqual(
+            [
+                "原审核认定证据 A 缺失，"
+                "引用材料ID2079388752224174082",
+                "value=否",
+            ],
+            state["auditExtractionBodyTexts"],
+        )
+        self.assertNotIn(
+            "2079388752224174082",
+            " ".join(state["auditRuleSummaryTexts"]),
+        )
+        self.assertNotIn(
+            "2079388752224174082",
+            " ".join(state["auditExtractionSummaryTexts"]),
+        )
+        self.assertIn(raw, state["sourcePreTexts"])
         self.assertNotIn(
             "原审核结果无法自动结构化，以下按原文展示",
             state["sourcesText"],
         )
+
+    def test_plain_audit_result_groups_extractions_under_each_rule(self):
+        raw = (
+            "最终结论：不通过；"
+            "逐规则审核结果: TMP-R001 不通过；"
+            "TMP-R001_01：临时规则证据不足；"
+            "1002 通过；"
+            "1002_01: 已找到相应证据；"
+            "审核建议=人工复核"
+        )
+        self.audit_result_source()["content"] = raw
+        state = run_qc_renderer(self.template_path, self.fixture)
+        self.assertFalse(state["shellHidden"], state["errorText"])
+        self.assertEqual(2, state["auditRuleNodeCount"])
+        self.assertEqual(
+            ["规则 TMP-R001｜不通过", "规则 1002｜通过"],
+            state["auditRuleSummaryTexts"],
+        )
+        self.assertEqual([1, 1], state["auditRuleExtractionCounts"])
+        self.assertEqual(
+            ["提取项 TMP-R001_01", "提取项 1002_01"],
+            state["auditExtractionSummaryTexts"],
+        )
+        self.assertEqual(
+            ["临时规则证据不足", "已找到相应证据"],
+            state["auditExtractionBodyTexts"],
+        )
+        self.assertIn(raw, state["sourcePreTexts"])
+
+    def test_plain_audit_result_does_not_treat_long_material_id_as_rule(self):
+        raw = (
+            "finalResult=不通过；"
+            "ruleResults：2079388752224174082 不通过；"
+            "advice：人工复核"
+        )
+        self.audit_result_source()["content"] = raw
+        state = run_qc_renderer(self.template_path, self.fixture)
+        self.assertFalse(state["shellHidden"], state["errorText"])
+        self.assertEqual(0, state["auditRuleNodeCount"])
+        self.assertEqual(0, len(state["auditExtractionSummaryTexts"]))
+        self.assertIn(raw, state["sourcePreTexts"])
 
     def test_ambiguous_plain_audit_result_falls_back_locally(self):
         raw = "finalResult: 只有一个明确标签，其余自由叙述不作医学推断"

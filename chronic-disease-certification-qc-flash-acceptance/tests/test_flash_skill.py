@@ -485,6 +485,14 @@ const sourcesContent = elements.get("sources-content");
 const issuesContent = elements.get("issues-content");
 const dimensionsContent = elements.get("dimensions-content");
 const logicContent = elements.get("logic-content");
+const auditRuleNodes = descendantsWithClass(
+  sourcesContent,
+  "audit-rule-node"
+);
+const auditExtractionNodes = descendantsWithClass(
+  sourcesContent,
+  "audit-extraction-node"
+);
 const ruleNodes = descendantsWithClass(logicContent, "rule-node");
 const extractionNodes = descendantsWithClass(
   logicContent,
@@ -530,6 +538,22 @@ process.stdout.write(JSON.stringify({
       .filter(item => item.tagName === "PRE")
       .map(item => item.textContent)
     : [],
+  auditRuleNodeCount: auditRuleNodes.length,
+  auditRuleSummaryTexts: auditRuleNodes.map(rule =>
+    collectText(directChild(rule, "SUMMARY"))
+  ),
+  auditRuleExtractionCounts: auditRuleNodes.map(rule =>
+    descendantsWithClass(rule, "audit-extraction-node").length
+  ),
+  auditExtractionSummaryTexts: auditExtractionNodes.map(item =>
+    collectText(directChild(item, "SUMMARY"))
+  ),
+  auditExtractionBodyTexts: auditExtractionNodes.map(item =>
+    item.children
+      .filter(child => child.tagName !== "SUMMARY")
+      .map(collectText)
+      .join(" ")
+  ),
   issueLinkTargets: issuesContent
     ? walk(issuesContent)
       .filter(item => item.tagName === "A")
