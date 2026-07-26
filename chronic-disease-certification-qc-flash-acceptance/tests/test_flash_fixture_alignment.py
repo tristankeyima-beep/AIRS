@@ -76,19 +76,38 @@ class FlashFixtureAlignmentTests(unittest.TestCase):
         self.assertEqual(self.fixture, json.loads(match.group(1)))
 
     def test_rejects_untraceable_audit_material_id(self):
+        for material_reference in (
+            "材料ID9999999999999999999",
+            "材料编号9999999999999999999",
+            "引用材料 9999999999999999999",
+        ):
+            mutation = copy.deepcopy(self.fixture)
+            audit_result = next(
+                source
+                for source in mutation["sourceDocuments"]
+                if source["type"] == "audit_result"
+            )
+            audit_result["content"] = audit_result["content"].replace(
+                "材料ID2079388752224174082",
+                material_reference,
+            )
+
+            with self.subTest(material_reference=material_reference):
+                with self.assertRaises(AssertionError):
+                    assert_valid_mode2(self, mutation)
+
+    def test_ignores_non_material_numbers_when_validating_material_ids(self):
         mutation = copy.deepcopy(self.fixture)
         audit_result = next(
             source
             for source in mutation["sourceDocuments"]
             if source["type"] == "audit_result"
         )
-        audit_result["content"] = audit_result["content"].replace(
-            "2079388752224174082",
-            "9999999999999999999",
+        audit_result["content"] += (
+            "；审核日期=20260725；规则码=10000001；金额=123456789元"
         )
 
-        with self.assertRaises(AssertionError):
-            assert_valid_mode2(self, mutation)
+        assert_valid_mode2(self, mutation)
 
     def test_allows_untraceable_id_only_with_qualified_extraction_issue(self):
         mutation = copy.deepcopy(self.fixture)
@@ -144,6 +163,62 @@ class FlashFixtureAlignmentTests(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             assert_valid_mode2(self, mutation)
+
+    def test_detailed_and_brief_preserve_entity_review_condition_issues(self):
+        for audit_detail in ("detailed", "brief"):
+            for original_conclusion in ("通过", "方向未明确"):
+                mutation = copy.deepcopy(self.fixture)
+                mutation["inputProfile"]["auditDetail"] = audit_detail
+                mutation["auditComparison"].update(
+                    originalConclusion=original_conclusion,
+                    qcConclusion="problematic",
+                    risk="none",
+                )
+                audit_result = next(
+                    source
+                    for source in mutation["sourceDocuments"]
+                    if source["type"] == "audit_result"
+                )
+                audit_result["content"] = (
+                    f"finalResult={original_conclusion}；"
+                    "原审核条件链路存在局部问题，"
+                    "引用材料ID2079388752224174082。"
+                )
+                mutation["dimensions"][0].update(
+                    status="passed",
+                    summary="材料缺失判断未发现问题",
+                    notCheckedReason="",
+                )
+                mutation["dimensions"][3]["summary"] = (
+                    "实体审查发现条件链路存在局部问题"
+                )
+                mutation["issues"] = [
+                    {
+                        "id": "I001",
+                        "dimension": "审核条件与结论一致性",
+                        "severity": "medium",
+                        "auditClaim": "原审核条件链路的中间理由成立",
+                        "actualEvidence": (
+                            "患者材料足以确认局部条件链路错误，"
+                            + (
+                                "且不改变总体通过方向"
+                                if original_conclusion == "通过"
+                                else "最终结论方向仍未明确"
+                            )
+                        ),
+                        "sourceReference": (
+                            "患者材料-2079388752224174082：测试段落"
+                        ),
+                        "impact": "局部条件链路不准确",
+                        "recommendation": "修正条件链路的中间理由",
+                    }
+                ]
+
+                with self.subTest(
+                    audit_detail=audit_detail,
+                    original_conclusion=original_conclusion,
+                ):
+                    assert_valid_mode2(self, mutation)
 
     def test_reliable_requires_known_aligned_direction(self):
         mutation = copy.deepcopy(self.fixture)

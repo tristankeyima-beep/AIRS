@@ -1138,7 +1138,14 @@ def assert_valid_mode2(test_case, fixture):
         material_id
         for source in sources
         if source["type"] == "audit_result"
-        for material_id in re.findall(r"\d{8,}", source["content"])
+        for material_id in re.findall(
+            (
+                r"(?:材料(?:ID|编号)|引用材料(?:ID|编号)?)"
+                r"\s*[:：=#]?\s*(\d{8,})"
+            ),
+            source["content"],
+            re.IGNORECASE,
+        )
     }
     for material_id in audit_material_ids:
         if material_id in patient_source_text:
@@ -1190,10 +1197,6 @@ def assert_valid_mode2(test_case, fixture):
             else "false_approval"
         )
         test_case.assertEqual(expected_risk, risk)
-    elif directional_match:
-        test_case.assertEqual("passed", condition_status)
-    else:
-        test_case.assertEqual("not_checked", condition_status)
 
     if has_issues:
         test_case.assertEqual("problematic", qc_conclusion)
