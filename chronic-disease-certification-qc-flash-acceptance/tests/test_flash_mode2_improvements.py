@@ -420,6 +420,34 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
                     state["errorText"],
                 )
 
+    def test_reliable_rejects_both_known_opposite_directions(self):
+        opposite_directions = (
+            ("不通过", "meets"),
+            ("通过", "does_not_meet"),
+        )
+        for original, preliminary in opposite_directions:
+            with self.subTest(
+                original=original,
+                preliminary=preliminary,
+            ):
+                fixture = json.loads(
+                    json.dumps(self.fixture, ensure_ascii=False)
+                )
+                fixture["issues"] = []
+                for dimension in fixture["dimensions"]:
+                    dimension["status"] = "passed"
+                    dimension["notCheckedReason"] = ""
+                fixture["auditComparison"]["originalConclusion"] = original
+                fixture["baseReview"]["preliminaryResult"] = preliminary
+                fixture["auditComparison"]["qcConclusion"] = "reliable"
+                fixture["auditComparison"]["risk"] = "none"
+                state = run_qc_renderer(self.template_path, fixture)
+                self.assertTrue(state["shellHidden"])
+                self.assertIn(
+                    "风险方向与复核结论不一致",
+                    state["errorText"],
+                )
+
     def test_all_negative_original_conclusions_require_false_rejection(self):
         negative_conclusions = (
             "未通过",
