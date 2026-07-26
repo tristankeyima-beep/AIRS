@@ -347,6 +347,10 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
         unknown_direction_issue["auditComparison"][
             "originalConclusion"
         ] = "方向未明确"
+        unknown_direction_issue["dimensions"][3]["status"] = "not_checked"
+        unknown_direction_issue["dimensions"][3][
+            "notCheckedReason"
+        ] = "原审核结论方向不明确"
         state = run_qc_renderer(self.template_path, unknown_direction_issue)
         self.assertFalse(state["shellHidden"], state["errorText"])
 
@@ -379,7 +383,8 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
         reliable_with_unchecked["dimensions"][0]["status"] = "not_checked"
         reliable_with_unchecked["dimensions"][0]["notCheckedReason"] = "受限"
         invalid_candidates["reliable requires all passed"] = (
-            reliable_with_unchecked
+            reliable_with_unchecked,
+            "风险方向与复核结论不一致",
         )
 
         dimension_issue_only = json.loads(
@@ -387,7 +392,8 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
         )
         dimension_issue_only["issues"] = []
         invalid_candidates["problematic requires issue records"] = (
-            dimension_issue_only
+            dimension_issue_only,
+            "问题清单与五维问题状态不一致",
         )
 
         issue_records_only = json.loads(
@@ -397,7 +403,8 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
             dimension["status"] = "passed"
             dimension["notCheckedReason"] = ""
         invalid_candidates["problematic requires dimension issue"] = (
-            issue_records_only
+            issue_records_only,
+            "问题清单与五维问题状态不一致",
         )
 
         opposite_without_condition_issue = json.loads(
@@ -407,18 +414,19 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
         opposite_without_condition_issue["dimensions"][3][
             "notCheckedReason"
         ] = ""
+        opposite_without_condition_issue["issues"] = (
+            opposite_without_condition_issue["issues"][:1]
+        )
         invalid_candidates["opposite requires fourth dimension issue"] = (
-            opposite_without_condition_issue
+            opposite_without_condition_issue,
+            "风险方向与复核结论不一致",
         )
 
-        for name, candidate in invalid_candidates.items():
+        for name, (candidate, expected_error) in invalid_candidates.items():
             with self.subTest(case=name):
                 state = run_qc_renderer(self.template_path, candidate)
                 self.assertTrue(state["shellHidden"])
-                self.assertIn(
-                    "风险方向与复核结论不一致",
-                    state["errorText"],
-                )
+                self.assertIn(expected_error, state["errorText"])
 
     def test_reliable_rejects_both_known_opposite_directions(self):
         opposite_directions = (
@@ -447,6 +455,113 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
                     "风险方向与复核结论不一致",
                     state["errorText"],
                 )
+
+    def test_audit_detail_rejects_invalid_conclusion_only_shapes(self):
+        invalid_candidates = {}
+
+        reliable = self.make_conclusion_only_candidate()
+        for dimension in reliable["dimensions"]:
+            dimension["status"] = "passed"
+            dimension["notCheckedReason"] = ""
+        reliable["auditComparison"]["qcConclusion"] = "reliable"
+        reliable["auditComparison"]["risk"] = "none"
+        invalid_candidates["conclusion only cannot be reliable"] = reliable
+
+        checked_process = self.make_conclusion_only_candidate()
+        checked_process["dimensions"][0]["status"] = "passed"
+        checked_process["dimensions"][0]["notCheckedReason"] = ""
+        invalid_candidates["first three must be not checked"] = checked_process
+
+        unknown_direction = self.make_conclusion_only_candidate(
+            original_conclusion="方向未明确",
+        )
+        invalid_candidates["unknown direction fourth must be not checked"] = (
+            unknown_direction
+        )
+
+        visible_standard_unchecked = self.make_conclusion_only_candidate()
+        visible_standard_unchecked["dimensions"][4][
+            "status"
+        ] = "not_checked"
+        visible_standard_unchecked["dimensions"][4][
+            "notCheckedReason"
+        ] = "错误跳过可见标准"
+        invalid_candidates["visible standard fifth must be checked"] = (
+            visible_standard_unchecked
+        )
+
+        absent_standard_checked = self.make_conclusion_only_candidate(
+            original_conclusion="方向未明确",
+            preliminary_result="uncertain",
+        )
+        absent_standard_checked["inputProfile"]["standardKind"] = "absent"
+        absent_standard_checked["dimensions"][3]["status"] = "not_checked"
+        absent_standard_checked["dimensions"][3][
+            "notCheckedReason"
+        ] = "方向未知"
+        invalid_candidates["absent standard fifth must be not checked"] = (
+            absent_standard_checked
+        )
+
+        for name, candidate in invalid_candidates.items():
+            with self.subTest(case=name):
+                state = run_qc_renderer(self.template_path, candidate)
+                self.assertTrue(state["shellHidden"])
+                self.assertIn(
+                    "风险方向与复核结论不一致",
+                    state["errorText"],
+                )
+
+    def test_general_reliable_requires_known_consistent_direction(self):
+        fixture = json.loads(json.dumps(self.fixture, ensure_ascii=False))
+        fixture["issues"] = []
+        for dimension in fixture["dimensions"]:
+            dimension["status"] = "passed"
+            dimension["notCheckedReason"] = ""
+        fixture["auditComparison"]["originalConclusion"] = "方向未明确"
+        fixture["auditComparison"]["qcConclusion"] = "reliable"
+        fixture["auditComparison"]["risk"] = "none"
+        state = run_qc_renderer(self.template_path, fixture)
+        self.assertTrue(state["shellHidden"])
+        self.assertIn("风险方向与复核结论不一致", state["errorText"])
+
+    def test_issue_dimension_sets_fail_closed_and_allow_duplicates(self):
+        invalid_candidates = {}
+
+        missing = json.loads(json.dumps(self.fixture, ensure_ascii=False))
+        missing["issues"] = missing["issues"][:1]
+        invalid_candidates["missing issue dimension"] = missing
+
+        extra = json.loads(json.dumps(self.fixture, ensure_ascii=False))
+        extra_issue = json.loads(
+            json.dumps(extra["issues"][0], ensure_ascii=False)
+        )
+        extra_issue["id"] = "I003"
+        extra_issue["dimension"] = "证据提取准确性"
+        extra["issues"].append(extra_issue)
+        invalid_candidates["extra issue dimension"] = extra
+
+        mismatch = json.loads(json.dumps(self.fixture, ensure_ascii=False))
+        mismatch["issues"][1]["dimension"] = "证据提取准确性"
+        invalid_candidates["mismatched issue dimension"] = mismatch
+
+        for name, candidate in invalid_candidates.items():
+            with self.subTest(case=name):
+                state = run_qc_renderer(self.template_path, candidate)
+                self.assertTrue(state["shellHidden"])
+                self.assertIn(
+                    "问题清单与五维问题状态不一致",
+                    state["errorText"],
+                )
+
+        duplicate = json.loads(json.dumps(self.fixture, ensure_ascii=False))
+        duplicate_issue = json.loads(
+            json.dumps(duplicate["issues"][0], ensure_ascii=False)
+        )
+        duplicate_issue["id"] = "I003"
+        duplicate["issues"].append(duplicate_issue)
+        state = run_qc_renderer(self.template_path, duplicate)
+        self.assertFalse(state["shellHidden"], state["errorText"])
 
     def test_all_negative_original_conclusions_require_false_rejection(self):
         negative_conclusions = (

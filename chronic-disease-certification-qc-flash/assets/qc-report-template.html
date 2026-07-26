@@ -1056,6 +1056,58 @@
           directionKnown
           && original !== independent
         );
+        if (data.inputProfile.auditDetail === "conclusion_only") {
+          const processDimensionsAreUnchecked = data.dimensions
+            .slice(0, 3)
+            .every(dimension => dimension.status === "not_checked");
+          const ruleDimension = data.dimensions.find(
+            dimension => dimension.name === "规则维护质量"
+          );
+          const expectedConditionStatus = directionOpposite
+            ? "issue"
+            : (directionKnown ? "passed" : "not_checked");
+          const ruleStatusIsValid = (
+            ruleDimension
+            && (
+              data.inputProfile.standardKind === "absent"
+                ? ruleDimension.status === "not_checked"
+                : (
+                  ruleDimension.status === "passed"
+                  || ruleDimension.status === "issue"
+                )
+            )
+          );
+          if (
+            !processDimensionsAreUnchecked
+            || !conditionDimension
+            || conditionDimension.status !== expectedConditionStatus
+            || !ruleDimension
+            || !ruleStatusIsValid
+            || comparison.qcConclusion === "reliable"
+          ) {
+            return false;
+          }
+          if (!hasDimensionIssue && !hasIssueRecords) {
+            return (
+              comparison.qcConclusion === "uncertain"
+              && comparison.risk === "unknown"
+            );
+          }
+          if (
+            comparison.qcConclusion !== "problematic"
+            || !hasDimensionIssue
+            || !hasIssueRecords
+          ) {
+            return false;
+          }
+          if (directionOpposite) {
+            const expectedRisk = original === "meets"
+              ? "false_approval"
+              : "false_rejection";
+            return comparison.risk === expectedRisk;
+          }
+          return comparison.risk === "none";
+        }
         if (comparison.qcConclusion === "uncertain") {
           return (
             comparison.risk === "unknown"
@@ -1070,6 +1122,7 @@
             comparison.risk === "none"
             && allPassed
             && !hasIssueRecords
+            && directionKnown
             && !directionOpposite
           );
         }
@@ -1258,6 +1311,22 @@
           !issue || !issueSeverities.has(issue.severity)
         )) {
           throw new Error("问题严重程度无效");
+        }
+        const issueDimensionSet = new Set(
+          data.dimensions
+            .filter(dimension => dimension.status === "issue")
+            .map(dimension => dimension.name)
+        );
+        const recordedIssueDimensionSet = new Set(
+          data.issues.map(issue => issue.dimension)
+        );
+        if (
+          issueDimensionSet.size !== recordedIssueDimensionSet.size
+          || Array.from(issueDimensionSet).some(
+            dimension => !recordedIssueDimensionSet.has(dimension)
+          )
+        ) {
+          throw new Error("问题清单与五维问题状态不一致");
         }
         if (!riskContractIsValid(data)) {
           throw new Error("风险方向与复核结论不一致");
