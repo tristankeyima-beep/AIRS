@@ -113,6 +113,16 @@ class FlashMode2AdpDocumentationTests(unittest.TestCase):
 
 
 class FlashMode2AdpRendererTests(unittest.TestCase):
+    ACTUAL_ISSUE_ERROR = (
+        "报告加载失败 reliable 要求五维全 passed 且 issues 为空"
+        "（即“可靠”要求五维全部“已通过”且问题清单为空）；"
+        "当前存在实际问题，应改为 problematic（存在问题）"
+    )
+    RISK_ERROR = (
+        "报告加载失败 reliable 时 risk 必须为 none"
+        "（“可靠”时风险方向必须为“无”）"
+    )
+
     def setUp(self):
         self.template_path = SKILL_ROOT / "assets" / "qc-report-template.html"
         self.fixture = json.loads(
@@ -150,11 +160,7 @@ class FlashMode2AdpRendererTests(unittest.TestCase):
         self.assertTrue(state["shellHidden"])
         self.assertEqual(expected, " ".join(state["errorText"].split()))
 
-    def test_reliable_with_either_actual_issue_signal_has_specific_diagnostic(self):
-        expected = (
-            "报告加载失败 reliable 要求五维全 passed 且 issues 为空；"
-            "当前存在实际问题，应改为 problematic"
-        )
+    def test_reliable_structure_mismatch_precedes_specific_diagnostic(self):
         candidates = {}
 
         dimension_only = self.make_reliable()
@@ -165,35 +171,30 @@ class FlashMode2AdpRendererTests(unittest.TestCase):
         issue_record_only["issues"] = [self.sample_issue()]
         candidates["issue record only"] = issue_record_only
 
+        for name, candidate in candidates.items():
+            with self.subTest(case=name):
+                self.assert_error(
+                    candidate,
+                    "报告加载失败 问题清单与五维问题状态不一致",
+                )
+
+    def test_reliable_with_matched_issue_sets_has_specific_bilingual_diagnostic(self):
         both = self.make_reliable()
         both["dimensions"][0]["status"] = "issue"
         both["issues"] = [self.sample_issue()]
-        candidates["both actual issue signals"] = both
+        self.assert_error(both, self.ACTUAL_ISSUE_ERROR)
 
-        for name, candidate in candidates.items():
-            with self.subTest(case=name):
-                self.assert_error(candidate, expected)
-
-    def test_reliable_with_non_none_risk_has_specific_diagnostic(self):
+    def test_reliable_with_non_none_risk_has_specific_bilingual_diagnostic(self):
         candidate = self.make_reliable()
         candidate["auditComparison"]["risk"] = "false_approval"
-        self.assert_error(
-            candidate,
-            "报告加载失败 reliable 时 risk 必须为 none",
-        )
+        self.assert_error(candidate, self.RISK_ERROR)
 
     def test_actual_issue_diagnostic_precedes_reliable_risk_diagnostic(self):
         candidate = self.make_reliable()
         candidate["dimensions"][0]["status"] = "issue"
         candidate["issues"] = [self.sample_issue()]
         candidate["auditComparison"]["risk"] = "false_approval"
-        self.assert_error(
-            candidate,
-            (
-                "报告加载失败 reliable 要求五维全 passed 且 issues 为空；"
-                "当前存在实际问题，应改为 problematic"
-            ),
-        )
+        self.assert_error(candidate, self.ACTUAL_ISSUE_ERROR)
 
     def test_legal_reliable_report_still_renders(self):
         state = run_qc_renderer(self.template_path, self.make_reliable())

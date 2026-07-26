@@ -1334,21 +1334,6 @@
         )) {
           throw new Error("问题严重程度无效");
         }
-        if (data.auditComparison.qcConclusion === "reliable") {
-          const hasActualIssue = (
-            data.dimensions.some(dimension => dimension.status === "issue")
-            || data.issues.length > 0
-          );
-          if (hasActualIssue) {
-            throw new Error(
-              "reliable 要求五维全 passed 且 issues 为空；"
-              + "当前存在实际问题，应改为 problematic"
-            );
-          }
-          if (data.auditComparison.risk !== "none") {
-            throw new Error("reliable 时 risk 必须为 none");
-          }
-        }
         const issueDimensionSet = new Set(
           data.dimensions
             .filter(dimension => dimension.status === "issue")
@@ -1364,6 +1349,25 @@
           )
         ) {
           throw new Error("问题清单与五维问题状态不一致");
+        }
+        if (data.auditComparison.qcConclusion === "reliable") {
+          const hasActualIssue = (
+            data.dimensions.some(dimension => dimension.status === "issue")
+            || data.issues.length > 0
+          );
+          if (hasActualIssue) {
+            throw new Error(
+              "reliable 要求五维全 passed 且 issues 为空"
+              + "（即“可靠”要求五维全部“已通过”且问题清单为空）；"
+              + "当前存在实际问题，应改为 problematic（存在问题）"
+            );
+          }
+          if (data.auditComparison.risk !== "none") {
+            throw new Error(
+              "reliable 时 risk 必须为 none"
+              + "（“可靠”时风险方向必须为“无”）"
+            );
+          }
         }
         if (!riskContractIsValid(data)) {
           throw new Error("风险方向与复核结论不一致");
