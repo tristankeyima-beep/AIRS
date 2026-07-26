@@ -1,0 +1,83 @@
+{
+  "schemaVersion": "flash-1.0",
+  "mode": "certification",
+  "meta": {
+    "diseaseName": "测试病种甲",
+    "diseaseCode": "",
+    "version": "V20260725",
+    "description": "仅用于 Flash Skill 验收"
+  },
+  "sourceDocuments": [
+    {
+      "name": "测试认定标准",
+      "type": "standard",
+      "content": "满足条件 A 或条件 B，可认定为测试病种甲。"
+    }
+  ],
+  "analysisRecord": {
+    "inputSummary": [
+      "来源包含一个 OR 准入关系"
+    ],
+    "interpretations": [
+      "将条件 A 与条件 B 作为两个独立规则"
+    ],
+    "evidenceFindings": [
+      "原文明确使用“或”"
+    ],
+    "uncertainties": [],
+    "preliminaryConclusion": "采用 R001 OR R002"
+  },
+  "rules": [
+    {
+      "id": "R001",
+      "content": "满足条件 A",
+      "sourceQuote": "满足条件 A 或条件 B",
+      "extractionItems": [
+        {
+          "id": "K001",
+          "name": "条件 A",
+          "dataType": "enum",
+          "expectedEvidence": "测试材料明确记载条件 A 已满足",
+          "negativeEvidence": "测试材料明确记载条件 A 未满足",
+          "unknownWhen": "测试材料未提供足以判断条件 A 的信息",
+          "preferredSource": "测试认定材料"
+        }
+      ]
+    },
+    {
+      "id": "R002",
+      "content": "满足条件 B",
+      "sourceQuote": "满足条件 A 或条件 B",
+      "extractionItems": [
+        {
+          "id": "K002",
+          "name": "条件 B",
+          "dataType": "enum",
+          "expectedEvidence": "测试材料明确记载条件 B 已满足",
+          "negativeEvidence": "测试材料明确记载条件 B 未满足",
+          "unknownWhen": "测试材料未提供足以判断条件 B 的信息",
+          "preferredSource": "测试认定材料"
+        }
+      ]
+    }
+  ],
+  "logic": {
+    "type": "group",
+    "operator": "OR",
+    "children": [
+      {
+        "type": "rule",
+        "ruleId": "R001"
+      },
+      {
+        "type": "rule",
+        "ruleId": "R002"
+      }
+    ]
+  },
+  "confirmation": {
+    "confirmed": true,
+    "summaryShown": "R001 或 R002 任一满足即可认定",
+    "userResponse": "确认"
+  }
+}

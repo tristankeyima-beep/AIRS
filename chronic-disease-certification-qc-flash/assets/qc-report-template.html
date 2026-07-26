@@ -1,0 +1,2186 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>门诊慢特病审核质控报告</title>
+  <style>
+    :root {
+      --bg: #e8ecec;
+      --paper: #fbfaf6;
+      --paper-strong: #ffffff;
+      --ink: #16272d;
+      --muted: #627279;
+      --line: #cfd8d8;
+      --line-strong: #aab9bb;
+      --accent: #174f5c;
+      --accent-soft: #dce9e9;
+      --success: #2f6d59;
+      --success-soft: #e1eee8;
+      --warning: #8a5a16;
+      --warning-soft: #f5ead4;
+      --danger: #9a3d36;
+      --danger-soft: #f5e3df;
+      --unknown: #59666c;
+      --unknown-soft: #e7ebec;
+      --shadow: 0 18px 48px rgba(24, 48, 55, 0.12);
+      --radius-sm: 6px;
+      --radius: 12px;
+      --space-1: 0.35rem;
+      --space-2: 0.65rem;
+      --space-3: 1rem;
+      --space-4: 1.5rem;
+      --space-5: 2rem;
+      --space-6: 3rem;
+      --text-xs: 0.78rem;
+      --text-sm: 0.9rem;
+      --text-md: 1rem;
+      --text-lg: 1.25rem;
+      --text-xl: 1.75rem;
+      --text-2xl: clamp(2rem, 4vw, 3.4rem);
+      --ease: cubic-bezier(.2, .8, .2, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 1.5rem;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(23, 79, 92, 0.035) 1px, transparent 1px),
+        var(--bg);
+      background-size: 28px 28px;
+      font-family: "Songti SC", "Noto Serif CJK SC", "STSong", serif;
+      font-size: var(--text-md);
+      line-height: 1.7;
+    }
+
+    button,
+    nav,
+    .eyebrow,
+    .badge,
+    .label,
+    .meta-strip,
+    .number {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+        "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    :focus-visible {
+      outline: 3px solid #c4822b;
+      outline-offset: 3px;
+    }
+
+    .skip-link {
+      position: fixed;
+      z-index: 100;
+      top: 0.75rem;
+      left: 0.75rem;
+      padding: 0.6rem 0.9rem;
+      color: #fff;
+      background: var(--accent);
+      border-radius: var(--radius-sm);
+      transform: translateY(-180%);
+      transition: transform 180ms var(--ease);
+    }
+
+    .skip-link:focus {
+      transform: translateY(0);
+    }
+
+    .shell {
+      width: min(1480px, calc(100% - 2rem));
+      margin: 1rem auto 3rem;
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: var(--space-4);
+      align-items: start;
+    }
+
+    .rail {
+      position: sticky;
+      top: 1rem;
+      max-height: calc(100vh - 2rem);
+      overflow: auto;
+      color: #eaf1f1;
+      background: var(--accent);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .rail-head {
+      padding: 1.35rem 1.25rem 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+    }
+
+    .rail-kicker {
+      margin: 0 0 0.25rem;
+      color: #bcd1d4;
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: 0.16em;
+    }
+
+    .rail-title {
+      margin: 0;
+      font-size: var(--text-lg);
+      line-height: 1.35;
+    }
+
+    nav {
+      padding: 0.75rem;
+    }
+
+    nav a {
+      display: grid;
+      grid-template-columns: 1.55rem 1fr;
+      gap: 0.65rem;
+      min-height: 44px;
+      padding: 0.65rem 0.75rem;
+      align-items: center;
+      color: #dbe9ea;
+      border-left: 2px solid transparent;
+      text-decoration: none;
+      font-size: var(--text-sm);
+      transition:
+        color 160ms var(--ease),
+        background 160ms var(--ease),
+        border-color 160ms var(--ease);
+    }
+
+    nav a::before {
+      content: counter(nav-item, decimal-leading-zero);
+      counter-increment: nav-item;
+      color: #91b2b7;
+      font-size: var(--text-xs);
+      font-variant-numeric: tabular-nums;
+    }
+
+    nav {
+      counter-reset: nav-item;
+    }
+
+    nav a:hover,
+    nav a[aria-current="location"] {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.1);
+      border-left-color: #e4b35f;
+    }
+
+    .nav-toggle {
+      display: none;
+      width: 100%;
+      min-height: 46px;
+      padding: 0.7rem 1rem;
+      color: #fff;
+      background: var(--accent);
+      border: 0;
+      border-radius: var(--radius-sm);
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    main {
+      min-width: 0;
+      overflow: hidden;
+      background: var(--paper);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .report-header {
+      position: relative;
+      min-height: 280px;
+      padding: clamp(2rem, 6vw, 5rem);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      overflow: hidden;
+      border-bottom: 1px solid var(--line);
+      background:
+        linear-gradient(135deg, rgba(23, 79, 92, 0.97), rgba(29, 66, 75, 0.88)),
+        var(--accent);
+      color: #fff;
+    }
+
+    .report-header::after {
+      content: "QC";
+      position: absolute;
+      right: -0.04em;
+      bottom: -0.32em;
+      color: rgba(255, 255, 255, 0.06);
+      font-family: Georgia, serif;
+      font-size: clamp(9rem, 25vw, 21rem);
+      font-weight: 700;
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      position: relative;
+      z-index: 1;
+      margin: 0 0 0.75rem;
+      color: #c9dcde;
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: 0.18em;
+    }
+
+    h1 {
+      position: relative;
+      z-index: 1;
+      max-width: 18ch;
+      margin: 0;
+      font-size: var(--text-2xl);
+      font-weight: 650;
+      line-height: 1.16;
+      letter-spacing: -0.02em;
+    }
+
+    .meta-strip {
+      position: relative;
+      z-index: 1;
+      margin-top: 1.25rem;
+      display: flex;
+      gap: 0.75rem 1.5rem;
+      flex-wrap: wrap;
+      color: #d7e5e6;
+      font-size: var(--text-sm);
+    }
+
+    .error-panel {
+      width: min(680px, calc(100% - 2rem));
+      margin: 12vh auto var(--space-5);
+      padding: 1rem 1.25rem;
+      color: #702c27;
+      background: var(--danger-soft);
+      border: 1px solid #d9aaa4;
+      border-left: 5px solid var(--danger);
+      border-radius: var(--radius-sm);
+    }
+
+    .error-panel strong,
+    .error-panel p {
+      display: block;
+      margin: 0;
+    }
+
+    .error-panel p {
+      margin-top: 0.25rem;
+    }
+
+    section {
+      padding: clamp(2rem, 5vw, 4rem);
+      border-bottom: 1px solid var(--line);
+      scroll-margin-top: 1.5rem;
+    }
+
+    section:last-child {
+      border-bottom: 0;
+    }
+
+    .section-heading {
+      margin-bottom: var(--space-5);
+      display: grid;
+      grid-template-columns: 3rem minmax(0, 1fr);
+      gap: 1rem;
+      align-items: start;
+    }
+
+    .number {
+      color: var(--accent);
+      font-size: var(--text-sm);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      border-top: 3px solid var(--accent);
+      padding-top: 0.25rem;
+    }
+
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h2 {
+      margin-bottom: 0.25rem;
+      font-size: var(--text-xl);
+      line-height: 1.3;
+    }
+
+    h3 {
+      font-size: var(--text-lg);
+      line-height: 1.4;
+    }
+
+    .section-note,
+    .muted {
+      color: var(--muted);
+    }
+
+    .section-note {
+      margin: 0;
+      max-width: 68ch;
+    }
+
+    .summary-grid,
+    .scope-grid,
+    .dimension-grid,
+    .rule-grid {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .summary-grid {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .scope-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .dimension-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .rule-grid {
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    }
+
+    .card {
+      min-width: 0;
+      padding: 1.25rem;
+      background: var(--paper-strong);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+    }
+
+    .card.accent {
+      border-top: 4px solid var(--accent);
+    }
+
+    .card.issue {
+      border-left: 4px solid var(--danger);
+    }
+
+    .card.passed {
+      border-left: 4px solid var(--success);
+    }
+
+    .card.not-checked {
+      border-left: 4px solid var(--unknown);
+      background: #fff8e8;
+    }
+
+    .not-checked-reason {
+      padding: 0.75rem;
+      color: #5c4300;
+      background: #fff1c7;
+      border: 1px solid #e7c96c;
+      border-radius: var(--radius-sm);
+      font-weight: 700;
+    }
+
+    .source-warning,
+    .material-warning {
+      color: #7b2f20;
+      font-weight: 700;
+    }
+
+    .structured-tree {
+      margin: 0.5rem 0 1rem;
+      padding-left: 1.25rem;
+    }
+
+    .source-link {
+      display: inline-block;
+      margin: 0.25rem 0.75rem 0.25rem 0;
+      font-weight: 700;
+    }
+
+    .label {
+      display: block;
+      margin-bottom: 0.35rem;
+      color: var(--muted);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    .value {
+      margin: 0;
+      font-size: var(--text-lg);
+      font-weight: 700;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .badge {
+      display: inline-flex;
+      min-height: 28px;
+      padding: 0.25rem 0.65rem;
+      align-items: center;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      font-size: var(--text-xs);
+      font-weight: 750;
+      line-height: 1.25;
+    }
+
+    .badge.success {
+      color: var(--success);
+      background: var(--success-soft);
+    }
+
+    .badge.danger {
+      color: var(--danger);
+      background: var(--danger-soft);
+    }
+
+    .badge.warning {
+      color: var(--warning);
+      background: var(--warning-soft);
+    }
+
+    .badge.unknown {
+      color: var(--unknown);
+      background: var(--unknown-soft);
+    }
+
+    .stack {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .plain-list {
+      margin: 0;
+      padding-left: 1.35rem;
+    }
+
+    .plain-list li + li {
+      margin-top: 0.4rem;
+    }
+
+    .fact-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      counter-reset: fact;
+    }
+
+    .fact-list li {
+      position: relative;
+      padding: 0.85rem 0.85rem 0.85rem 3.2rem;
+      border-bottom: 1px solid var(--line);
+      counter-increment: fact;
+    }
+
+    .fact-list li::before {
+      content: counter(fact, decimal-leading-zero);
+      position: absolute;
+      left: 0.85rem;
+      color: var(--accent);
+      font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+      font-size: var(--text-sm);
+      font-weight: 700;
+    }
+
+    .issue-list {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .issue-head {
+      margin-bottom: 1rem;
+      display: flex;
+      gap: 0.75rem;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .issue-title {
+      margin: 0;
+      font-size: var(--text-lg);
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.9rem 1.25rem;
+    }
+
+    .detail-grid p {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .wide {
+      grid-column: 1 / -1;
+    }
+
+    details {
+      overflow: hidden;
+      background: var(--paper-strong);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+    }
+
+    details + details {
+      margin-top: 0.75rem;
+    }
+
+    summary {
+      min-height: 48px;
+      padding: 0.85rem 1rem;
+      display: flex;
+      gap: 0.75rem;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+        "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-weight: 700;
+    }
+
+    summary::marker {
+      color: var(--accent);
+    }
+
+    .detail-body {
+      padding: 1rem;
+      border-top: 1px solid var(--line);
+    }
+
+    .source-copy {
+      margin: 0;
+      color: #26373c;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: var(--text-sm);
+      line-height: 1.75;
+    }
+
+    .analysis-columns {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    .analysis-columns .card:last-child {
+      grid-column: 1 / -1;
+    }
+
+    .confirmation-panel {
+      position: relative;
+      padding: clamp(1.5rem, 4vw, 2.5rem);
+      color: #fff;
+      background: var(--accent);
+      border-radius: var(--radius);
+    }
+
+    .confirmation-panel::before {
+      content: "";
+      position: absolute;
+      inset: 0.65rem;
+      pointer-events: none;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: calc(var(--radius) - 3px);
+    }
+
+    .confirmation-panel > * {
+      position: relative;
+    }
+
+    .confirmation-panel .label,
+    .confirmation-panel .muted {
+      color: #c5dadd;
+    }
+
+    .confirmation-panel .plain-list {
+      margin-bottom: 1rem;
+    }
+
+    .confirmation-panel .badge {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .empty-state {
+      padding: 1.25rem;
+      color: var(--muted);
+      text-align: center;
+      background: var(--paper-strong);
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius-sm);
+    }
+
+    @media (max-width: 980px) {
+      .shell {
+        width: min(100% - 1rem, 900px);
+        grid-template-columns: 1fr;
+      }
+
+      .rail {
+        position: sticky;
+        top: 0.5rem;
+        z-index: 20;
+        max-height: none;
+        overflow: visible;
+      }
+
+      .rail-head {
+        display: none;
+      }
+
+      .nav-toggle {
+        display: block;
+      }
+
+      section {
+        scroll-margin-top: 5.5rem;
+      }
+
+      nav {
+        display: none;
+        max-height: min(70vh, 480px);
+        overflow: auto;
+      }
+
+      nav.is-open {
+        display: block;
+      }
+
+      .summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 680px) {
+      body {
+        font-size: 0.96rem;
+      }
+
+      .shell {
+        margin-top: 0.5rem;
+      }
+
+      .report-header {
+        min-height: 230px;
+        padding: 2rem 1.35rem;
+      }
+
+      section {
+        padding: 2rem 1.25rem;
+      }
+
+      .section-heading {
+        grid-template-columns: 2.4rem minmax(0, 1fr);
+      }
+
+      .summary-grid,
+      .scope-grid,
+      .dimension-grid,
+      .detail-grid,
+      .analysis-columns {
+        grid-template-columns: 1fr;
+      }
+
+      .analysis-columns .card:last-child,
+      .wide {
+        grid-column: auto;
+      }
+    }
+
+    @media print {
+      @page {
+        margin: 14mm;
+      }
+
+      body {
+        background: #fff;
+        font-size: 10pt;
+      }
+
+      .shell {
+        width: 100%;
+        margin: 0;
+        display: block;
+      }
+
+      .rail,
+      .skip-link {
+        display: none !important;
+      }
+
+      main {
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      .report-header {
+        min-height: auto;
+        padding: 18mm 12mm;
+        color: #17272c;
+        background: #fff;
+        border-bottom: 2px solid #17272c;
+      }
+
+      .report-header::after {
+        display: none;
+      }
+
+      .eyebrow,
+      .meta-strip {
+        color: #4c5b60;
+      }
+
+      section {
+        padding: 10mm 2mm;
+        break-inside: auto;
+      }
+
+      .card,
+      details,
+      .confirmation-panel {
+        break-inside: avoid;
+        box-shadow: none;
+      }
+
+      .confirmation-panel {
+        color: #17272c;
+        background: #fff;
+        border: 2px solid #17272c;
+      }
+
+      .confirmation-panel .label,
+      .confirmation-panel .muted {
+        color: #4c5b60;
+      }
+
+      .confirmation-panel .badge {
+        color: #17272c;
+        background: #fff;
+      }
+
+      details:not([open]) > :not(summary) {
+        display: block !important;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="error-panel" id="error-panel" role="alert" hidden></div>
+  <div class="shell" id="report-shell">
+    <a class="skip-link" href="#main">跳到报告正文</a>
+    <aside class="rail" aria-label="报告索引">
+      <div class="rail-head">
+        <p class="rail-kicker">FLASH QC</p>
+        <p class="rail-title">审核质控<br>复核索引</p>
+      </div>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="page-navigation">展开报告导航</button>
+      <nav id="page-navigation" aria-label="页面导航">
+        <a href="#summary">结论总览</a>
+        <a href="#scope">输入范围</a>
+        <a href="#sources">原始材料</a>
+        <a href="#dimensions">五维检查</a>
+        <a href="#issues">问题清单</a>
+        <a href="#rules">逐规则复核</a>
+        <a href="#recommendations">建议</a>
+        <a href="#analysis">分析记录</a>
+        <a href="#confirmation">确认记录</a>
+      </nav>
+    </aside>
+
+    <main id="main">
+      <header class="report-header">
+        <p class="eyebrow">门诊慢特病 · FLASH 审核质控报告</p>
+        <h1 id="report-title">审核质控报告</h1>
+        <div class="meta-strip" id="header-meta"></div>
+      </header>
+
+      <section id="summary" aria-labelledby="summary-heading">
+        <div class="section-heading">
+          <span class="number">01</span>
+          <div>
+            <h2 id="summary-heading">结论总览</h2>
+            <p class="section-note">独立复核结论与原审核结论的关键对照。</p>
+          </div>
+        </div>
+        <div class="summary-grid" id="summary-content"></div>
+      </section>
+
+      <section id="scope" aria-labelledby="scope-heading">
+        <div class="section-heading">
+          <span class="number">02</span>
+          <div>
+            <h2 id="scope-heading">输入范围</h2>
+            <p class="section-note">本次复核收到的材料范围、审核粒度与两阶段复核方法。</p>
+          </div>
+        </div>
+        <div class="scope-grid" id="scope-content"></div>
+      </section>
+
+      <section id="sources" aria-labelledby="sources-heading">
+        <div class="section-heading">
+          <span class="number">03</span>
+          <div>
+            <h2 id="sources-heading">原始材料</h2>
+            <p class="section-note">逐份保存并展示患者材料、认定标准与原审核结果原文。</p>
+          </div>
+        </div>
+        <div id="sources-content"></div>
+      </section>
+
+      <section id="dimensions" aria-labelledby="dimensions-heading">
+        <div class="section-heading">
+          <span class="number">04</span>
+          <div>
+            <h2 id="dimensions-heading">五维检查</h2>
+            <p class="section-note">从材料、证据、推理、结论一致性和规则维护五个维度检查。</p>
+          </div>
+        </div>
+        <div class="dimension-grid" id="dimensions-content"></div>
+      </section>
+
+      <section id="issues" aria-labelledby="issues-heading">
+        <div class="section-heading">
+          <span class="number">05</span>
+          <div>
+            <h2 id="issues-heading">问题清单</h2>
+            <p class="section-note">每个问题均保留原审核主张、实际证据、来源与影响。</p>
+          </div>
+        </div>
+        <div class="issue-list" id="issues-content"></div>
+      </section>
+
+      <section id="rules" aria-labelledby="rules-heading">
+        <div class="section-heading">
+          <span class="number">06</span>
+          <div>
+            <h2 id="rules-heading">逐规则复核</h2>
+            <p class="section-note">先依据患者材料和认定标准形成的独立判断，不以原审核结果替代。</p>
+          </div>
+        </div>
+        <div class="rule-grid" id="rules-content"></div>
+      </section>
+
+      <section id="recommendations" aria-labelledby="recommendations-heading">
+        <div class="section-heading">
+          <span class="number">07</span>
+          <div>
+            <h2 id="recommendations-heading">建议</h2>
+            <p class="section-note">针对本次质控发现形成的可执行修正建议。</p>
+          </div>
+        </div>
+        <div id="recommendations-content"></div>
+      </section>
+
+      <section id="analysis" aria-labelledby="analysis-heading">
+        <div class="section-heading">
+          <span class="number">08</span>
+          <div>
+            <h2 id="analysis-heading">分析记录</h2>
+            <p class="section-note">保留从输入理解到初步结论的完整分析草稿。</p>
+          </div>
+        </div>
+        <div class="analysis-columns" id="analysis-content"></div>
+      </section>
+
+      <section id="confirmation" aria-labelledby="confirmation-heading">
+        <div class="section-heading">
+          <span class="number">09</span>
+          <div>
+            <h2 id="confirmation-heading">确认记录</h2>
+            <p class="section-note">正式成果生成前的材料清单与用户确认留痕。</p>
+          </div>
+        </div>
+        <div class="confirmation-panel" id="confirmation-content"></div>
+      </section>
+    </main>
+  </div>
+
+  <script id="flash-data" type="application/json">__FLASH_DATA_JSON__</script>
+  <script>
+    (() => {
+      "use strict";
+
+      const labels = {
+        structured: "结构化标准",
+        natural_language: "自然语言标准",
+        absent: "未提供标准",
+        detailed: "详细审核结果",
+        brief: "简要审核结果",
+        conclusion_only: "仅审核结论",
+        met: "满足",
+        not_met: "不满足",
+        unknown: "无法判断",
+        meets: "符合",
+        does_not_meet: "不符合",
+        uncertain: "无法确定",
+        reliable: "可靠",
+        problematic: "存在问题",
+        none: "未发现明显风险",
+        false_approval: "错误放行风险",
+        false_rejection: "错误拒绝风险",
+        both: "双向风险",
+        passed: "已通过",
+        issue: "发现问题",
+        not_checked: "未检查",
+        high: "高",
+        medium: "中",
+        low: "低",
+        patient_material: "患者材料",
+        standard: "认定标准",
+        audit_result: "原审核结果",
+        true: "已确认",
+        false: "未确认",
+        two_stage_non_blind: "两阶段复核：先独立判断，再对照原审核"
+      };
+      const standardKinds = new Set([
+        "structured", "natural_language", "absent"
+      ]);
+      const auditDetails = new Set([
+        "detailed", "brief", "conclusion_only"
+      ]);
+      const preliminaryResults = new Set([
+        "meets", "does_not_meet", "uncertain"
+      ]);
+      const qcConclusions = new Set([
+        "reliable", "problematic", "uncertain"
+      ]);
+      const riskValues = new Set([
+        "none", "false_approval", "false_rejection", "both", "unknown"
+      ]);
+      const dimensionNames = [
+        "材料缺失判断准确性",
+        "证据提取准确性",
+        "过度推理",
+        "审核条件与结论一致性",
+        "规则维护质量"
+      ];
+      const dimensionStatuses = new Set([
+        "passed", "issue", "not_checked"
+      ]);
+      const sourceTypes = new Set([
+        "patient_material", "standard", "audit_result"
+      ]);
+      const ruleResults = new Set(["met", "not_met", "unknown"]);
+      const issueSeverities = new Set(["high", "medium", "low"]);
+      const MAX_STRUCTURED_SOURCE_CHARS = 200000;
+      const MAX_STRUCTURED_DEPTH = 8;
+      const MAX_STRUCTURED_NODES = 500;
+      const MAX_PLAIN_AUDIT_TOKENS = 1000;
+      const MAX_PLAIN_AUDIT_RULES = 100;
+      const MAX_PLAIN_AUDIT_EXTRACTIONS = 400;
+
+      const byId = id => document.getElementById(id);
+      const text = value => value === undefined || value === null || value === ""
+        ? "无"
+        : String(value);
+      const translated = value => labels[value] || text(value);
+      const classifyOriginalConclusion = value => {
+        const content = String(value || "");
+        if (/(?:未通过|未予通过|不能通过|不通过|不予通过|拒绝)/.test(content)) {
+          return "does_not_meet";
+        }
+        if (/通过/.test(content)) return "meets";
+        return "unknown";
+      };
+      const comparisonDirection = data => {
+        const original = classifyOriginalConclusion(
+          data.auditComparison.originalConclusion
+        );
+        const independent = data.baseReview.preliminaryResult;
+        if (original === "unknown" || independent === "uncertain") {
+          return "无法判断";
+        }
+        return original === independent ? "一致" : "相反";
+      };
+      const riskContractIsValid = data => {
+        const comparison = data.auditComparison;
+        const original = classifyOriginalConclusion(
+          comparison.originalConclusion
+        );
+        const independent = data.baseReview.preliminaryResult;
+        const hasDimensionIssue = data.dimensions.some(
+          dimension => dimension.status === "issue"
+        );
+        const hasIssueRecords = data.issues.length > 0;
+        const hasUnchecked = data.dimensions.some(
+          dimension => dimension.status === "not_checked"
+        );
+        const allPassed = data.dimensions.every(
+          dimension => dimension.status === "passed"
+        );
+        const conditionDimension = data.dimensions.find(
+          dimension => dimension.name === "审核条件与结论一致性"
+        );
+        const ruleDimension = data.dimensions.find(
+          dimension => dimension.name === "规则维护质量"
+        );
+        const conditionHasIssue = (
+          conditionDimension
+          && conditionDimension.status === "issue"
+        );
+        const directionKnown = (
+          original !== "unknown"
+          && independent !== "uncertain"
+        );
+        const directionOpposite = (
+          directionKnown
+          && original !== independent
+        );
+        if (
+          data.inputProfile.standardKind === "absent"
+          && (
+            independent !== "uncertain"
+            || data.baseReview.ruleJudgments.length !== 0
+            || !ruleDimension
+            || ruleDimension.status !== "not_checked"
+            || comparison.qcConclusion === "reliable"
+          )
+        ) {
+          return false;
+        }
+        if (data.inputProfile.auditDetail === "conclusion_only") {
+          const processDimensionsAreUnchecked = data.dimensions
+            .slice(0, 3)
+            .every(dimension => dimension.status === "not_checked");
+          if (data.inputProfile.standardKind === "absent") {
+            return (
+              processDimensionsAreUnchecked
+              && conditionDimension
+              && conditionDimension.status === "not_checked"
+              && !hasDimensionIssue
+              && !hasIssueRecords
+              && comparison.qcConclusion === "uncertain"
+              && comparison.risk === "unknown"
+            );
+          }
+          const expectedConditionStatus = directionOpposite
+            ? "issue"
+            : (directionKnown ? "passed" : "not_checked");
+          const ruleStatusIsValid = (
+            ruleDimension
+            && (
+              ruleDimension.status === "passed"
+              || ruleDimension.status === "issue"
+            )
+          );
+          if (
+            !processDimensionsAreUnchecked
+            || !conditionDimension
+            || conditionDimension.status !== expectedConditionStatus
+            || !ruleDimension
+            || !ruleStatusIsValid
+            || comparison.qcConclusion === "reliable"
+          ) {
+            return false;
+          }
+          if (!hasDimensionIssue && !hasIssueRecords) {
+            return (
+              comparison.qcConclusion === "uncertain"
+              && comparison.risk === "unknown"
+            );
+          }
+          if (
+            comparison.qcConclusion !== "problematic"
+            || !hasDimensionIssue
+            || !hasIssueRecords
+          ) {
+            return false;
+          }
+          if (directionOpposite) {
+            const expectedRisk = original === "meets"
+              ? "false_approval"
+              : "false_rejection";
+            return comparison.risk === expectedRisk;
+          }
+          return comparison.risk === "none";
+        }
+        if (comparison.qcConclusion === "uncertain") {
+          return (
+            comparison.risk === "unknown"
+            && !hasDimensionIssue
+            && !hasIssueRecords
+            && hasUnchecked
+            && !directionOpposite
+          );
+        }
+        if (comparison.qcConclusion === "reliable") {
+          return (
+            comparison.risk === "none"
+            && allPassed
+            && !hasIssueRecords
+            && directionKnown
+            && !directionOpposite
+          );
+        }
+        if (
+          comparison.qcConclusion !== "problematic"
+          || !hasDimensionIssue
+          || !hasIssueRecords
+        ) {
+          return false;
+        }
+        if (directionOpposite) {
+          const expectedRisk = original === "meets"
+            ? "false_approval"
+            : "false_rejection";
+          return (
+            conditionHasIssue
+            && comparison.risk === expectedRisk
+          );
+        }
+        return comparison.risk === "none";
+      };
+
+      const node = (tag, content, className) => {
+        const element = document.createElement(tag);
+        if (className) element.className = className;
+        if (content !== undefined && content !== null) {
+          element.textContent = String(content);
+        }
+        return element;
+      };
+
+      const add = (parent, ...children) => {
+        children.filter(Boolean).forEach(child => parent.appendChild(child));
+        return parent;
+      };
+
+      const badgeTone = value => {
+        if (["passed", "reliable", "met", "meets", true].includes(value)) {
+          return "success";
+        }
+        if (["issue", "problematic", "not_met", "does_not_meet", "high"].includes(value)) {
+          return "danger";
+        }
+        if (["medium", "false_approval", "false_rejection", "both"].includes(value)) {
+          return "warning";
+        }
+        return "unknown";
+      };
+
+      const makeBadge = value => node(
+        "span",
+        translated(value),
+        `badge ${badgeTone(value)}`
+      );
+
+      const makeValueCard = (label, value, accent = false) => {
+        const card = node("article", null, `card${accent ? " accent" : ""}`);
+        add(card, node("span", label, "label"));
+        if (typeof value === "string" && labels[value]) {
+          card.appendChild(makeBadge(value));
+        } else {
+          card.appendChild(node("p", text(value), "value"));
+        }
+        return card;
+      };
+
+      const makeList = (values, className = "plain-list") => {
+        const list = node("ul", null, className);
+        if (!Array.isArray(values) || values.length === 0) {
+          list.appendChild(node("li", "无"));
+          return list;
+        }
+        values.forEach(value => list.appendChild(node("li", text(value))));
+        return list;
+      };
+
+      const makeAnalysisCard = (title, values) => {
+        const card = node("details");
+        const body = node("div", null, "detail-body");
+        body.appendChild(makeList(values));
+        add(card, node("summary", title), body);
+        return card;
+      };
+
+      const requireObject = (value, name) => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+          throw new Error(`报告数据不完整：缺少${name}`);
+        }
+      };
+
+      const requireArray = (value, name) => {
+        if (!Array.isArray(value)) {
+          throw new Error(`报告数据不完整：${name}格式错误`);
+        }
+      };
+
+      const validate = data => {
+        if (
+          !data
+          || data.schemaVersion !== "flash-1.0"
+          || data.mode !== "qc"
+        ) {
+          throw new Error("数据不是模式 2 质控报告");
+        }
+        [
+          ["meta", data.meta],
+          ["inputProfile", data.inputProfile],
+          ["analysisRecord", data.analysisRecord],
+          ["baseReview", data.baseReview],
+          ["auditComparison", data.auditComparison],
+          ["confirmation", data.confirmation]
+        ].forEach(item => requireObject(item[1], item[0]));
+        if (data.inputProfile.materialsConfirmedComplete !== true) {
+          throw new Error("材料清单尚未确认完整");
+        }
+        if (data.confirmation.confirmed !== true) {
+          throw new Error("缺少用户确认记录");
+        }
+        if (!standardKinds.has(data.inputProfile.standardKind)) {
+          throw new Error("认定标准类型无效");
+        }
+        if (!auditDetails.has(data.inputProfile.auditDetail)) {
+          throw new Error("审核结果粒度无效");
+        }
+        if (data.baseReview.method !== "two_stage_non_blind") {
+          throw new Error("复核方法无效");
+        }
+        if (!preliminaryResults.has(data.baseReview.preliminaryResult)) {
+          throw new Error("独立复核初步结果无效");
+        }
+        if (!qcConclusions.has(data.auditComparison.qcConclusion)) {
+          throw new Error("质控结论无效");
+        }
+        if (!riskValues.has(data.auditComparison.risk)) {
+          throw new Error("风险方向无效");
+        }
+        [
+          ["sourceDocuments", data.sourceDocuments],
+          ["dimensions", data.dimensions],
+          ["issues", data.issues],
+          ["recommendations", data.recommendations]
+        ].forEach(item => requireArray(item[1], item[0]));
+        [
+          ["baseReview.materialFacts", data.baseReview.materialFacts],
+          ["baseReview.ruleJudgments", data.baseReview.ruleJudgments],
+          ["analysisRecord.inputSummary", data.analysisRecord.inputSummary],
+          ["analysisRecord.interpretations", data.analysisRecord.interpretations],
+          ["analysisRecord.evidenceFindings", data.analysisRecord.evidenceFindings],
+          ["analysisRecord.uncertainties", data.analysisRecord.uncertainties]
+        ].forEach(item => requireArray(item[1], item[0]));
+        if (!data.sourceDocuments.length) {
+          throw new Error("未提供原始材料");
+        }
+        if (!data.dimensions.length) {
+          throw new Error("未提供五维复核结果");
+        }
+        if (
+          data.dimensions.length !== dimensionNames.length
+          || data.dimensions.some((dimension, index) =>
+            !dimension
+            || dimension.name !== dimensionNames[index]
+            || !dimensionStatuses.has(dimension.status)
+            || (
+              dimension.status === "not_checked"
+                ? (
+                  typeof dimension.notCheckedReason !== "string"
+                  || !dimension.notCheckedReason.trim()
+                )
+                : dimension.notCheckedReason !== ""
+            )
+          )
+        ) {
+          throw new Error("五维检查名称、顺序或状态无效");
+        }
+        if (data.sourceDocuments.some(source =>
+          !source || !sourceTypes.has(source.type)
+        )) {
+          throw new Error("原始材料类型无效");
+        }
+        if (data.baseReview.ruleJudgments.some(judgment =>
+          !judgment || !ruleResults.has(judgment.result)
+        )) {
+          throw new Error("逐规则复核结果无效");
+        }
+        if (data.issues.some(issue =>
+          !issue || !issueSeverities.has(issue.severity)
+        )) {
+          throw new Error("问题严重程度无效");
+        }
+        const issueDimensionSet = new Set(
+          data.dimensions
+            .filter(dimension => dimension.status === "issue")
+            .map(dimension => dimension.name)
+        );
+        const recordedIssueDimensionSet = new Set(
+          data.issues.map(issue => issue.dimension)
+        );
+        if (
+          issueDimensionSet.size !== recordedIssueDimensionSet.size
+          || Array.from(issueDimensionSet).some(
+            dimension => !recordedIssueDimensionSet.has(dimension)
+          )
+        ) {
+          throw new Error("问题清单与五维问题状态不一致");
+        }
+        if (data.auditComparison.qcConclusion === "reliable") {
+          const hasActualIssue = (
+            data.dimensions.some(dimension => dimension.status === "issue")
+            || data.issues.length > 0
+          );
+          if (hasActualIssue) {
+            throw new Error(
+              "reliable 要求五维全 passed 且 issues 为空"
+              + "（即“可靠”要求五维全部“已通过”且问题清单为空）；"
+              + "当前存在实际问题，应改为 problematic（存在问题）"
+            );
+          }
+          if (data.auditComparison.risk !== "none") {
+            throw new Error(
+              "reliable 时 risk 必须为 none"
+              + "（“可靠”时风险方向必须为“无”）"
+            );
+          }
+        }
+        if (!riskContractIsValid(data)) {
+          throw new Error("风险方向与复核结论不一致");
+        }
+        if (!data.meta.reportTitle || !data.meta.diseaseName || !data.meta.generatedAt) {
+          throw new Error("报告数据不完整：缺少报告基本信息");
+        }
+      };
+
+      const renderHeader = data => {
+        byId("report-title").textContent = data.meta.reportTitle;
+        document.title = `${data.meta.diseaseName} · 审核质控报告`;
+        const headerMeta = byId("header-meta");
+        headerMeta.replaceChildren(
+          node("span", `病种：${data.meta.diseaseName}`),
+          node("span", `生成日期：${data.meta.generatedAt}`),
+          node("span", `版本：${text(data.schemaVersion)}`)
+        );
+      };
+
+      const renderSummary = data => {
+        const comparison = data.auditComparison;
+        const root = byId("summary-content");
+        root.replaceChildren(
+          makeValueCard(
+            "本次独立复核",
+            data.baseReview.preliminaryResult,
+            true
+          ),
+          makeValueCard("原审核结论", comparison.originalConclusion, true),
+          makeValueCard("方向判断", comparisonDirection(data), true),
+          makeValueCard("质控结论", comparison.qcConclusion, true),
+          makeValueCard("风险方向", comparison.risk, true)
+        );
+        const summary = node("article", null, "card wide");
+        add(
+          summary,
+          node("span", "结论摘要", "label"),
+          node("p", comparison.summary)
+        );
+        root.appendChild(summary);
+      };
+
+      const renderScope = data => {
+        const profile = data.inputProfile;
+        const review = data.baseReview;
+        const root = byId("scope-content");
+        const profileCard = node("article", null, "card");
+        add(
+          profileCard,
+          node("h3", "输入画像"),
+          node("span", "认定标准类型", "label"),
+          makeBadge(profile.standardKind),
+          node("span", "原审核结果粒度", "label"),
+          makeBadge(profile.auditDetail),
+          node("span", "材料清单完整性", "label"),
+          makeBadge(profile.materialsConfirmedComplete)
+        );
+        const reviewCard = node("article", null, "card");
+        add(
+          reviewCard,
+          node("h3", "两阶段复核：先独立判断，再对照原审核"),
+          node("span", "复核方法", "label"),
+          makeBadge(review.method),
+          node(
+            "p",
+            "第一阶段仅依据患者材料和认定标准形成独立判断；第二阶段再对照原审核结果。",
+            "muted"
+          ),
+          node(
+            "p",
+            "原审核结果在同一任务中可见，因此属于非盲复核。",
+            "muted"
+          )
+        );
+        root.replaceChildren(profileCard, reviewCard);
+      };
+
+      const renderDimensions = data => {
+        const root = byId("dimensions-content");
+        root.replaceChildren();
+        data.dimensions.forEach((dimension, index) => {
+          const statusClass = dimension.status === "not_checked"
+            ? "not-checked"
+            : dimension.status;
+          const card = node("article", null, `card ${statusClass}`);
+          const head = node("div", null, "issue-head");
+          add(
+            head,
+            node("h3", `${index + 1}. ${text(dimension.name)}`),
+            makeBadge(dimension.status)
+          );
+          add(card, head, node("p", text(dimension.summary)));
+          if (dimension.status === "not_checked") {
+            add(
+              card,
+              node("strong", "本项因输入受限未核查"),
+              node("span", "未核查原因", "label"),
+              node(
+                "p",
+                dimension.notCheckedReason,
+                "not-checked-reason"
+              )
+            );
+          }
+          root.appendChild(card);
+        });
+      };
+
+      const detail = (label, value, wide = false) => {
+        const wrap = node("div", null, wide ? "wide" : null);
+        add(wrap, node("span", label, "label"), node("p", text(value)));
+        return wrap;
+      };
+
+      const patientMaterialIndex = data => {
+        const index = new Map();
+        data.sourceDocuments.forEach((source, sourceIndex) => {
+          if (source.type !== "patient_material") return;
+          const searchable = `${source.name}\n${source.content}`;
+          const ids = searchable.match(/\b\d{8,}\b/g) || [];
+          ids.forEach(id => {
+            if (!index.has(id)) index.set(id, `source-${sourceIndex + 1}`);
+          });
+        });
+        return index;
+      };
+
+      const sourceReferenceDetail = (value, materialIndex) => {
+        const wrap = detail("来源定位", value, true);
+        const ids = Array.from(new Set(
+          (String(value || "").match(/\b\d{8,}\b/g) || [])
+        ));
+        ids.forEach(id => {
+          const sourceId = materialIndex.get(id);
+          if (sourceId) {
+            const link = node("a", `定位材料 ${id}`, "source-link");
+            link.setAttribute("href", `#${sourceId}`);
+            wrap.appendChild(link);
+          } else {
+            wrap.appendChild(node(
+              "p",
+              `材料 ${id}：引用材料未在本报告材料清单中`,
+              "material-warning"
+            ));
+          }
+        });
+        return wrap;
+      };
+
+      const renderIssues = data => {
+        const root = byId("issues-content");
+        const materialIndex = patientMaterialIndex(data);
+        root.replaceChildren();
+        if (data.issues.length === 0) {
+          root.appendChild(node("p", "未发现质控问题", "empty-state"));
+          return;
+        }
+        data.issues.forEach(issue => {
+          const card = node("article", null, "card issue");
+          const head = node("div", null, "issue-head");
+          const titleWrap = node("div");
+          add(
+            titleWrap,
+            node("span", issue.id, "label"),
+            node("h3", issue.dimension, "issue-title")
+          );
+          add(head, titleWrap, makeBadge(issue.severity));
+          const grid = node("div", null, "detail-grid");
+          add(
+            grid,
+            detail("原审核主张", issue.auditClaim),
+            detail("实际证据", issue.actualEvidence),
+            sourceReferenceDetail(issue.sourceReference, materialIndex),
+            detail("可能影响", issue.impact),
+            detail("改进建议", issue.recommendation)
+          );
+          add(card, head, grid);
+          root.appendChild(card);
+        });
+      };
+
+      const renderRules = data => {
+        const review = data.baseReview;
+        const root = byId("rules-content");
+        root.replaceChildren();
+        const facts = node("article", null, "card wide");
+        add(
+          facts,
+          node("h3", "本次质控提取的患者材料事实"),
+          node(
+            "p",
+            "以下事实由本次质控归纳，不代表原审核结论；具体内容以原始材料为准。",
+            "muted"
+          ),
+          makeList(review.materialFacts, "fact-list")
+        );
+        const result = makeValueCard(
+          "独立复核初步结果",
+          review.preliminaryResult,
+          true
+        );
+        root.append(facts, result);
+        if (review.ruleJudgments.length === 0) {
+          root.appendChild(node("p", "无", "empty-state"));
+          return;
+        }
+        review.ruleJudgments.forEach(judgment => {
+          const card = node("article", null, "card");
+          const head = node("div", null, "issue-head");
+          add(
+            head,
+            node("h3", judgment.ruleId, "issue-title"),
+            makeBadge(judgment.result)
+          );
+          add(
+            card,
+            head,
+            ...(String(judgment.ruleId).startsWith("TMP-")
+              ? [node(
+                "p",
+                "本次质控临时规则，非正式业务标准",
+                "source-warning"
+              )]
+              : []),
+            node("span", "判断理由", "label"),
+            node("p", text(judgment.reason)),
+            node("span", "证据", "label"),
+            makeList(judgment.evidence)
+          );
+          root.appendChild(card);
+        });
+      };
+
+      const renderRecommendations = data => {
+        const root = byId("recommendations-content");
+        root.replaceChildren();
+        if (data.recommendations.length === 0) {
+          root.appendChild(node("p", "暂无改进建议", "empty-state"));
+          return;
+        }
+        const card = node("article", null, "card accent");
+        add(card, makeList(data.recommendations, "fact-list"));
+        root.appendChild(card);
+      };
+
+      const renderAnalysis = data => {
+        const analysis = data.analysisRecord;
+        const root = byId("analysis-content");
+        root.replaceChildren(
+          makeAnalysisCard("输入摘要", analysis.inputSummary),
+          makeAnalysisCard("理解与解释", analysis.interpretations),
+          makeAnalysisCard("证据发现", analysis.evidenceFindings),
+          makeAnalysisCard("不确定项", analysis.uncertainties),
+          makeAnalysisCard("初步结论", [analysis.preliminaryConclusion])
+        );
+      };
+
+      const makeFullSourceDetails = content => {
+        const full = node("details");
+        add(
+          full,
+          node("summary", "查看完整原文"),
+          node("pre", content, "source-copy detail-body")
+        );
+        return full;
+      };
+
+      const ensureStructuredBudget = (state, depth) => {
+        if (
+          depth > MAX_STRUCTURED_DEPTH
+          || state.nodes >= MAX_STRUCTURED_NODES
+        ) {
+          throw new Error("结构化内容超过安全展示限制");
+        }
+      };
+
+      const appendStructuredValue = (parent, value, state, depth = 0) => {
+        ensureStructuredBudget(state, depth);
+        state.nodes += 1;
+        if (value === null || typeof value !== "object") {
+          parent.appendChild(node("span", value === null ? "null" : String(value)));
+          return;
+        }
+        const list = node("ul", null, "structured-tree");
+        const appendEntry = (label, childValue) => {
+          ensureStructuredBudget(state, depth + 1);
+          const item = node("li");
+          add(item, node("strong", `${label}：`));
+          appendStructuredValue(item, childValue, state, depth + 1);
+          list.appendChild(item);
+        };
+        if (Array.isArray(value)) {
+          for (let index = 0; index < value.length; index += 1) {
+            appendEntry(String(index + 1), value[index]);
+          }
+        } else {
+          for (const key in value) {
+            if (Object.prototype.hasOwnProperty.call(value, key)) {
+              appendEntry(key, value[key]);
+            }
+          }
+        }
+        parent.appendChild(list);
+      };
+
+      const plainAuditQuotePairs = {
+        "\"": "\"",
+        "'": "'",
+        "“": "”",
+        "‘": "’"
+      };
+      const plainAuditClosingQuotes = new Set(["”", "’"]);
+      const plainAuditParenPairs = {
+        "(": ")",
+        "（": "）"
+      };
+      const plainAuditClosingParens = new Set([")", "）"]);
+
+      const isEscapedPlainAuditChar = (value, index) => {
+        let backslashes = 0;
+        for (
+          let cursor = index - 1;
+          cursor >= 0 && value[cursor] === "\\";
+          cursor -= 1
+        ) {
+          backslashes += 1;
+        }
+        return backslashes % 2 === 1;
+      };
+
+      const scanPlainAudit = (value, visitTopLevel) => {
+        const parenStack = [];
+        let closingQuote = null;
+        for (let index = 0; index < value.length; index += 1) {
+          const character = value[index];
+          if (!closingQuote && parenStack.length === 0) {
+            visitTopLevel(index, character);
+          }
+          if (closingQuote) {
+            if (
+              character === closingQuote
+              && !isEscapedPlainAuditChar(value, index)
+            ) {
+              closingQuote = null;
+            }
+            continue;
+          }
+          if (
+            Object.prototype.hasOwnProperty.call(
+              plainAuditQuotePairs,
+              character
+            )
+            && !isEscapedPlainAuditChar(value, index)
+          ) {
+            closingQuote = plainAuditQuotePairs[character];
+            continue;
+          }
+          if (plainAuditClosingQuotes.has(character)) return false;
+          if (
+            Object.prototype.hasOwnProperty.call(
+              plainAuditParenPairs,
+              character
+            )
+          ) {
+            parenStack.push(plainAuditParenPairs[character]);
+            continue;
+          }
+          if (plainAuditClosingParens.has(character)) {
+            if (parenStack.pop() !== character) return false;
+          }
+        }
+        return closingQuote === null && parenStack.length === 0;
+      };
+
+      const splitPlainAuditTopLevel = (value, separators) => {
+        const boundaries = [];
+        const balanced = scanPlainAudit(value, (index, character) => {
+          if (separators.has(character)) boundaries.push(index);
+        });
+        if (
+          !balanced
+          || boundaries.length > MAX_PLAIN_AUDIT_TOKENS
+        ) {
+          return null;
+        }
+        const fragments = [];
+        let start = 0;
+        boundaries.forEach(boundary => {
+          const fragment = value.slice(start, boundary).trim();
+          if (fragment) fragments.push(fragment);
+          start = boundary + 1;
+        });
+        const tail = value.slice(start).trim();
+        if (tail) fragments.push(tail);
+        return fragments;
+      };
+
+      const explicitAuditSegments = content => {
+        const fieldSeparators = new Set([
+          "\n", "\r", ";", "；", ".", "。"
+        ]);
+        const boundaries = [-1];
+        const balanced = scanPlainAudit(content, (index, character) => {
+          if (fieldSeparators.has(character)) boundaries.push(index);
+        });
+        if (
+          !balanced
+          || boundaries.length > MAX_PLAIN_AUDIT_TOKENS
+        ) {
+          return null;
+        }
+        const labelMap = {
+          finalResult: "最终结论",
+          最终结论: "最终结论",
+          ruleResults: "逐规则审核结果",
+          逐规则审核结果: "逐规则审核结果",
+          advice: "审核建议",
+          审核建议: "审核建议",
+          rawText: "引用原文",
+          引用原文: "引用原文"
+        };
+        const fieldPattern = /^(finalResult|最终结论|ruleResults|逐规则审核结果|advice|审核建议|rawText|引用原文)\s*[:：=]\s*/;
+        const matches = [];
+        boundaries.forEach(boundary => {
+          let markerStart = boundary + 1;
+          while (
+            markerStart < content.length
+            && /\s/.test(content[markerStart])
+          ) {
+            markerStart += 1;
+          }
+          const match = content
+            .slice(markerStart, markerStart + 64)
+            .match(fieldPattern);
+          if (!match) return;
+          matches.push({
+            boundary,
+            label: labelMap[match[1]],
+            valueStart: markerStart + match[0].length
+          });
+        });
+        if (matches.length < 2) return null;
+        return matches.map((match, index) => ({
+          label: match.label,
+          value: content.slice(
+            match.valueStart,
+            index + 1 < matches.length
+              ? matches[index + 1].boundary
+              : content.length
+          ).trim()
+        }));
+      };
+
+      const parsePlainRuleResults = value => {
+        const ruleCode = "(?:TMP-[A-Z][A-Z0-9-]*|[A-Z][A-Z0-9-]*|\\d{1,7})";
+        const rulePattern = new RegExp(
+          `^(${ruleCode})\\s+(不通过|通过)\\s*[。.]?$`
+        );
+        const ruleBlockPattern = new RegExp(
+          `^(${ruleCode})\\s+(不通过|通过)\\s*([（(])`
+        );
+        const extractionPattern = new RegExp(
+          `^(?:提取项\\s*)?(${ruleCode}_[0-9]{1,3})(?:\\s*[:：=]\\s*|\\s+)(\\S[\\s\\S]*)$`
+        );
+        const fragments = splitPlainAuditTopLevel(
+          value,
+          new Set(["\n", "\r", ";", "；"])
+        );
+        if (!fragments || !fragments.length) return null;
+
+        const rules = [];
+        const rulesById = new Map();
+        const extractionIds = new Set();
+        let extractionCount = 0;
+
+        const addRule = (id, result) => {
+          if (
+            rulesById.has(id)
+            || rules.length >= MAX_PLAIN_AUDIT_RULES
+          ) {
+            return null;
+          }
+          const rule = { id, result, extractions: [] };
+          rules.push(rule);
+          rulesById.set(id, rule);
+          return rule;
+        };
+
+        const addExtraction = (fragment, requiredParent = null) => {
+          const extractionMatch = fragment.match(extractionPattern);
+          if (!extractionMatch) return false;
+          const extractionId = extractionMatch[1];
+          const parentId = extractionId.slice(
+            0,
+            extractionId.lastIndexOf("_")
+          );
+          const parentRule = rulesById.get(parentId);
+          if (
+            !parentRule
+            || (requiredParent && parentRule !== requiredParent)
+            || extractionIds.has(extractionId)
+            || extractionCount >= MAX_PLAIN_AUDIT_EXTRACTIONS
+          ) {
+            return false;
+          }
+          extractionIds.add(extractionId);
+          extractionCount += 1;
+          parentRule.extractions.push({
+            id: extractionId,
+            value: extractionMatch[2].trim()
+          });
+          return true;
+        };
+
+        for (const fragment of fragments) {
+          const ruleBlockMatch = fragment.match(ruleBlockPattern);
+          if (ruleBlockMatch) {
+            const openingParen = ruleBlockMatch[3];
+            const closingParen = plainAuditParenPairs[openingParen];
+            const blockEnd = fragment.endsWith(closingParen)
+              ? fragment.length - 1
+              : -1;
+            if (blockEnd < ruleBlockMatch[0].length) return null;
+            const rule = addRule(
+              ruleBlockMatch[1],
+              ruleBlockMatch[2]
+            );
+            if (!rule) return null;
+            const extractionFragments = splitPlainAuditTopLevel(
+              fragment.slice(ruleBlockMatch[0].length, blockEnd),
+              new Set(["\n", "\r", ";", "；"])
+            );
+            if (
+              !extractionFragments
+              || !extractionFragments.length
+            ) {
+              return null;
+            }
+            for (const extraction of extractionFragments) {
+              if (!addExtraction(extraction, rule)) return null;
+            }
+            continue;
+          }
+
+          const ruleMatch = fragment.match(rulePattern);
+          if (ruleMatch) {
+            if (!addRule(ruleMatch[1], ruleMatch[2])) return null;
+            continue;
+          }
+
+          if (!addExtraction(fragment)) return null;
+        }
+        return rules.length ? rules : null;
+      };
+
+      const appendPlainRuleResults = (card, value) => {
+        const rules = parsePlainRuleResults(value);
+        if (!rules) return false;
+        rules.forEach(rule => {
+          const ruleDetails = node("details", null, "audit-rule-node");
+          add(
+            ruleDetails,
+            node("summary", `规则 ${rule.id}｜${rule.result}`)
+          );
+          rule.extractions.forEach(extraction => {
+            const extractionDetails = node(
+              "details",
+              null,
+              "audit-extraction-node"
+            );
+            add(
+              extractionDetails,
+              node("summary", `提取项 ${extraction.id}`),
+              node("p", extraction.value, "detail-body")
+            );
+            ruleDetails.appendChild(extractionDetails);
+          });
+          card.appendChild(ruleDetails);
+        });
+        return true;
+      };
+
+      const appendPlainAuditSegments = (parent, segments) => {
+        segments.forEach(segment => {
+          const card = node("article", null, "card");
+          card.appendChild(node("h4", segment.label));
+          if (
+            segment.label !== "逐规则审核结果"
+            || !appendPlainRuleResults(card, segment.value)
+          ) {
+            card.appendChild(node("p", segment.value));
+            if (segment.label === "逐规则审核结果") {
+              card.appendChild(
+                node(
+                  "p",
+                  "逐规则结果未能完整拆分，按原文片段展示",
+                  "source-warning"
+                )
+              );
+            }
+          }
+          parent.appendChild(card);
+        });
+      };
+
+      const renderAuditSourceBody = source => {
+        const body = node("div", null, "detail-body");
+        if (source.content.length > MAX_STRUCTURED_SOURCE_CHARS) {
+          add(
+            body,
+            node(
+              "p",
+              "内容较多，请查看完整原文",
+              "source-warning"
+            ),
+            makeFullSourceDetails(source.content)
+          );
+          return body;
+        }
+        try {
+          const parsed = JSON.parse(source.content);
+          add(body, node("h3", "结构化摘要"));
+          appendStructuredValue(body, parsed, { nodes: 0 });
+        } catch (jsonError) {
+          try {
+            const segments = explicitAuditSegments(source.content);
+            if (!segments) throw new Error("缺少明确分段边界");
+            add(body, node("h3", "结构化摘要"));
+            appendPlainAuditSegments(body, segments);
+          } catch (plainError) {
+            add(
+              body,
+              node(
+                "p",
+                "原审核结果无法自动结构化，以下按原文展示",
+                "source-warning"
+              )
+            );
+          }
+        }
+        body.appendChild(makeFullSourceDetails(source.content));
+        return body;
+      };
+
+      const renderSources = data => {
+        const root = byId("sources-content");
+        root.replaceChildren();
+        data.sourceDocuments.forEach((source, index) => {
+          const details = node("details");
+          details.setAttribute("id", `source-${index + 1}`);
+          const summary = node("summary");
+          add(
+            summary,
+            node("span", `${index + 1}. ${text(source.name)}`),
+            makeBadge(source.type)
+          );
+          const body = source.type === "audit_result"
+            ? renderAuditSourceBody(source)
+            : (() => {
+              const ordinaryBody = node("div", null, "detail-body");
+              add(
+                ordinaryBody,
+                node("span", "完整原文", "label"),
+                node("pre", source.content, "source-copy")
+              );
+              return ordinaryBody;
+            })();
+          add(details, summary, body);
+          root.appendChild(details);
+        });
+      };
+
+      const renderConfirmation = data => {
+        const confirmation = data.confirmation;
+        const root = byId("confirmation-content");
+        const head = node("div", null, "issue-head");
+        add(
+          head,
+          node("h3", "材料完整性确认"),
+          makeBadge(confirmation.confirmed)
+        );
+        add(
+          root,
+          head,
+          node("span", "已展示材料清单", "label"),
+          makeList(confirmation.inventoryShown),
+          node("span", "用户回复", "label"),
+          node("p", text(confirmation.userResponse)),
+          node("span", "材料完整性状态", "label"),
+          node(
+            "p",
+            translated(data.inputProfile.materialsConfirmedComplete),
+            "value"
+          )
+        );
+      };
+
+      const render = data => {
+        renderHeader(data);
+        renderSummary(data);
+        renderScope(data);
+        renderSources(data);
+        renderDimensions(data);
+        renderIssues(data);
+        renderRules(data);
+        renderRecommendations(data);
+        renderAnalysis(data);
+        renderConfirmation(data);
+      };
+
+      const showError = error => {
+        byId("report-shell").hidden = true;
+        const panel = byId("error-panel");
+        panel.hidden = false;
+        panel.replaceChildren(
+          node("strong", "报告加载失败"),
+          node("p", error.message || "报告数据不完整")
+        );
+      };
+
+      try {
+        let data;
+        try {
+          data = JSON.parse(byId("flash-data").textContent);
+        } catch (parseError) {
+          throw new Error("无法解析报告数据");
+        }
+        validate(data);
+        render(data);
+      } catch (error) {
+        showError(error);
+      }
+
+      const nav = byId("page-navigation");
+      const toggle = document.querySelector(".nav-toggle");
+      toggle.addEventListener("click", () => {
+        const expanded = toggle.getAttribute("aria-expanded") === "true";
+        toggle.setAttribute("aria-expanded", String(!expanded));
+        toggle.textContent = expanded ? "展开报告导航" : "收起报告导航";
+        nav.classList.toggle("is-open", !expanded);
+      });
+
+      const links = Array.from(nav.querySelectorAll('a[href^="#"]'));
+      const sections = links
+        .map(link => byId(link.getAttribute("href").slice(1)))
+        .filter(Boolean);
+
+      const setActive = target => {
+        const id = typeof target === "string" ? target : (
+          target.hash ? target.hash.slice(1) : target.id
+        );
+        links.forEach(link => {
+          if (link.getAttribute("href") === `#${id}`) {
+            link.setAttribute("aria-current", "location");
+          } else {
+            link.removeAttribute("aria-current");
+          }
+        });
+      };
+
+      const isAtDocumentBottom = () =>
+        window.scrollY + window.innerHeight
+        >= document.documentElement.scrollHeight - 4;
+
+      if (links.length) setActive(links[0]);
+      if (isAtDocumentBottom()) setActive("confirmation");
+
+      links.forEach(link => {
+        link.addEventListener("click", () => {
+          setActive(link);
+          nav.classList.remove("is-open");
+          toggle.setAttribute("aria-expanded", "false");
+          toggle.textContent = "展开报告导航";
+          const sectionId = link.getAttribute("href").slice(1);
+          const heading = byId(`${sectionId}-heading`);
+          if (heading) {
+            const hadTabIndex = heading.hasAttribute("tabindex");
+            if (!hadTabIndex) heading.setAttribute("tabindex", "-1");
+            heading.focus({ preventScroll: true });
+            if (!hadTabIndex) {
+              heading.addEventListener("blur", () => {
+                heading.removeAttribute("tabindex");
+              }, { once: true });
+            }
+          }
+        });
+      });
+
+      if ("IntersectionObserver" in window) {
+        const observer = new IntersectionObserver(entries => {
+          if (isAtDocumentBottom()) {
+            setActive("confirmation");
+            return;
+          }
+          const visible = entries
+            .filter(entry => entry.isIntersecting)
+            .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+          if (visible.length) {
+            const entry = visible[0];
+            setActive(entry.target);
+          }
+        }, {
+          rootMargin: "-18% 0px -64% 0px",
+          threshold: [0.05, 0.25, 0.6]
+        });
+        sections.forEach(section => observer.observe(section));
+      }
+
+      window.addEventListener("scroll", () => {
+        if (isAtDocumentBottom()) setActive("confirmation");
+      }, { passive: true });
+    })();
+  </script>
+</body>
+</html>

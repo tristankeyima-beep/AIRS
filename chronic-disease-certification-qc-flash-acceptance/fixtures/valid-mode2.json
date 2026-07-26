@@ -1,0 +1,140 @@
+{
+  "schemaVersion": "flash-1.0",
+  "mode": "qc",
+  "meta": {
+    "reportTitle": "测试审核质控报告",
+    "diseaseName": "测试病种甲",
+    "generatedAt": "2026-07-25"
+  },
+  "inputProfile": {
+    "standardKind": "structured",
+    "auditDetail": "detailed",
+    "materialsConfirmedComplete": true
+  },
+  "sourceDocuments": [
+    {
+      "name": "患者材料-2079388752224174082",
+      "type": "patient_material",
+      "content": "材料ID2079388752224174082原文：患者材料明确记载证据 A。"
+    },
+    {
+      "name": "患者补充材料-2079388752224174083",
+      "type": "patient_material",
+      "content": "材料ID2079388752224174083原文：患者补充材料明确记载证据 B。"
+    },
+    {
+      "name": "认定标准",
+      "type": "standard",
+      "content": "正式规则码1001：要求满足证据 A；逻辑引用1001。"
+    },
+    {
+      "name": "原审核结果",
+      "type": "audit_result",
+      "content": "finalResult=不通过；ruleResults：1001 不通过；1001_01: 原审核认定证据 A 缺失，引用材料ID2079388752224174082；advice：重新核验材料后复核结论。"
+    }
+  ],
+  "analysisRecord": {
+    "inputSummary": [
+      "已收到患者材料、结构化标准和详细审核结果"
+    ],
+    "interpretations": [
+      "按标准中的证据 A 要求进行复核"
+    ],
+    "evidenceFindings": [
+      "患者材料明确存在证据 A"
+    ],
+    "uncertainties": [],
+    "preliminaryConclusion": "原审核的缺失判断与材料不一致"
+  },
+  "baseReview": {
+    "method": "two_stage_non_blind",
+    "materialFacts": [
+      "患者材料明确记载证据 A"
+    ],
+    "ruleJudgments": [
+      {
+        "ruleId": "1001",
+        "result": "met",
+        "evidence": [
+          "患者材料：证据 A"
+        ],
+        "reason": "材料中的证据 A 满足标准要求"
+      }
+    ],
+    "preliminaryResult": "meets"
+  },
+  "auditComparison": {
+    "originalConclusion": "不通过",
+    "qcConclusion": "problematic",
+    "risk": "false_rejection",
+    "summary": "原审核错误地将已提供证据判断为缺失，可能导致错误拒绝"
+  },
+  "dimensions": [
+    {
+      "name": "材料缺失判断准确性",
+      "status": "issue",
+      "summary": "原审核将材料中已存在的证据 A 判断为缺失",
+      "notCheckedReason": ""
+    },
+    {
+      "name": "证据提取准确性",
+      "status": "passed",
+      "summary": "复核能够从患者材料中准确定位证据 A",
+      "notCheckedReason": ""
+    },
+    {
+      "name": "过度推理",
+      "status": "passed",
+      "summary": "未发现原审核使用材料之外的信息进行推理",
+      "notCheckedReason": ""
+    },
+    {
+      "name": "审核条件与结论一致性",
+      "status": "issue",
+      "summary": "证据 A 已满足标准要求，但原审核仍给出不通过结论",
+      "notCheckedReason": ""
+    },
+    {
+      "name": "规则维护质量",
+      "status": "passed",
+      "summary": "本次复核未发现认定标准本身存在维护问题",
+      "notCheckedReason": ""
+    }
+  ],
+  "issues": [
+    {
+      "id": "I001",
+      "dimension": "材料缺失判断准确性",
+      "severity": "high",
+      "auditClaim": "原审核主张证据 A 缺失",
+      "actualEvidence": "患者材料明确记载证据 A",
+      "sourceReference": "患者材料-2079388752224174082：测试段落",
+      "impact": "可能导致符合条件的申请被错误拒绝",
+      "recommendation": "重新提取证据 A 并复核审核结论"
+    },
+    {
+      "id": "I002",
+      "dimension": "审核条件与结论一致性",
+      "severity": "high",
+      "auditClaim": "原审核以证据 A 缺失为由给出不通过结论",
+      "actualEvidence": "患者材料中的证据 A 满足认定标准要求",
+      "sourceReference": "患者材料-2079388752224174082：测试段落；认定标准：测试条款",
+      "impact": "可能导致审核条件判断与最终结论不一致并造成错误拒绝",
+      "recommendation": "根据证据 A 已满足的事实重新判定审核条件并修正结论"
+    }
+  ],
+  "recommendations": [
+    "重新提取患者材料中的证据 A",
+    "复核最终审核结论"
+  ],
+  "confirmation": {
+    "confirmed": true,
+    "inventoryShown": [
+      "患者材料-2079388752224174082",
+      "患者补充材料-2079388752224174083",
+      "认定标准",
+      "原审核结果"
+    ],
+    "userResponse": "确认材料完整"
+  }
+}
