@@ -57,6 +57,32 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
             dimension["notCheckedReason"] = "缺少认定标准，无法核查"
         return fixture
 
+    def make_absent_visible_audit_candidate(
+        self,
+        audit_detail,
+        with_actual_issues=False,
+    ):
+        fixture = json.loads(json.dumps(self.fixture, ensure_ascii=False))
+        fixture["inputProfile"]["standardKind"] = "absent"
+        fixture["inputProfile"]["auditDetail"] = audit_detail
+        fixture["baseReview"]["preliminaryResult"] = "uncertain"
+        fixture["baseReview"]["ruleJudgments"] = []
+        fixture["dimensions"][4]["status"] = "not_checked"
+        fixture["dimensions"][4][
+            "notCheckedReason"
+        ] = "缺少认定标准，无法核查"
+        if with_actual_issues:
+            fixture["auditComparison"]["qcConclusion"] = "problematic"
+            fixture["auditComparison"]["risk"] = "none"
+        else:
+            fixture["issues"] = []
+            for dimension in fixture["dimensions"][:4]:
+                dimension["status"] = "passed"
+                dimension["notCheckedReason"] = ""
+            fixture["auditComparison"]["qcConclusion"] = "uncertain"
+            fixture["auditComparison"]["risk"] = "unknown"
+        return fixture
+
     def test_sources_is_section_03_in_navigation_and_body(self):
         nav = re.search(
             r'<nav\b[^>]*id="page-navigation"[^>]*>(.*?)</nav>',
@@ -599,6 +625,73 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
         reliable["auditComparison"]["qcConclusion"] = "reliable"
         reliable["auditComparison"]["risk"] = "none"
         invalid_candidates["qc cannot be reliable"] = reliable
+
+        for name, candidate in invalid_candidates.items():
+            with self.subTest(case=name):
+                state = run_qc_renderer(self.template_path, candidate)
+                self.assertTrue(state["shellHidden"])
+                self.assertIn(
+                    "风险方向与复核结论不一致",
+                    state["errorText"],
+                )
+
+    def test_absent_standard_contract_applies_to_detailed_and_brief(self):
+        valid_candidates = (
+            self.make_absent_visible_audit_candidate("detailed"),
+            self.make_absent_visible_audit_candidate(
+                "brief",
+                with_actual_issues=True,
+            ),
+        )
+        for candidate in valid_candidates:
+            with self.subTest(
+                valid_audit_detail=candidate["inputProfile"]["auditDetail"]
+            ):
+                state = run_qc_renderer(self.template_path, candidate)
+                self.assertFalse(state["shellHidden"], state["errorText"])
+
+        invalid_candidates = {}
+        for audit_detail in ("detailed", "brief"):
+            for original, preliminary in (
+                ("通过", "meets"),
+                ("不通过", "does_not_meet"),
+            ):
+                known_result = self.make_absent_visible_audit_candidate(
+                    audit_detail
+                )
+                known_result["auditComparison"][
+                    "originalConclusion"
+                ] = original
+                known_result["baseReview"][
+                    "preliminaryResult"
+                ] = preliminary
+                invalid_candidates[
+                    f"{audit_detail} cannot use {preliminary}"
+                ] = known_result
+
+            fifth_passed = self.make_absent_visible_audit_candidate(
+                audit_detail
+            )
+            fifth_passed["dimensions"][0]["status"] = "not_checked"
+            fifth_passed["dimensions"][0][
+                "notCheckedReason"
+            ] = "审核结果未覆盖材料完整性"
+            fifth_passed["dimensions"][4]["status"] = "passed"
+            fifth_passed["dimensions"][4]["notCheckedReason"] = ""
+            invalid_candidates[
+                f"{audit_detail} fifth dimension cannot pass"
+            ] = fifth_passed
+
+            reliable = self.make_absent_visible_audit_candidate(audit_detail)
+            reliable["baseReview"]["preliminaryResult"] = "meets"
+            reliable["auditComparison"]["originalConclusion"] = "通过"
+            reliable["dimensions"][4]["status"] = "passed"
+            reliable["dimensions"][4]["notCheckedReason"] = ""
+            reliable["auditComparison"]["qcConclusion"] = "reliable"
+            reliable["auditComparison"]["risk"] = "none"
+            invalid_candidates[
+                f"{audit_detail} cannot be reliable"
+            ] = reliable
 
         for name, candidate in invalid_candidates.items():
             with self.subTest(case=name):

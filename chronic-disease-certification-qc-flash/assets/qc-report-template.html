@@ -1044,6 +1044,9 @@
         const conditionDimension = data.dimensions.find(
           dimension => dimension.name === "审核条件与结论一致性"
         );
+        const ruleDimension = data.dimensions.find(
+          dimension => dimension.name === "规则维护质量"
+        );
         const conditionHasIssue = (
           conditionDimension
           && conditionDimension.status === "issue"
@@ -1056,22 +1059,27 @@
           directionKnown
           && original !== independent
         );
+        if (
+          data.inputProfile.standardKind === "absent"
+          && (
+            independent !== "uncertain"
+            || data.baseReview.ruleJudgments.length !== 0
+            || !ruleDimension
+            || ruleDimension.status !== "not_checked"
+            || comparison.qcConclusion === "reliable"
+          )
+        ) {
+          return false;
+        }
         if (data.inputProfile.auditDetail === "conclusion_only") {
           const processDimensionsAreUnchecked = data.dimensions
             .slice(0, 3)
             .every(dimension => dimension.status === "not_checked");
-          const ruleDimension = data.dimensions.find(
-            dimension => dimension.name === "规则维护质量"
-          );
           if (data.inputProfile.standardKind === "absent") {
             return (
               processDimensionsAreUnchecked
-              && independent === "uncertain"
-              && data.baseReview.ruleJudgments.length === 0
               && conditionDimension
               && conditionDimension.status === "not_checked"
-              && ruleDimension
-              && ruleDimension.status === "not_checked"
               && !hasDimensionIssue
               && !hasIssueRecords
               && comparison.qcConclusion === "uncertain"
