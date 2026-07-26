@@ -998,6 +998,9 @@
       ]);
       const ruleResults = new Set(["met", "not_met", "unknown"]);
       const issueSeverities = new Set(["high", "medium", "low"]);
+      const MAX_STRUCTURED_SOURCE_CHARS = 200000;
+      const MAX_STRUCTURED_DEPTH = 8;
+      const MAX_STRUCTURED_NODES = 500;
 
       const byId = id => document.getElementById(id);
       const text = value => value === undefined || value === null || value === ""
@@ -1006,7 +1009,7 @@
       const translated = value => labels[value] || text(value);
       const classifyOriginalConclusion = value => {
         const content = String(value || "");
-        if (/(?:不通过|不予通过|拒绝)/.test(content)) {
+        if (/(?:未通过|未予通过|不能通过|不通过|不予通过|拒绝)/.test(content)) {
           return "does_not_meet";
         }
         if (/通过/.test(content)) return "meets";
@@ -1021,6 +1024,71 @@
           return "无法判断";
         }
         return original === independent ? "一致" : "相反";
+      };
+      const riskContractIsValid = data => {
+        const comparison = data.auditComparison;
+        const original = classifyOriginalConclusion(
+          comparison.originalConclusion
+        );
+        const independent = data.baseReview.preliminaryResult;
+        const hasDimensionIssue = data.dimensions.some(
+          dimension => dimension.status === "issue"
+        );
+        const hasIssueRecords = data.issues.length > 0;
+        const hasUnchecked = data.dimensions.some(
+          dimension => dimension.status === "not_checked"
+        );
+        const allPassed = data.dimensions.every(
+          dimension => dimension.status === "passed"
+        );
+        const conditionDimension = data.dimensions.find(
+          dimension => dimension.name === "审核条件与结论一致性"
+        );
+        const conditionHasIssue = (
+          conditionDimension
+          && conditionDimension.status === "issue"
+        );
+        const directionKnown = (
+          original !== "unknown"
+          && independent !== "uncertain"
+        );
+        const directionOpposite = (
+          directionKnown
+          && original !== independent
+        );
+        if (comparison.qcConclusion === "uncertain") {
+          return (
+            comparison.risk === "unknown"
+            && !hasDimensionIssue
+            && !hasIssueRecords
+            && hasUnchecked
+            && !directionOpposite
+          );
+        }
+        if (comparison.qcConclusion === "reliable") {
+          return (
+            comparison.risk === "none"
+            && allPassed
+            && !hasIssueRecords
+          );
+        }
+        if (
+          comparison.qcConclusion !== "problematic"
+          || !hasDimensionIssue
+          || !hasIssueRecords
+        ) {
+          return false;
+        }
+        if (directionOpposite) {
+          const expectedRisk = original === "meets"
+            ? "false_approval"
+            : "false_rejection";
+          return (
+            conditionHasIssue
+            && comparison.risk === expectedRisk
+          );
+        }
+        return comparison.risk === "none";
       };
 
       const node = (tag, content, className) => {
@@ -1190,52 +1258,7 @@
         )) {
           throw new Error("问题严重程度无效");
         }
-        const comparison = data.auditComparison;
-        const original = classifyOriginalConclusion(
-          comparison.originalConclusion
-        );
-        const independent = data.baseReview.preliminaryResult;
-        const hasIssues = (
-          data.issues.length > 0
-          || data.dimensions.some(dimension => dimension.status === "issue")
-        );
-        let riskIsConsistent = true;
-        if (comparison.qcConclusion === "uncertain") {
-          riskIsConsistent = !hasIssues && comparison.risk === "unknown";
-        } else if (comparison.qcConclusion === "reliable") {
-          riskIsConsistent = !hasIssues && comparison.risk === "none";
-        } else if (!hasIssues) {
-          riskIsConsistent = false;
-        } else if (original === "unknown" || independent === "uncertain") {
-          riskIsConsistent = (
-            comparison.risk === "none"
-            || comparison.risk === "unknown"
-          );
-        } else if (original === independent) {
-          riskIsConsistent = comparison.risk === "none";
-        } else {
-          const expectedRisk = original === "meets"
-            ? "false_approval"
-            : "false_rejection";
-          riskIsConsistent = comparison.risk === expectedRisk;
-        }
-        if (data.inputProfile.auditDetail === "conclusion_only") {
-          const hasUncheckedWithoutIssue = (
-            !hasIssues
-            && data.dimensions.some(
-              dimension => dimension.status === "not_checked"
-            )
-          );
-          const uncertainUnknown = (
-            comparison.qcConclusion === "uncertain"
-            && comparison.risk === "unknown"
-          );
-          riskIsConsistent = (
-            riskIsConsistent
-            && hasUncheckedWithoutIssue === uncertainUnknown
-          );
-        }
-        if (!riskIsConsistent) {
+        if (!riskContractIsValid(data)) {
           throw new Error("风险方向与复核结论不一致");
         }
         if (!data.meta.reportTitle || !data.meta.diseaseName || !data.meta.generatedAt) {
@@ -1502,25 +1525,41 @@
         return full;
       };
 
-      const appendStructuredValue = (parent, value, state, depth = 0) => {
-        state.nodes += 1;
-        if (depth > 8 || state.nodes > 500) {
+      const ensureStructuredBudget = (state, depth) => {
+        if (
+          depth > MAX_STRUCTURED_DEPTH
+          || state.nodes >= MAX_STRUCTURED_NODES
+        ) {
           throw new Error("结构化内容超过安全展示限制");
         }
+      };
+
+      const appendStructuredValue = (parent, value, state, depth = 0) => {
+        ensureStructuredBudget(state, depth);
+        state.nodes += 1;
         if (value === null || typeof value !== "object") {
           parent.appendChild(node("span", value === null ? "null" : String(value)));
           return;
         }
         const list = node("ul", null, "structured-tree");
-        const entries = Array.isArray(value)
-          ? value.map((item, index) => [String(index + 1), item])
-          : Object.entries(value);
-        entries.forEach(entry => {
+        const appendEntry = (label, childValue) => {
+          ensureStructuredBudget(state, depth + 1);
           const item = node("li");
-          add(item, node("strong", `${entry[0]}：`));
-          appendStructuredValue(item, entry[1], state, depth + 1);
+          add(item, node("strong", `${label}：`));
+          appendStructuredValue(item, childValue, state, depth + 1);
           list.appendChild(item);
-        });
+        };
+        if (Array.isArray(value)) {
+          for (let index = 0; index < value.length; index += 1) {
+            appendEntry(String(index + 1), value[index]);
+          }
+        } else {
+          for (const key in value) {
+            if (Object.prototype.hasOwnProperty.call(value, key)) {
+              appendEntry(key, value[key]);
+            }
+          }
+        }
         parent.appendChild(list);
       };
 
@@ -1590,6 +1629,18 @@
 
       const renderAuditSourceBody = source => {
         const body = node("div", null, "detail-body");
+        if (source.content.length > MAX_STRUCTURED_SOURCE_CHARS) {
+          add(
+            body,
+            node(
+              "p",
+              "内容较多，请查看完整原文",
+              "source-warning"
+            ),
+            makeFullSourceDetails(source.content)
+          );
+          return body;
+        }
         try {
           const parsed = JSON.parse(source.content);
           add(body, node("h3", "结构化摘要"));

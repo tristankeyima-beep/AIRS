@@ -25,6 +25,26 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
             )
         )
 
+    def make_conclusion_only_candidate(
+        self,
+        original_conclusion="通过",
+        preliminary_result="meets",
+    ):
+        fixture = json.loads(json.dumps(self.fixture, ensure_ascii=False))
+        fixture["inputProfile"]["auditDetail"] = "conclusion_only"
+        fixture["issues"] = []
+        for dimension in fixture["dimensions"][:3]:
+            dimension["status"] = "not_checked"
+            dimension["notCheckedReason"] = "原审核仅提供结论"
+        for dimension in fixture["dimensions"][3:]:
+            dimension["status"] = "passed"
+            dimension["notCheckedReason"] = ""
+        fixture["auditComparison"]["originalConclusion"] = original_conclusion
+        fixture["baseReview"]["preliminaryResult"] = preliminary_result
+        fixture["auditComparison"]["qcConclusion"] = "uncertain"
+        fixture["auditComparison"]["risk"] = "unknown"
+        return fixture
+
     def test_sources_is_section_03_in_navigation_and_body(self):
         nav = re.search(
             r'<nav\b[^>]*id="page-navigation"[^>]*>(.*?)</nav>',
@@ -206,6 +226,45 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
                 )
                 self.assertIn(raw, state["sourcePreTexts"])
 
+    def test_audit_json_eight_level_boundary_structures_successfully(self):
+        boundary = "边界值"
+        for index in range(8):
+            boundary = {f"level{index}": boundary}
+        raw = json.dumps(boundary, ensure_ascii=False)
+        self.fixture["sourceDocuments"][2]["content"] = raw
+        state = run_qc_renderer(self.template_path, self.fixture)
+        self.assertFalse(state["shellHidden"], state["errorText"])
+        self.assertIn("结构化摘要", state["sourcesText"])
+        self.assertIn("边界值", state["sourcesText"])
+        self.assertNotIn(
+            "原审核结果无法自动结构化，以下按原文展示",
+            state["sourcesText"],
+        )
+        self.assertIn(raw, state["sourcePreTexts"])
+
+    def test_audit_json_over_character_limit_skips_structuring_and_keeps_raw(self):
+        raw = json.dumps("甲" * 200001, ensure_ascii=False)
+        self.fixture["sourceDocuments"][2]["content"] = raw
+        state = run_qc_renderer(self.template_path, self.fixture)
+        self.assertFalse(state["shellHidden"], state["errorText"])
+        self.assertIn("内容较多，请查看完整原文", state["sourcesText"])
+        self.assertNotIn("结构化摘要", state["sourcesText"])
+        self.assertIn(raw, state["sourcePreTexts"])
+
+    def test_structured_json_walk_is_incremental_and_budgeted(self):
+        renderer = self.template[
+            self.template.index("const ensureStructuredBudget ="):
+            self.template.index("const explicitAuditSegments =")
+        ]
+        self.assertIn("MAX_STRUCTURED_SOURCE_CHARS", self.template)
+        self.assertIn("MAX_STRUCTURED_DEPTH", renderer)
+        self.assertIn("MAX_STRUCTURED_NODES", renderer)
+        self.assertIn("for (let index = 0;", renderer)
+        self.assertIn("for (const key in value)", renderer)
+        self.assertIn("hasOwnProperty.call(value, key)", renderer)
+        self.assertNotIn("Object.entries", renderer)
+        self.assertNotRegex(renderer, r"\bvalue\.map\s*\(")
+
     def test_sources_have_stable_ids_and_issue_material_ids_link_or_warn(self):
         self.fixture["sourceDocuments"][0]["name"] = "材料 12345678"
         self.fixture["sourceDocuments"][0]["content"] = (
@@ -258,24 +317,11 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
         )
 
     def test_risk_contract_accepts_conclusion_only_and_rule_issue_none(self):
-        conclusion_only = json.loads(json.dumps(self.fixture, ensure_ascii=False))
-        conclusion_only["inputProfile"]["auditDetail"] = "conclusion_only"
-        conclusion_only["issues"] = []
-        for dimension in conclusion_only["dimensions"][:3]:
-            dimension["status"] = "not_checked"
-            dimension["notCheckedReason"] = "原审核仅提供结论"
-        for dimension in conclusion_only["dimensions"][3:]:
-            dimension["status"] = "passed"
-            dimension["notCheckedReason"] = ""
-        conclusion_only["auditComparison"]["originalConclusion"] = "通过"
-        conclusion_only["baseReview"]["preliminaryResult"] = "meets"
-        conclusion_only["auditComparison"]["qcConclusion"] = "uncertain"
-        conclusion_only["auditComparison"]["risk"] = "unknown"
+        conclusion_only = self.make_conclusion_only_candidate()
         state = run_qc_renderer(self.template_path, conclusion_only)
         self.assertFalse(state["shellHidden"], state["errorText"])
 
         rule_issue = json.loads(json.dumps(conclusion_only, ensure_ascii=False))
-        rule_issue["auditComparison"]["originalConclusion"] = "方向未明确"
         rule_issue["dimensions"][4]["status"] = "issue"
         rule_issue["dimensions"][4]["notCheckedReason"] = ""
         rule_issue["issues"] = [
@@ -294,6 +340,111 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
         rule_issue["auditComparison"]["risk"] = "none"
         state = run_qc_renderer(self.template_path, rule_issue)
         self.assertFalse(state["shellHidden"], state["errorText"])
+
+        unknown_direction_issue = json.loads(
+            json.dumps(rule_issue, ensure_ascii=False)
+        )
+        unknown_direction_issue["auditComparison"][
+            "originalConclusion"
+        ] = "方向未明确"
+        state = run_qc_renderer(self.template_path, unknown_direction_issue)
+        self.assertFalse(state["shellHidden"], state["errorText"])
+
+    def test_known_opposite_conclusion_only_cannot_degrade_to_uncertain(self):
+        fixture = self.make_conclusion_only_candidate(
+            original_conclusion="不通过",
+            preliminary_result="meets",
+        )
+        state = run_qc_renderer(self.template_path, fixture)
+        self.assertTrue(state["shellHidden"])
+        self.assertIn("风险方向与复核结论不一致", state["errorText"])
+
+    def test_risk_state_machine_requires_complete_status_evidence(self):
+        reliable = json.loads(json.dumps(self.fixture, ensure_ascii=False))
+        reliable["issues"] = []
+        for dimension in reliable["dimensions"]:
+            dimension["status"] = "passed"
+            dimension["notCheckedReason"] = ""
+        reliable["auditComparison"]["originalConclusion"] = "通过"
+        reliable["baseReview"]["preliminaryResult"] = "meets"
+        reliable["auditComparison"]["qcConclusion"] = "reliable"
+        reliable["auditComparison"]["risk"] = "none"
+        state = run_qc_renderer(self.template_path, reliable)
+        self.assertFalse(state["shellHidden"], state["errorText"])
+
+        invalid_candidates = {}
+        reliable_with_unchecked = json.loads(
+            json.dumps(reliable, ensure_ascii=False)
+        )
+        reliable_with_unchecked["dimensions"][0]["status"] = "not_checked"
+        reliable_with_unchecked["dimensions"][0]["notCheckedReason"] = "受限"
+        invalid_candidates["reliable requires all passed"] = (
+            reliable_with_unchecked
+        )
+
+        dimension_issue_only = json.loads(
+            json.dumps(self.fixture, ensure_ascii=False)
+        )
+        dimension_issue_only["issues"] = []
+        invalid_candidates["problematic requires issue records"] = (
+            dimension_issue_only
+        )
+
+        issue_records_only = json.loads(
+            json.dumps(self.fixture, ensure_ascii=False)
+        )
+        for dimension in issue_records_only["dimensions"]:
+            dimension["status"] = "passed"
+            dimension["notCheckedReason"] = ""
+        invalid_candidates["problematic requires dimension issue"] = (
+            issue_records_only
+        )
+
+        opposite_without_condition_issue = json.loads(
+            json.dumps(self.fixture, ensure_ascii=False)
+        )
+        opposite_without_condition_issue["dimensions"][3]["status"] = "passed"
+        opposite_without_condition_issue["dimensions"][3][
+            "notCheckedReason"
+        ] = ""
+        invalid_candidates["opposite requires fourth dimension issue"] = (
+            opposite_without_condition_issue
+        )
+
+        for name, candidate in invalid_candidates.items():
+            with self.subTest(case=name):
+                state = run_qc_renderer(self.template_path, candidate)
+                self.assertTrue(state["shellHidden"])
+                self.assertIn(
+                    "风险方向与复核结论不一致",
+                    state["errorText"],
+                )
+
+    def test_all_negative_original_conclusions_require_false_rejection(self):
+        negative_conclusions = (
+            "未通过",
+            "未予通过",
+            "不能通过",
+            "不通过",
+            "不予通过",
+            "拒绝",
+        )
+        for original in negative_conclusions:
+            with self.subTest(original=original, risk="false_rejection"):
+                fixture = json.loads(
+                    json.dumps(self.fixture, ensure_ascii=False)
+                )
+                fixture["auditComparison"]["originalConclusion"] = original
+                state = run_qc_renderer(self.template_path, fixture)
+                self.assertFalse(state["shellHidden"], state["errorText"])
+            with self.subTest(original=original, risk="false_approval"):
+                fixture["auditComparison"]["risk"] = "false_approval"
+                state = run_qc_renderer(self.template_path, fixture)
+                self.assertTrue(state["shellHidden"])
+                self.assertIn(
+                    "风险方向与复核结论不一致",
+                    state["errorText"],
+                )
 
     def test_risk_contract_rejects_uncertain_with_issue_and_unknown_directional_risk(self):
         candidates = []
