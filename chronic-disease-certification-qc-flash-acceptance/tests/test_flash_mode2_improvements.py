@@ -241,7 +241,7 @@ class FlashMode2ImprovementsTests(unittest.TestCase):
         )
 
     def test_ambiguous_plain_audit_result_falls_back_locally(self):
-        raw = "原审核仅有自由叙述，未提供可识别的结论、规则结果或建议标签。"
+        raw = "finalResult: 只有一个明确标签，其余自由叙述不作医学推断"
         self.audit_result_source()["content"] = raw
         state = run_qc_renderer(self.template_path, self.fixture)
         self.assertFalse(state["shellHidden"], state["errorText"])
