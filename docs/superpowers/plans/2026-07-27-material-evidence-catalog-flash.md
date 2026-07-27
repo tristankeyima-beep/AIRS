@@ -36,19 +36,25 @@ SKILL_ROOT = ROOT / "chronic-disease-material-catalog-flash"
 
 
 class MaterialCatalogSkillTests(unittest.TestCase):
+    def read_skill_file(self, relative_path):
+        path = SKILL_ROOT / relative_path
+        if not path.is_file():
+            self.fail(f"missing required Skill file: {path}")
+        return path.read_text(encoding="utf-8")
+
     def test_skill_defines_objective_cataloging_boundary(self):
-        skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        skill = self.read_skill_file("SKILL.md")
         self.assertIn("不读取认定标准", skill)
         self.assertIn("不输出通过或不通过结论", skill)
         self.assertIn("明确确认材料完整", skill)
 
     def test_contract_defines_catalog_mode_and_required_sections(self):
-        contract = (SKILL_ROOT / "references/catalog-contract.md").read_text(encoding="utf-8")
+        contract = self.read_skill_file("references/catalog-contract.md")
         for expected in ("material_catalog", "sourceDocuments", "catalog", "timelines", "relationships", "confirmation"):
             self.assertIn(expected, contract)
 
     def test_template_has_exactly_one_data_slot(self):
-        template = (SKILL_ROOT / "assets/material-catalog-template.html").read_text(encoding="utf-8")
+        template = self.read_skill_file("assets/material-catalog-template.html")
         self.assertEqual(template.count("__FLASH_DATA_JSON__"), 1)
         self.assertIn('id="flash-data"', template)
         self.assertIn("JSON.parse", template)
@@ -85,7 +91,7 @@ Extend `test_material_catalog_skill.py` with:
 
 ```python
     def test_contract_forbids_audit_and_eligibility_outputs(self):
-        contract = (SKILL_ROOT / "references/catalog-contract.md").read_text(encoding="utf-8")
+        contract = self.read_skill_file("references/catalog-contract.md")
         self.assertIn("不得包含规则判断、资格结论、审核结论、风险、问题或建议字段", contract)
         self.assertIn("疑似重复只能使用待核对", contract)
 ```
@@ -176,7 +182,7 @@ git commit -m "test: cover material catalog fixture"
 
 ```python
     def test_template_renders_catalog_specific_sections(self):
-        template = (SKILL_ROOT / "assets/material-catalog-template.html").read_text(encoding="utf-8")
+        template = self.read_skill_file("assets/material-catalog-template.html")
         for expected in ("材料目录", "时间线", "材料关联线索", "待核对项", "原始材料", "确认记录"):
             self.assertIn(expected, template)
         self.assertNotIn("五维检查", template)
