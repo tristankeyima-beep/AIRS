@@ -1,9 +1,11 @@
 from pathlib import Path
+import json
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILL_ROOT = ROOT / "chronic-disease-standard-version-impact-flash"
+FIXTURE = ROOT / "chronic-disease-standard-version-impact-flash-acceptance/fixtures/valid-version-impact.json"
 
 
 class VersionImpactSkillTests(unittest.TestCase):
@@ -24,6 +26,24 @@ class VersionImpactSkillTests(unittest.TestCase):
         self.assertIn("S1:R001", contract)
         self.assertIn("standard_version_impact", contract)
         self.assertIn("排序依据", contract)
+
+    def test_fixture_keeps_versions_and_assessments_separate(self):
+        if not FIXTURE.is_file():
+            self.fail(f"missing required fixture: {FIXTURE}")
+        data = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        self.assertEqual(data["mode"], "standard_version_impact")
+        self.assertEqual(len(data["standardInputs"]), 2)
+        self.assertEqual(data["changes"][0]["type"], "条件修改")
+        self.assertTrue(data["versionAssessments"])
+        self.assertIn("S1:R001", data["versionAssessments"][0]["ruleJudgments"][0]["ruleId"])
+
+    def test_template_has_comparison_sections_and_one_data_slot(self):
+        template = self.read_skill_file("assets/version-impact-template.html")
+        self.assertEqual(template.count("__FLASH_DATA_JSON__"), 1)
+        self.assertIn("版本与排序依据", template)
+        self.assertIn("标准差异", template)
+        self.assertIn("各版本规则证据判读", template)
+        self.assertNotIn("五维检查", template)
 
 
 if __name__ == "__main__":
