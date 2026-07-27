@@ -25,6 +25,12 @@ class MaterialPrecheckSkillTests(unittest.TestCase):
             self.assertIn(state, contract)
         self.assertIn("不得包含原审核结果、风险或正式资格结论", contract)
 
+    def test_contract_requires_traceable_supplement_items(self):
+        contract = self.read_skill_file("references/precheck-contract.md")
+        self.assertIn("supplementList", contract)
+        self.assertIn("只能收录信息不足、未定位证据或材料形式待确认", contract)
+        self.assertIn("不能凭空指定诊断证明、检查单或其他特定文件", contract)
+
 
 if __name__ == "__main__":
     unittest.main()
