@@ -58,6 +58,20 @@ class MaterialCatalogSkillTests(unittest.TestCase):
         self.assertEqual(data["relationships"][0]["status"], "待核对")
         self.assertIn("不构成资格", data["analysisRecord"]["preliminaryConclusion"])
 
+    def test_template_renders_catalog_specific_sections(self):
+        template = self.read_skill_file("assets/material-catalog-template.html")
+        for expected in (
+            "材料目录",
+            "时间线",
+            "材料关联线索",
+            "待核对项",
+            "原始材料",
+            "确认记录",
+        ):
+            self.assertIn(expected, template)
+        self.assertNotIn("五维检查", template)
+        self.assertNotIn("审核质控报告", template)
+
 
 if __name__ == "__main__":
     unittest.main()

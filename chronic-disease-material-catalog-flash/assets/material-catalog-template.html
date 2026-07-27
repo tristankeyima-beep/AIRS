@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>材料证据编目与归位报告</title>
+  <style>
+    :root { color-scheme: light; --ink:#182334; --muted:#617083; --line:#dce4ed; --paper:#fff; --wash:#f5f8fb; --accent:#176b87; --accent-wash:#e5f3f7; --warn:#8b5a15; --warn-wash:#fff6e5; }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin:0; background:var(--wash); color:var(--ink); font:15px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+    .shell { width:min(1440px,100%); margin:0 auto; padding:24px; display:grid; grid-template-columns:220px minmax(0,1fr); gap:20px; }
+    nav { position:sticky; top:16px; align-self:start; padding:16px; border:1px solid var(--line); border-radius:16px; background:var(--paper); }
+    nav strong { display:block; margin-bottom:8px; }
+    nav a { display:block; padding:6px 0; color:var(--muted); text-decoration:none; }
+    nav a:hover { color:var(--accent); }
+    main { min-width:0; }
+    section { margin-bottom:16px; padding:22px; border:1px solid var(--line); border-radius:16px; background:var(--paper); }
+    .hero { background:linear-gradient(130deg,#ecf9fb,#fff 62%); border-color:#c5e2e9; }
+    h1,h2,h3,h4,p { margin-top:0; }
+    h1 { margin-bottom:6px; font-size:clamp(25px,4vw,36px); line-height:1.25; }
+    h2 { font-size:20px; }
+    h3 { font-size:16px; margin-bottom:8px; }
+    h4 { margin:0 0 6px; font-size:15px; }
+    .muted { color:var(--muted); }
+    .notice { padding:12px 14px; border-radius:10px; background:var(--accent-wash); color:#155267; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+    .card { padding:14px; border:1px solid var(--line); border-radius:12px; background:#fff; }
+    .label { display:block; margin-bottom:4px; color:var(--muted); font-size:12px; }
+    .badge { display:inline-block; padding:2px 8px; border-radius:999px; background:var(--accent-wash); color:#155267; font-size:12px; }
+    .pending { background:var(--warn-wash); color:var(--warn); }
+    .group { margin-top:14px; }
+    .facts, .checks, .plain-list { margin:8px 0 0; padding-left:20px; }
+    .facts li, .checks li, .plain-list li { margin:6px 0; }
+    .reference { color:var(--muted); font-size:13px; }
+    .timeline { margin:0; padding:0; list-style:none; }
+    .timeline li { display:grid; grid-template-columns:120px 1fr; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
+    .timeline li:last-child { border-bottom:0; }
+    .timeline time { color:var(--accent); font-weight:600; }
+    .source { margin-top:10px; padding:12px; border:1px solid var(--line); border-radius:10px; }
+    pre { margin:8px 0 0; padding:12px; overflow:auto; border-radius:8px; background:#f7f9fb; white-space:pre-wrap; word-break:break-word; font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; }
+    .empty { color:var(--muted); font-style:italic; }
+    .error { margin:32px auto; width:min(720px,calc(100% - 32px)); padding:18px; border:1px solid #efc1c1; border-radius:12px; background:#fff1f1; color:#8c2424; }
+    @media (max-width:800px) { .shell { padding:12px; grid-template-columns:1fr; } nav { position:static; } nav a { display:inline-block; margin-right:12px; } section { padding:16px; } .timeline li { grid-template-columns:1fr; gap:2px; } }
+    @media print { body { background:#fff; } .shell { display:block; width:100%; padding:0; } nav { display:none; } section { border:0; border-radius:0; break-inside:avoid; } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script id="flash-data" type="application/json">__FLASH_DATA_JSON__</script>
+  <script>
+    (() => {
+      "use strict";
+
+      const app = document.getElementById("app");
+      const dataNode = document.getElementById("flash-data");
+
+      function showError(message) {
+        const box = document.createElement("div");
+        box.className = "error";
+        box.textContent = message;
+        app.replaceChildren(box);
+      }
+
+      function node(tag, content, className) {
+        const element = document.createElement(tag);
+        if (className) element.className = className;
+        if (content !== undefined && content !== null) element.textContent = String(content);
+        return element;
+      }
+
+      function add(parent, ...children) {
+        children.flat().filter(Boolean).forEach(child => parent.appendChild(child));
+        return parent;
+      }
+
+      function section(id, title) {
+        const element = document.createElement("section");
+        element.id = id;
+        element.setAttribute("aria-labelledby", `${id}-title`);
+        add(element, node("h2", title));
+        element.firstChild.id = `${id}-title`;
+        return element;
+      }
+
+      function card(title) {
+        const element = node("article", null, "card");
+        if (title) element.appendChild(node("h3", title));
+        return element;
+      }
+
+      function detail(label, value) {
+        const box = document.createElement("div");
+        add(box, node("span", label, "label"), node("div", value || "未识别"));
+        return box;
+      }
+
+      function badge(value, pending) {
+        return node("span", value || "未识别", pending ? "badge pending" : "badge");
+      }
+
+      function list(items, className) {
+        if (!items || !items.length) return node("p", "无", "empty");
+        const element = node("ul", null, className || "plain-list");
+        items.forEach(item => element.appendChild(node("li", item)));
+        return element;
+      }
+
+      function validate(data) {
+        if (!data || typeof data !== "object") throw new Error("报告数据必须是对象。");
+        if (data.schemaVersion !== "flash-1.0") throw new Error("报告数据版本必须为 flash-1.0。");
+        if (data.mode !== "material_catalog") throw new Error("报告数据模式必须为材料证据编目与归位。");
+        ["meta", "sourceDocuments", "analysisRecord", "catalog", "timelines", "relationships", "confirmation"].forEach(key => {
+          if (!(key in data)) throw new Error(`报告数据缺少 ${key}。`);
+        });
+        if (!Array.isArray(data.sourceDocuments) || !data.sourceDocuments.length) throw new Error("未提供原始材料。");
+        if (!Array.isArray(data.catalog) || data.catalog.length !== data.sourceDocuments.length) throw new Error("材料目录与原始材料数量不一致。");
+      }
+
+      function renderNavigation(root) {
+        const nav = document.createElement("nav");
+        nav.setAttribute("aria-label", "报告导航");
+        add(nav, node("strong", "报告目录"));
+        [
+          ["overview", "报告概览"], ["inventory", "材料清单"], ["catalog", "材料目录"],
+          ["timeline", "时间线"], ["relationships", "材料关联线索"], ["checks", "待核对项"],
+          ["analysis", "编目说明"], ["sources", "原始材料"], ["confirmation", "确认记录"]
+        ].forEach(([id, title]) => {
+          const link = node("a", title);
+          link.href = `#${id}`;
+          nav.appendChild(link);
+        });
+        root.appendChild(nav);
+      }
+
+      function renderOverview(data) {
+        const element = section("overview", "报告概览");
+        element.classList.add("hero");
+        const meta = data.meta || {};
+        const title = node("h1", meta.reportTitle || "材料证据编目与归位报告");
+        title.id = "report-title";
+        const grid = node("div", null, "grid");
+        add(grid,
+          detail("材料主体", meta.subjectName || "未提供"),
+          detail("生成日期", meta.generatedAt || "未提供"),
+          detail("材料数量", `${data.sourceDocuments.length} 份`)
+        );
+        add(element, title, node("p", "本报告仅对已确认材料做客观编目、时间归位与关联线索整理。", "muted"), grid,
+          node("p", "不构成资格、材料充分性或审核结论。", "notice"));
+        return element;
+      }
+
+      function renderInventory(data) {
+        const element = section("inventory", "已确认材料清单");
+        const catalogByName = new Map(data.catalog.map(item => [item.sourceName, item]));
+        const grid = node("div", null, "grid");
+        data.sourceDocuments.forEach(source => {
+          const item = catalogByName.get(source.name) || {};
+          const current = card(source.name);
+          add(current,
+            detail("材料类型", item.documentType || "未识别"),
+            detail("可读状态", item.readability || "未识别"),
+            detail("日期", item.dateRange && item.dateRange.display ? item.dateRange.display : "日期待核对")
+          );
+          grid.appendChild(current);
+        });
+        add(element, node("p", "以下清单已由用户确认完整。", "muted"), grid);
+        return element;
+      }
+
+      function renderCatalog(data) {
+        const element = section("catalog", "材料目录");
+        const groups = new Map();
+        data.catalog.forEach(item => {
+          const type = item.documentType || "未识别";
+          if (!groups.has(type)) groups.set(type, []);
+          groups.get(type).push(item);
+        });
+        groups.forEach((items, type) => {
+          const group = node("div", null, "group");
+          group.appendChild(node("h3", type));
+          const grid = node("div", null, "grid");
+          items.forEach(item => {
+            const current = card(item.sourceName);
+            const facts = node("ul", null, "facts");
+            (item.facts || []).forEach(fact => {
+              const li = document.createElement("li");
+              add(li, node("strong", `${fact.category}：`), node("span", fact.text), node("div", fact.sourceReference, "reference"));
+              facts.appendChild(li);
+            });
+            add(current,
+              detail("出具机构", item.issuer),
+              detail("日期", item.dateRange && item.dateRange.display),
+              detail("可读状态", item.readability),
+              node("span", "客观事实", "label"),
+              facts.childElementCount ? facts : node("p", "未形成可摘录事实。", "empty"),
+              node("span", "待核对项", "label"),
+              list(item.pendingChecks, "checks")
+            );
+            grid.appendChild(current);
+          });
+          add(group, grid);
+          element.appendChild(group);
+        });
+        return element;
+      }
+
+      function renderTimeline(data) {
+        const element = section("timeline", "时间线");
+        const confirmed = data.timelines.filter(item => item.sortStatus === "已确认");
+        const pending = data.timelines.filter(item => item.sortStatus !== "已确认");
+        const makeTimeline = items => {
+          if (!items.length) return node("p", "无", "empty");
+          const timeline = node("ul", null, "timeline");
+          items.forEach(item => {
+            const li = document.createElement("li");
+            add(li, node("time", item.display || "日期待核对"), node("span", item.sourceName));
+            timeline.appendChild(li);
+          });
+          return timeline;
+        };
+        add(element, node("h3", "已确认日期"), makeTimeline(confirmed), node("h3", "日期待核对"), makeTimeline(pending));
+        return element;
+      }
+
+      function renderRelationships(data) {
+        const element = section("relationships", "材料关联线索");
+        if (!data.relationships.length) {
+          element.appendChild(node("p", "未记录可依据原文说明的材料关联线索。", "empty"));
+          return element;
+        }
+        const grid = node("div", null, "grid");
+        data.relationships.forEach(item => {
+          const current = card(item.type);
+          add(current,
+            detail("涉及材料", (item.sourceNames || []).join("、")),
+            detail("关系状态", item.status),
+            detail("原文依据", item.basis)
+          );
+          grid.appendChild(current);
+        });
+        element.appendChild(grid);
+        return element;
+      }
+
+      function renderChecks(data) {
+        const element = section("checks", "待核对项");
+        const items = [];
+        data.catalog.forEach(catalog => {
+          (catalog.pendingChecks || []).forEach(check => items.push(`${catalog.sourceName}：${check}`));
+        });
+        data.relationships.filter(item => item.status === "待核对").forEach(item => {
+          items.push(`${item.type}：${(item.sourceNames || []).join("、")}。`);
+        });
+        element.appendChild(list(items, "checks"));
+        return element;
+      }
+
+      function renderAnalysis(data) {
+        const element = section("analysis", "编目说明");
+        const analysis = data.analysisRecord || {};
+        const grid = node("div", null, "grid");
+        [
+          ["输入概括", analysis.inputSummary], ["编目依据", analysis.catalogingBasis],
+          ["事实摘录概括", analysis.evidenceFindings], ["不确定项", analysis.uncertainties]
+        ].forEach(([title, items]) => {
+          const current = card(title);
+          current.appendChild(list(items, "plain-list"));
+          grid.appendChild(current);
+        });
+        add(element, grid, node("h3", "编目结论"), node("p", analysis.preliminaryConclusion));
+        return element;
+      }
+
+      function renderSources(data) {
+        const element = section("sources", "原始材料");
+        data.sourceDocuments.forEach(source => {
+          const current = node("article", null, "source");
+          const content = node("pre", source.content);
+          current.id = `source-${data.sourceDocuments.indexOf(source) + 1}`;
+          add(current, node("h3", source.name), node("p", source.type, "muted"), content);
+          element.appendChild(current);
+        });
+        return element;
+      }
+
+      function renderConfirmation(data) {
+        const element = section("confirmation", "确认记录");
+        const confirmation = data.confirmation || {};
+        const grid = node("div", null, "grid");
+        add(grid,
+          detail("材料完整性", confirmation.confirmed ? "已确认" : "未确认"),
+          detail("用户回复", confirmation.userResponse || "未提供")
+        );
+        add(element, grid, node("h3", "已展示材料清单"), list(confirmation.inventoryShown, "plain-list"));
+        return element;
+      }
+
+      try {
+        const data = JSON.parse(dataNode.textContent);
+        validate(data);
+        const shell = node("div", null, "shell");
+        renderNavigation(shell);
+        const main = document.createElement("main");
+        [renderOverview, renderInventory, renderCatalog, renderTimeline, renderRelationships, renderChecks, renderAnalysis, renderSources, renderConfirmation]
+          .forEach(render => main.appendChild(render(data)));
+        shell.appendChild(main);
+        app.replaceChildren(shell);
+      } catch (error) {
+        showError(`无法生成材料编目报告：${error.message}`);
+      }
+    })();
+  </script>
+</body>
+</html>
