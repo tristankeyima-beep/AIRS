@@ -1,9 +1,11 @@
 from pathlib import Path
+import json
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILL_ROOT = ROOT / "chronic-disease-material-catalog-flash"
+FIXTURE = ROOT / "chronic-disease-material-catalog-flash-acceptance/fixtures/valid-material-catalog.json"
 
 
 class MaterialCatalogSkillTests(unittest.TestCase):
@@ -12,6 +14,11 @@ class MaterialCatalogSkillTests(unittest.TestCase):
         if not path.is_file():
             self.fail(f"missing required Skill file: {path}")
         return path.read_text(encoding="utf-8")
+
+    def read_fixture(self):
+        if not FIXTURE.is_file():
+            self.fail(f"missing required fixture: {FIXTURE}")
+        return json.loads(FIXTURE.read_text(encoding="utf-8"))
 
     def test_skill_defines_objective_cataloging_boundary(self):
         skill = self.read_skill_file("SKILL.md")
@@ -41,6 +48,15 @@ class MaterialCatalogSkillTests(unittest.TestCase):
         self.assertEqual(template.count("__FLASH_DATA_JSON__"), 1)
         self.assertIn('id="flash-data"', template)
         self.assertIn("JSON.parse", template)
+
+    def test_fixture_is_objective_and_traceable(self):
+        data = self.read_fixture()
+        self.assertEqual(data["schemaVersion"], "flash-1.0")
+        self.assertEqual(data["mode"], "material_catalog")
+        self.assertEqual(len(data["sourceDocuments"]), len(data["catalog"]))
+        self.assertEqual(data["confirmation"]["confirmed"], True)
+        self.assertEqual(data["relationships"][0]["status"], "待核对")
+        self.assertIn("不构成资格", data["analysisRecord"]["preliminaryConclusion"])
 
 
 if __name__ == "__main__":
