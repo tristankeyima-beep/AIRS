@@ -31,6 +31,11 @@ class MaterialCatalogSkillTests(unittest.TestCase):
         ):
             self.assertIn(expected, contract)
 
+    def test_contract_forbids_audit_and_eligibility_outputs(self):
+        contract = self.read_skill_file("references/catalog-contract.md")
+        self.assertIn("不得包含规则判断、资格结论、审核结论、风险、问题或建议字段", contract)
+        self.assertIn("疑似重复只能使用待核对", contract)
+
     def test_template_has_exactly_one_data_slot(self):
         template = self.read_skill_file("assets/material-catalog-template.html")
         self.assertEqual(template.count("__FLASH_DATA_JSON__"), 1)
