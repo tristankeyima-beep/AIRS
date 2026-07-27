@@ -45,6 +45,21 @@ class VersionImpactSkillTests(unittest.TestCase):
         self.assertIn("各版本规则证据判读", template)
         self.assertNotIn("五维检查", template)
 
+    def test_template_translates_internal_assessment_states_to_chinese(self):
+        template = self.read_skill_file("assets/version-impact-template.html")
+        for expected in ('met:"满足"', 'not_met:"不满足"', 'unknown:"无法判断"', 'meets:"符合"', 'does_not_meet:"不符合"', 'uncertain:"无法确定"'):
+            self.assertIn(expected, template)
+        self.assertIn('detail("参考结果",statusLabel(assessment.referenceResult))', template)
+        self.assertIn('statusLabel(judgment.result)', template)
+
+    def test_template_translates_internal_identifiers_for_display(self):
+        template = self.read_skill_file("assets/version-impact-template.html")
+        self.assertIn('版本${version}', template)
+        self.assertIn('规则${rule}', template)
+        self.assertIn('规则${number}', template)
+        self.assertIn('.replace(/\\bAND\\b/g, "且")', template)
+        self.assertIn('readableText', template)
+
 
 if __name__ == "__main__":
     unittest.main()

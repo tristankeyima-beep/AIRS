@@ -52,6 +52,12 @@ class MaterialPrecheckSkillTests(unittest.TestCase):
         self.assertIn("材料形式待人工确认", template)
         self.assertNotIn("五维检查", template)
 
+    def test_template_translates_rule_codes_and_logic_words_for_display(self):
+        template = self.read_skill_file("assets/material-precheck-template.html")
+        self.assertIn('规则${number}', template)
+        self.assertIn('.replace(/\\bAND\\b/g,"且")', template)
+        self.assertIn('textContent=readableText(text)', template)
+
 
 if __name__ == "__main__":
     unittest.main()

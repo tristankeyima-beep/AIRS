@@ -54,6 +54,8 @@
 
       const app = document.getElementById("app");
       const dataNode = document.getElementById("flash-data");
+      const sourceTypeText = { patient_material: "患者材料", standard: "认定标准" };
+      const sourceTypeLabel = value => sourceTypeText[value] || "其他材料";
 
       function showError(message) {
         const box = document.createElement("div");
@@ -278,7 +280,7 @@
           const current = node("article", null, "source");
           const content = node("pre", source.content);
           current.id = `source-${data.sourceDocuments.indexOf(source) + 1}`;
-          add(current, node("h3", source.name), node("p", source.type, "muted"), content);
+          add(current, node("h3", source.name), node("p", sourceTypeLabel(source.type), "muted"), content);
           element.appendChild(current);
         });
         return element;

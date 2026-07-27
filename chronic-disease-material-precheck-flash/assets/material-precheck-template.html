@@ -14,7 +14,8 @@
   <script>
     (()=>{"use strict";
       const app=document.getElementById("app"),dataNode=document.getElementById("flash-data");
-      const node=(tag,text,className)=>{const el=document.createElement(tag);if(className)el.className=className;if(text!==undefined&&text!==null)el.textContent=String(text);return el};
+      const readableText=value=>String(value??"").replace(/\bR(\d+)\b/g,(_,number)=>`规则${number}`).replace(/\bAND\b/g,"且").replace(/\bOR\b/g,"或");
+      const node=(tag,text,className)=>{const el=document.createElement(tag);if(className)el.className=className;if(text!==undefined&&text!==null)el.textContent=readableText(text);return el};
       const add=(parent,...children)=>{children.flat().filter(Boolean).forEach(child=>parent.appendChild(child));return parent};
       const section=(id,title)=>{const el=node("section");el.id=id;const heading=node("h2",title);heading.id=`${id}-title`;el.setAttribute("aria-labelledby",heading.id);el.appendChild(heading);return el};
       const list=items=>{if(!items||!items.length)return node("p","无","empty");const ul=node("ul",null,"list");items.forEach(item=>ul.appendChild(node("li",item)));return ul};

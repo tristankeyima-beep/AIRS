@@ -72,6 +72,11 @@ class MaterialCatalogSkillTests(unittest.TestCase):
         self.assertNotIn("五维检查", template)
         self.assertNotIn("审核质控报告", template)
 
+    def test_template_translates_internal_material_type_for_display(self):
+        template = self.read_skill_file("assets/material-catalog-template.html")
+        self.assertIn('patient_material: "患者材料"', template)
+        self.assertIn('sourceTypeLabel(source.type)', template)
+
 
 if __name__ == "__main__":
     unittest.main()
