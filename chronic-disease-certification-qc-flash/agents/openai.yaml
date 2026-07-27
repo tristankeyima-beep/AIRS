@@ -1,4 +1,4 @@
 interface:
-  display_name: "门诊慢特病认定与质控 Flash"
-  short_description: "轻量生成门诊慢特病认定标准并复核患者材料与智能审核结果"
-  default_prompt: "使用 $chronic-disease-certification-qc-flash 生成门诊慢特病认定标准，或复核患者材料与智能审核结果。"
+  display_name: "门诊慢特病审核质控 Flash"
+  short_description: "轻量复核患者材料、认定标准与智能审核结果"
+  default_prompt: "使用 $chronic-disease-certification-qc-flash 复核患者材料、门诊慢特病认定标准与原审核结果。"

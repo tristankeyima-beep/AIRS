@@ -1,0 +1,4 @@
+interface:
+  display_name: "门诊慢特病认定标准 Flash"
+  short_description: "轻量生成门诊慢特病结构化认定标准与可视化 HTML"
+  default_prompt: "使用 $chronic-disease-certification-standard-flash 生成门诊慢特病结构化认定标准与可视化 HTML。"
