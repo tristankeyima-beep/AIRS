@@ -13,18 +13,24 @@
 
 文件数量不等于版本数量。多份患者材料优先考虑编目；政策正文与附件可能属于同一标准。只有存在两份不同标准，或用户明确表达修订意图时，才进入版本比对。不得使用文件数量自动判定版本。
 
+## 规划与交付格式边界
+
+工作计划只在对话中以 Markdown 展示，不生成规划 JSON 或规划 HTML。不得为凑齐链接伪造任何规划文件或下游文件。
+
+知识库检索没有固定文件，交付对话结果和实际来源链接（若有）。其余五个 Flash 能力均正式交付 JSON 数据文件和离线 HTML 页面；最终汇总须将 JSON 和 HTML 分别列出，并分别使用下游或平台实际返回的真实链接。
+
 ## 六项能力
 
 面向用户描述业务成果，用户不需要知道 Skill 名称；以下 ID 仅供模型选择和调用能力。
 
 | 目标 | 调用能力 | 成果 |
 | --- | --- | --- |
-| 查标准、政策、指南、共识和来源 | `chronic-disease-knowledge-retrieval` | 检索回答、来源和原文片段 |
-| 政策/自然语言条件结构化 | `chronic-disease-certification-standard-flash` | 认定标准数据文件和离线页面 |
-| 客观整理患者材料 | `chronic-disease-material-catalog-flash` | 材料目录、时间线和关联线索 |
-| 按已确认标准检查材料和补件 | `chronic-disease-material-precheck-flash` | 预检结果和补件清单 |
-| 比较两份以上标准与受影响规则 | `chronic-disease-standard-version-impact-flash` | 版本差异和影响分析 |
-| 复核患者材料、标准和原审核结果 | `chronic-disease-certification-qc-flash` | 审核质控报告 |
+| 查标准、政策、指南、共识和来源 | `chronic-disease-knowledge-retrieval` | 对话中的检索回答、来源和原文片段；无固定文件，提供实际来源链接（若有） |
+| 政策/自然语言条件结构化 | `chronic-disease-certification-standard-flash` | 结构化认定标准；JSON 数据文件 + 离线 HTML 页面 |
+| 客观整理患者材料 | `chronic-disease-material-catalog-flash` | 材料目录、时间线和关联线索；JSON 数据文件 + 离线 HTML 页面 |
+| 按已确认标准检查材料和补件 | `chronic-disease-material-precheck-flash` | 预检结果和补件清单；JSON 数据文件 + 离线 HTML 页面 |
+| 比较两份以上标准与受影响规则 | `chronic-disease-standard-version-impact-flash` | 版本差异和影响分析；JSON 数据文件 + 离线 HTML 页面 |
+| 复核患者材料、标准和原审核结果 | `chronic-disease-certification-qc-flash` | 审核质控报告；JSON 数据文件 + 离线 HTML 页面 |
 
 ## 关键分流
 

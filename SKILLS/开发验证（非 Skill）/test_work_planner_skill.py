@@ -105,6 +105,15 @@ class WorkPlannerSkillTests(unittest.TestCase):
         for required_term in required_terms:
             self.assertIn(required_term, content, required_term)
 
+    def test_execution_entry_includes_exactly_two_capabilities(self):
+        content = read("SKILL.md")
+        execution_entry = extract_markdown_h2_section(content, "执行入口")
+
+        self.assertIn(
+            "涉及两项及以上环节（含两项）",
+            execution_entry,
+        )
+
     def test_explicit_planning_request_overrides_default_non_trigger(self):
         content = read("SKILL.md")
         required_terms = (
@@ -173,6 +182,35 @@ class WorkPlannerSkillTests(unittest.TestCase):
         for required_term in required_terms:
             self.assertIn(required_term, content, required_term)
 
+    def test_planner_level_sensitive_credential_gate_stops_all_dispatch(self):
+        required_terms = (
+            "调用任何下游能力之前",
+            "API 密钥",
+            "访问令牌",
+            "Cookie",
+            "授权头",
+            "账号密码",
+            "立即停止",
+            "不得回显",
+            "脱敏告警",
+            "重新确认材料范围",
+            "不能覆盖或绕过",
+        )
+
+        for relative_path in (
+            "SKILL.md",
+            "references/continuous-execution.md",
+        ):
+            content = read(relative_path)
+            for required_term in required_terms:
+                self.assertIn(
+                    required_term,
+                    content,
+                    f"{relative_path}: {required_term}",
+                )
+
+        self.assertIn("规划助手层", read("SKILL.md"))
+
     def test_markdown_plan_has_visual_states_and_real_links_only(self):
         content = read("references/markdown-plan-template.md")
         required_terms = (
@@ -232,7 +270,6 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "需提前准备",
             "依赖",
             "⬜ 计划执行后生成",
-            "[交付物名称](下游或平台实际返回的文件地址)",
             "知识库未返回来源地址",
             "检索无结果",
         )
@@ -249,6 +286,75 @@ class WorkPlannerSkillTests(unittest.TestCase):
         )[0]
         self.assertNotIn("❌", planning_example)
         self.assertNotIn("chronic-disease-", content)
+
+    def test_planner_markdown_and_downstream_file_delivery_boundaries(self):
+        for relative_path in (
+            "SKILL.md",
+            "references/intent-routing.md",
+            "references/markdown-plan-template.md",
+        ):
+            content = read(relative_path)
+            for required_term in (
+                "工作计划只在对话中以 Markdown 展示",
+                "不生成规划 JSON 或规划 HTML",
+            ):
+                self.assertIn(
+                    required_term,
+                    content,
+                    f"{relative_path}: {required_term}",
+                )
+
+        routing = read("references/intent-routing.md")
+        flash_skill_ids = (
+            "chronic-disease-certification-standard-flash",
+            "chronic-disease-material-catalog-flash",
+            "chronic-disease-material-precheck-flash",
+            "chronic-disease-standard-version-impact-flash",
+            "chronic-disease-certification-qc-flash",
+        )
+        for skill_id in flash_skill_ids:
+            row = next(
+                line
+                for line in routing.splitlines()
+                if f"`{skill_id}`" in line
+            )
+            self.assertIn("JSON", row, skill_id)
+            self.assertIn("HTML", row, skill_id)
+
+        delivery_contract = (
+            read("SKILL.md")
+            + "\n"
+            + read("references/markdown-plan-template.md")
+        )
+        for required_term in (
+            "JSON 和 HTML 分别列出",
+            "分别使用下游或平台实际返回的真实链接",
+            "知识库检索没有固定文件",
+            "实际来源链接",
+            "不得伪造",
+        ):
+            self.assertIn(required_term, delivery_contract, required_term)
+
+    def test_plan_only_mode_updates_plan_before_stopping(self):
+        content = read("references/continuous-execution.md")
+        required_terms = (
+            "先把计划中的执行方式更新为“只制定计划”",
+            "当前状态更新为“计划已制定”",
+            "未来步骤和成果保持 `⬜`",
+            "然后停止",
+            "不调用下游能力",
+        )
+
+        for required_term in required_terms:
+            self.assertIn(required_term, content, required_term)
+
+    def test_markdown_reference_does_not_offer_copyable_placeholder_links(self):
+        content = read("references/markdown-plan-template.md")
+
+        self.assertNotIn("[交付物名称](", content)
+        self.assertNotIn("下游或平台实际返回的文件地址", content)
+        self.assertIn("本参考不提供占位链接示例", content)
+        self.assertIn("没有实际地址时输出纯文本状态", content)
 
     def test_planning_example_closes_standard_confirmation_dependencies(self):
         content = read("references/markdown-plan-template.md")
