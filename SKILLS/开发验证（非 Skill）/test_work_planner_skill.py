@@ -512,6 +512,16 @@ class WorkPlannerSkillTests(unittest.TestCase):
         ):
             self.assertIn(allowed_english, content, allowed_english)
 
+        task_five = content.split(
+            "### Task 5:",
+            maxsplit=1,
+        )[1].split(
+            "### Task 6:",
+            maxsplit=1,
+        )[0]
+        self.assertIn("虚构测试患者材料", task_five)
+        self.assertNotIn("真实患者材料", task_five)
+
     def test_usage_guide_case_four_static_contract_supports_manual_acceptance(self):
         content = read("使用说明.md")
         case_four = content.split(
