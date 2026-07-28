@@ -1,0 +1,4 @@
+interface:
+  display_name: "慢病知识库检索"
+  short_description: "检索门诊慢特病认定标准、专家共识、临床指南与知识依据"
+  default_prompt: "使用 $chronic-disease-knowledge-retrieval 查询慢病知识库，并根据检索依据继续处理我的问题。"
