@@ -117,6 +117,26 @@ class QueryAdpContractTests(unittest.TestCase):
                     ):
                         self.query_adp.load_config(path)
 
+    def test_load_config_rejects_nonfinite_timeout_values(self):
+        invalid_timeouts = ("1e999", "Infinity", "NaN")
+        for timeout in invalid_timeouts:
+            with self.subTest(timeout=timeout):
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / "config.json"
+                    path.write_text(
+                        (
+                            '{"chat_url":"https://example.test/chat/sse",'
+                            '"app_key_env":"TEST_ADP_KEY",'
+                            f'"timeout_seconds":{timeout}}}'
+                        ),
+                        encoding="utf-8",
+                    )
+
+                    with self.assertRaisesRegex(
+                        self.query_adp.ConfigError, "timeout_seconds"
+                    ):
+                        self.query_adp.load_config(path)
+
     def test_main_reports_invalid_stream_config_as_config_error(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.json"
@@ -738,6 +758,39 @@ class QueryAdpContractTests(unittest.TestCase):
             ["qa", "document", "web"],
         )
         self.assertNotIn("bot_app_key", json.dumps(result))
+
+    def test_collect_result_maps_only_supported_integer_reference_types(self):
+        reference_types = (True, False, 1.0, [], {}, 3, 1, 2, 4)
+        events = [
+            ("reply", {"payload": {"content": "answer"}}),
+            (
+                "reference",
+                {
+                    "payload": {
+                        "references": [
+                            {"type": value} for value in reference_types
+                        ]
+                    }
+                },
+            ),
+        ]
+
+        result = self.query_adp.collect_result("query", events)
+
+        self.assertEqual(
+            [item["type"] for item in result["knowledge"]],
+            [
+                "unknown",
+                "unknown",
+                "unknown",
+                "unknown",
+                "unknown",
+                "unknown",
+                "qa",
+                "document",
+                "web",
+            ],
+        )
 
     def test_collect_result_uses_stable_empty_workflow_defaults(self):
         result = self.query_adp.collect_result(

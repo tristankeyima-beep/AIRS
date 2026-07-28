@@ -77,6 +77,7 @@ def load_config(path):
         if (
             isinstance(timeout, bool)
             or not isinstance(timeout, (int, float))
+            or not math.isfinite(timeout)
             or not timeout > 0
         ):
             raise ConfigError("配置字段无效: timeout_seconds")
@@ -375,10 +376,14 @@ def collect_result(query, events):
                     continue
                 doc_name = _string_or_empty(reference.get("doc_name"))
                 name = _string_or_empty(reference.get("name"))
+                reference_type = reference.get("type")
                 knowledge.append(
                     {
-                        "type": reference_types.get(
-                            reference.get("type"), "unknown"
+                        "type": (
+                            reference_types.get(reference_type, "unknown")
+                            if isinstance(reference_type, int)
+                            and not isinstance(reference_type, bool)
+                            else "unknown"
                         ),
                         "title": doc_name or name,
                         "content": _string_or_empty(
