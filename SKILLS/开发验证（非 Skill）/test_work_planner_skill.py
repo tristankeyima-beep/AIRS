@@ -16,6 +16,22 @@ SKILL_ROOT = (
     / "门诊慢特病工作规划与任务编排"
     / "chronic-disease-work-planner"
 )
+SAFEGUARD_INVARIANT_SENTENCES = (
+    (
+        "立即且不可跳过",
+        "安全门是每轮处理的第 0 步，必须立即执行，不得延后或跳过。",
+    ),
+    (
+        "早于所有处理",
+        "安全门必须发生在输入盘点、内容复述、澄清提问、工作计划生成或更新、"
+        "摘要或日志记录、下游调用、发送或上传之前。",
+    ),
+    (
+        "仅输出脱敏告警",
+        "命中疑似敏感凭据后，本轮只能输出不含具体值的通用脱敏告警，"
+        "不得输出其他内容。",
+    ),
+)
 
 
 def read(relative_path):
@@ -39,6 +55,13 @@ def extract_markdown_h2_section(content, title):
 
 
 def assert_sensitive_credential_contract(test_case, content, relative_path):
+    for invariant_name, invariant_sentence in SAFEGUARD_INVARIANT_SENTENCES:
+        test_case.assertIn(
+            invariant_sentence,
+            content,
+            f"{relative_path}: 不可变安全句：{invariant_name}",
+        )
+
     literal_contracts = {
         "每轮重新检查": "每轮",
         "收到新消息或附件": "收到新消息或附件",
@@ -324,23 +347,49 @@ class WorkPlannerSkillTests(unittest.TestCase):
                 later_section,
             )
 
-    def test_sensitive_credential_checker_rejects_missing_zero_step(self):
+    def test_sensitive_credential_checker_rejects_negated_invariants(self):
         safety_gate = extract_markdown_h2_section(
             read("SKILL.md"),
             "敏感凭据停止门",
         )
-        content_without_zero_step = safety_gate.replace(
-            "第 0 步",
-            "安全检查",
-            1,
+        negating_mutations = (
+            (
+                "必须改成可以",
+                "必须立即执行",
+                "可以稍后执行",
+                "立即且不可跳过",
+            ),
+            (
+                "不得延后改成无需立即",
+                "不得延后或跳过",
+                "无需立即执行",
+                "立即且不可跳过",
+            ),
+            (
+                "只能告警改成还可输出其他内容",
+                "本轮只能输出不含具体值的通用脱敏告警，不得输出其他内容",
+                "本轮还可输出其他内容",
+                "仅输出脱敏告警",
+            ),
         )
 
-        with self.assertRaisesRegex(AssertionError, "第 0 步"):
-            assert_sensitive_credential_contract(
-                self,
-                content_without_zero_step,
-                "SKILL.md",
-            )
+        for mutation_name, original, replacement, failed_invariant in negating_mutations:
+            with self.subTest(mutation_name=mutation_name):
+                self.assertIn(original, safety_gate, mutation_name)
+                mutated_safety_gate = safety_gate.replace(
+                    original,
+                    replacement,
+                    1,
+                )
+                with self.assertRaisesRegex(
+                    AssertionError,
+                    failed_invariant,
+                ):
+                    assert_sensitive_credential_contract(
+                        self,
+                        mutated_safety_gate,
+                        "SKILL.md",
+                    )
 
     def test_markdown_plan_has_visual_states_and_real_links_only(self):
         content = read("references/markdown-plan-template.md")
