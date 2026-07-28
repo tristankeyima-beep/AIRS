@@ -312,19 +312,135 @@ class WorkPlannerSkillTests(unittest.TestCase):
         for required_term in required_terms:
             self.assertIn(required_term, content, required_term)
 
-    def test_usage_guide_preserves_execution_status_contract(self):
+    def test_usage_guide_preserves_execution_failure_paths(self):
         content = read("使用说明.md")
         required_terms = (
             "可恢复失败",
             "不可恢复失败",
             "重大重新规划",
             "重新确认",
-            "未完成或执行失败",
-            "用户取消",
-            "接受部分交付",
         )
 
         for required_term in required_terms:
+            self.assertIn(required_term, content, required_term)
+
+    def test_usage_guide_defines_visual_status_contract(self):
+        content = read("使用说明.md")
+        status_section = content.split(
+            "## 计划展示说明",
+            maxsplit=1,
+        )[1].split(
+            "\n## ",
+            maxsplit=1,
+        )[0]
+        status_lines = {
+            icon: next(
+                line
+                for line in status_section.splitlines()
+                if line.startswith(f"- {icon} ")
+            )
+            for icon in ("✅", "❌", "⏳", "⏸️", "⬜")
+        }
+
+        self.assertIn("未完成或执行失败", status_lines["❌"])
+        self.assertIn("等待确认、补充或恢复", status_lines["⏸️"])
+        self.assertIn("尚未开始", status_lines["⬜"])
+        self.assertIn("只制定计划", status_lines["⬜"])
+        self.assertIn("计划执行", status_lines["⬜"])
+        for required_term in (
+            "自动执行终止",
+            "不得遗留",
+            "⏳",
+            "⏸️",
+            "⬜",
+            "计划模式",
+            "未来步骤和成果",
+            "保持 ⬜",
+            "不得标为 ❌",
+            "用户取消",
+            "接受部分交付",
+        ):
+            self.assertIn(required_term, status_section, required_term)
+
+    def test_usage_guide_acceptance_cases_are_reproducible(self):
+        content = read("使用说明.md")
+        acceptance_section = content.split(
+            "## 测试用例",
+            maxsplit=1,
+        )[1]
+        self.assertIn(
+            "必须先按各用例的 `验收前置条件` 准备或上传材料，再复制 `用户输入`",
+            acceptance_section,
+        )
+        self.assertIn("均为虚构测试材料", acceptance_section)
+        self.assertIn("不得使用真实患者隐私", acceptance_section)
+        self.assertNotIn("使用真实患者做", acceptance_section)
+        self.assertNotIn("加入真实患者", acceptance_section)
+
+        case_numbers = ("一", "二", "三", "四", "五", "六")
+        cases = {}
+        for index, case_number in enumerate(case_numbers):
+            case_content = acceptance_section.split(
+                f"### 用例{case_number}：",
+                maxsplit=1,
+            )[1]
+            if index + 1 < len(case_numbers):
+                case_content = case_content.split(
+                    f"### 用例{case_numbers[index + 1]}：",
+                    maxsplit=1,
+                )[0]
+            cases[case_number] = case_content
+            for field in (
+                "验收前置条件",
+                "用户输入",
+                "期望引导",
+                "计划路线",
+                "预期成果",
+                "不得出现",
+            ):
+                self.assertIn(f"**{field}**", case_content, f"用例{case_number}: {field}")
+
+        preconditions = {
+            case_number: cases[case_number].split(
+                "**验收前置条件**",
+                maxsplit=1,
+            )[1].split(
+                "**用户输入**",
+                maxsplit=1,
+            )[0]
+            for case_number in case_numbers
+        }
+        user_inputs = {
+            case_number: cases[case_number].split(
+                "**用户输入**",
+                maxsplit=1,
+            )[1].split(
+                "**期望引导**",
+                maxsplit=1,
+            )[0]
+            for case_number in case_numbers
+        }
+
+        for term in ("测试患者材料", "无认定标准"):
+            self.assertIn(term, preconditions["一"])
+        for term in ("测试患者材料", "已确认自然语言标准", "原审核结果摘要"):
+            self.assertIn(term, preconditions["二"])
+        for term in ("标准甲", "标准乙", "同一测试患者材料", "版本顺序"):
+            self.assertIn(term, preconditions["三"])
+        for term in ("现行标准", "修改目标"):
+            self.assertIn(term, preconditions["四"])
+        for term in ("已确认标准", "必须同时满足"):
+            self.assertIn(term, user_inputs["五"])
+        for term in ("测试住院病历", "测试门诊记录", "客观整理"):
+            self.assertIn(term, user_inputs["六"])
+
+    def test_usage_guide_limits_qc_when_original_review_is_incomplete(self):
+        content = read("使用说明.md")
+        for required_term in (
+            "原审核只有结论或摘要时",
+            "仅复核可见内容",
+            "未核查",
+        ):
             self.assertIn(required_term, content, required_term)
 
 
