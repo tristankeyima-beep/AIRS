@@ -16,7 +16,10 @@ SKILL_ROOT = (
     / "门诊慢特病工作规划与任务编排"
     / "chronic-disease-work-planner"
 )
-MARKDOWN_INLINE_LINK_PATTERN = r"\[[^\]\n]+\]\([^)\n]+\)"
+SENSITIVE_CREDENTIAL_PREFLIGHT_SENTENCE = (
+    "在调用任何下游能力、知识库或内部应用，以及发送或上传任何材料之前，"
+    "先检查当前用户输入、附件可读文本和拟传递内容是否含疑似敏感凭据。"
+)
 
 
 def read(relative_path):
@@ -41,11 +44,7 @@ def extract_markdown_h2_section(content, title):
 
 def assert_sensitive_credential_contract(test_case, content, relative_path):
     literal_contracts = {
-        "调用任何下游能力之前": "调用任何下游能力之前",
-        "检查知识库": "知识库",
-        "检查内部应用": "内部应用",
-        "检查发送内容": "发送",
-        "检查上传内容": "上传",
+        "完整前置检查句": SENSITIVE_CREDENTIAL_PREFLIGHT_SENTENCE,
         "API 密钥": "API 密钥",
         "访问令牌": "访问令牌",
         "Token": "Token",
@@ -80,6 +79,14 @@ def assert_sensitive_credential_contract(test_case, content, relative_path):
             required_pattern,
             f"{relative_path}: {contract_name}",
         )
+
+
+def assert_no_inline_markdown_link_examples(test_case, content):
+    test_case.assertNotIn(
+        "](",
+        content,
+        "markdown-plan-template.md 不得包含任何可复制的 Markdown 内联链接示例",
+    )
 
 
 class WorkPlannerSkillTests(unittest.TestCase):
@@ -232,23 +239,31 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "references/continuous-execution.md",
         ):
             with self.subTest(relative_path=relative_path):
+                safety_gate = extract_markdown_h2_section(
+                    read(relative_path),
+                    "敏感凭据停止门",
+                )
                 assert_sensitive_credential_contract(
                     self,
-                    read(relative_path),
+                    safety_gate,
                     relative_path,
                 )
 
-    def test_sensitive_credential_checker_rejects_a_missing_clause(self):
-        content_without_cookie = read("SKILL.md").replace(
-            "Cookie",
-            "浏览器会话信息",
+    def test_sensitive_credential_checker_rejects_missing_complete_preflight_sentence(self):
+        safety_gate = extract_markdown_h2_section(
+            read("SKILL.md"),
+            "敏感凭据停止门",
+        )
+        content_without_preflight = safety_gate.replace(
+            SENSITIVE_CREDENTIAL_PREFLIGHT_SENTENCE,
+            "",
             1,
         )
 
-        with self.assertRaisesRegex(AssertionError, "Cookie"):
+        with self.assertRaisesRegex(AssertionError, "完整前置检查句"):
             assert_sensitive_credential_contract(
                 self,
-                content_without_cookie,
+                content_without_preflight,
                 "SKILL.md",
             )
 
@@ -389,18 +404,27 @@ class WorkPlannerSkillTests(unittest.TestCase):
         for required_term in required_terms:
             self.assertIn(required_term, content, required_term)
 
-    def test_markdown_reference_does_not_offer_copyable_placeholder_links(self):
+    def test_markdown_reference_contains_no_inline_markdown_link_syntax(self):
         content = read("references/markdown-plan-template.md")
 
-        self.assertNotRegex(content, MARKDOWN_INLINE_LINK_PATTERN)
+        assert_no_inline_markdown_link_examples(self, content)
         self.assertIn("本参考不提供占位链接示例", content)
         self.assertIn("没有实际地址时输出纯文本状态", content)
 
-    def test_markdown_inline_link_detector_rejects_arbitrary_examples(self):
-        self.assertRegex(
-            "[任意交付物](任意示例地址)",
-            MARKDOWN_INLINE_LINK_PATTERN,
-        )
+    def test_markdown_inline_link_check_rejects_empty_and_nested_examples(self):
+        content = read("references/markdown-plan-template.md")
+
+        for inline_link_example in (
+            "[](地址)",
+            "[名称]()",
+            "[外层 [内层]](地址)",
+        ):
+            with self.subTest(inline_link_example=inline_link_example):
+                with self.assertRaisesRegex(AssertionError, "不得包含"):
+                    assert_no_inline_markdown_link_examples(
+                        self,
+                        f"{content}\n{inline_link_example}",
+                    )
 
     def test_planning_example_closes_standard_confirmation_dependencies(self):
         content = read("references/markdown-plan-template.md")
