@@ -7,10 +7,15 @@ import json
 import os
 import socket
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+
+
+MAX_SSE_EVENTS = 1000
+MAX_SSE_BYTES = 5 * 1024 * 1024
 
 
 class ConfigError(Exception):
@@ -79,7 +84,7 @@ def build_request(config, query):
     env_name = env_name.strip()
     app_key = os.environ.get(env_name, "").strip()
     if not app_key:
-        raise ConfigError("请设置环境变量: " + env_name, error_type="auth")
+        raise ConfigError("请设置环境变量: " + env_name)
 
     session_id = str(uuid.uuid4())
     return {
@@ -122,9 +127,30 @@ def _parse_sse_data(lines):
     raise AdPError("SSE 事件格式无效")
 
 
-def read_sse(stream):
+def _check_deadline(deadline):
+    if deadline is not None and time.monotonic() >= deadline:
+        raise AdPError("ADP SSE 读取超时", error_type="timeout")
+
+
+def read_sse(stream, deadline=None):
     data_lines = []
-    for raw_line in stream:
+    byte_count = 0
+    event_count = 0
+    iterator = iter(stream)
+    while True:
+        _check_deadline(deadline)
+        try:
+            raw_line = next(iterator)
+        except StopIteration:
+            break
+        _check_deadline(deadline)
+        byte_count += (
+            len(raw_line)
+            if isinstance(raw_line, bytes)
+            else len(raw_line.encode("utf-8"))
+        )
+        if byte_count > MAX_SSE_BYTES:
+            raise AdPError("SSE 响应超过大小限制")
         try:
             line = (
                 raw_line.decode("utf-8")
@@ -138,7 +164,20 @@ def read_sse(stream):
             parsed = _parse_sse_data(data_lines)
             data_lines = []
             if parsed is not None:
+                _check_deadline(deadline)
+                event_count += 1
+                if event_count > MAX_SSE_EVENTS:
+                    raise AdPError("SSE 事件数量超过限制")
                 yield parsed
+                event_name, event = parsed
+                payload = event.get("payload", {})
+                if (
+                    event_name == "token_stat"
+                    and isinstance(payload, dict)
+                    and payload.get("status_summary")
+                    in ("success", "failed")
+                ):
+                    return
             continue
         if line.startswith(":"):
             continue
@@ -149,8 +188,19 @@ def read_sse(stream):
             data_lines.append(value)
 
 
+def _string_or_empty(value):
+    return value if isinstance(value, str) else ""
+
+
+def _number_or_none(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return value
+
+
 def collect_result(query, events):
     answer = ""
+    final_answer = ""
     knowledge = []
     workflow = {"name": "", "run_id": "", "outputs": []}
     request_id = None
@@ -161,6 +211,8 @@ def collect_result(query, events):
 
     for event_name, event in events:
         payload = event.get("payload", {})
+        if not isinstance(payload, dict):
+            raise AdPError("SSE 事件 payload 格式无效")
         request_id = payload.get("request_id") or event.get(
             "request_id"
         ) or request_id
@@ -183,15 +235,25 @@ def collect_result(query, events):
                     final_reply_seen = True
             content = payload.get("content")
             if isinstance(content, str) and content.strip():
-                answer = content
+                if payload.get("is_final") is True:
+                    final_answer = content
+                elif "is_final" not in payload:
+                    answer = content
             work_flow = payload.get("work_flow")
             if isinstance(work_flow, dict):
-                if work_flow.get("workflow_name") is not None:
-                    workflow["name"] = work_flow["workflow_name"]
-                if work_flow.get("workflow_run_id") is not None:
-                    workflow["run_id"] = work_flow["workflow_run_id"]
-                if work_flow.get("outputs") is not None:
-                    workflow["outputs"] = work_flow["outputs"]
+                if "workflow_name" in work_flow:
+                    workflow["name"] = _string_or_empty(
+                        work_flow["workflow_name"]
+                    )
+                if "workflow_run_id" in work_flow:
+                    workflow["run_id"] = _string_or_empty(
+                        work_flow["workflow_run_id"]
+                    )
+                if "outputs" in work_flow:
+                    outputs = work_flow["outputs"]
+                    workflow["outputs"] = (
+                        outputs if isinstance(outputs, list) else []
+                    )
 
         if event_name == "reference":
             references = payload.get("references", [])
@@ -200,22 +262,28 @@ def collect_result(query, events):
             for reference in references:
                 if not isinstance(reference, dict):
                     continue
+                doc_name = _string_or_empty(reference.get("doc_name"))
+                name = _string_or_empty(reference.get("name"))
                 knowledge.append(
                     {
                         "type": reference_types.get(
                             reference.get("type"), "unknown"
                         ),
-                        "title": reference.get("doc_name")
-                        or reference.get("name")
-                        or "",
-                        "content": reference.get("content", ""),
-                        "url": reference.get("url", ""),
-                        "confidence": reference.get("confidence"),
+                        "title": doc_name or name,
+                        "content": _string_or_empty(
+                            reference.get("content")
+                        ),
+                        "url": _string_or_empty(reference.get("url")),
+                        "confidence": _number_or_none(
+                            reference.get("confidence")
+                        ),
                     }
                 )
 
     if finality_signaled and not final_reply_seen:
         raise AdPError("SSE 未收到最终回答事件")
+    if finality_signaled:
+        answer = final_answer
     if not answer:
         raise AdPError("未收到最终回答", error_type="empty_result")
 
@@ -233,6 +301,27 @@ def collect_result(query, events):
     }
 
 
+def _debug_events(events):
+    for event_name, event in events:
+        print("event: " + event_name, file=sys.stderr)
+        yield event_name, event
+
+
+def _response_content_type(response):
+    content_type = ""
+    headers = getattr(response, "headers", None)
+    if headers is not None:
+        for name, value in headers.items():
+            if str(name).lower() == "content-type":
+                content_type = value
+                break
+    if not content_type and hasattr(response, "getheader"):
+        content_type = response.getheader("Content-Type", "")
+    if not isinstance(content_type, str):
+        return ""
+    return content_type.split(";", 1)[0].strip().lower()
+
+
 def query_adp(config, query, opener=None, debug=False):
     body = build_request(config, query)
     encoded_body = json.dumps(body, ensure_ascii=False).encode("utf-8")
@@ -246,12 +335,18 @@ def query_adp(config, query, opener=None, debug=False):
         method="POST",
     )
     timeout = config.get("timeout_seconds", 120)
+    deadline = time.monotonic() + timeout
     open_url = opener or urllib.request.urlopen
 
     try:
         response = open_url(request, timeout=timeout)
         try:
-            events = list(read_sse(response))
+            if _response_content_type(response) != "text/event-stream":
+                raise AdPError("ADP 响应不是 SSE 事件流")
+            events = read_sse(response, deadline=deadline)
+            if debug:
+                events = _debug_events(events)
+            return collect_result(body["content"], events)
         finally:
             response.close()
     except urllib.error.HTTPError as error:
@@ -269,22 +364,20 @@ def query_adp(config, query, opener=None, debug=False):
     except OSError as error:
         raise AdPError("ADP SSE 连接中断", error_type="network") from error
 
-    if debug:
-        for event_name, _ in events:
-            print("event: " + event_name, file=sys.stderr)
-    return collect_result(body["content"], events)
-
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
-    parser.add_argument("--query", required=True)
+    query_group = parser.add_mutually_exclusive_group(required=True)
+    query_group.add_argument("--query")
+    query_group.add_argument("--query-stdin", action="store_true")
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args(argv)
+    query = sys.stdin.read() if args.query_stdin else args.query
 
     try:
         config = load_config(args.config)
-        result = query_adp(config, args.query, debug=args.debug)
+        result = query_adp(config, query, debug=args.debug)
     except (ConfigError, AdPError) as error:
         result = {
             "ok": False,

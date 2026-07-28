@@ -283,6 +283,55 @@ class QueryAdpContractTests(unittest.TestCase):
             self.query_adp.collect_result("query", events)
         self.assertEqual(raised.exception.error_type, "empty_result")
 
+    def test_read_sse_stops_after_terminal_token_status(self):
+        class TerminalStream:
+            def __iter__(self):
+                yield (
+                    b'data: {"type": "reply", "payload": '
+                    b'{"content": "answer"}}\n'
+                )
+                yield b"\n"
+                yield (
+                    b'data: {"type": "token_stat", "payload": '
+                    b'{"status_summary": "success"}}\n'
+                )
+                yield b"\n"
+                raise RuntimeError("stream read past terminal event")
+
+        try:
+            events = list(self.query_adp.read_sse(TerminalStream()))
+        except RuntimeError:
+            self.fail("read_sse consumed data after terminal token status")
+
+        self.assertEqual(
+            [event_name for event_name, _ in events],
+            ["reply", "token_stat"],
+        )
+
+    def test_read_sse_rejects_more_than_one_thousand_events(self):
+        event = b'data: {"type": "reply", "payload": {}}\n\n'
+        stream = io.BytesIO(event * 1001)
+
+        with self.assertRaises(self.query_adp.AdPError) as raised:
+            list(self.query_adp.read_sse(stream))
+
+        self.assertEqual(raised.exception.error_type, "sse")
+
+    def test_read_sse_rejects_stream_larger_than_five_megabytes(self):
+        content = "x" * (5 * 1024 * 1024)
+        stream = io.BytesIO(
+            (
+                'data: {"type": "reply", "payload": {"content": "'
+                + content
+                + '"}}\n\n'
+            ).encode("utf-8")
+        )
+
+        with self.assertRaises(self.query_adp.AdPError) as raised:
+            list(self.query_adp.read_sse(stream))
+
+        self.assertEqual(raised.exception.error_type, "sse")
+
     def test_collect_result_separates_answer_reference_workflow_and_ids(self):
         events = [
             (
@@ -302,7 +351,7 @@ class QueryAdpContractTests(unittest.TestCase):
                         "work_flow": {
                             "workflow_name": "test workflow",
                             "workflow_run_id": "test-run-001",
-                            "outputs": {"result": "test output"},
+                            "outputs": ["test output"],
                         },
                     },
                 },
@@ -350,7 +399,7 @@ class QueryAdpContractTests(unittest.TestCase):
         self.assertEqual(result["workflow"]["name"], "test workflow")
         self.assertEqual(result["workflow"]["run_id"], "test-run-001")
         self.assertEqual(
-            result["workflow"]["outputs"], {"result": "test output"}
+            result["workflow"]["outputs"], ["test output"]
         )
         self.assertEqual(result["meta"]["request_id"], "test-request-001")
         self.assertEqual(result["meta"]["session_id"], "test-session-001")
@@ -448,6 +497,34 @@ class QueryAdpContractTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.error_type, "sse")
 
+    def test_collect_result_does_not_fallback_to_partial_when_final_is_empty(self):
+        events = [
+            (
+                "reply",
+                {
+                    "payload": {
+                        "content": "partial secret answer",
+                        "is_final": False,
+                    },
+                },
+            ),
+            (
+                "reply",
+                {
+                    "payload": {
+                        "content": "",
+                        "is_final": True,
+                    },
+                },
+            ),
+        ]
+
+        with self.assertRaises(self.query_adp.AdPError) as raised:
+            self.query_adp.collect_result("test query", events)
+
+        self.assertEqual(raised.exception.error_type, "empty_result")
+        self.assertNotIn("partial secret answer", str(raised.exception))
+
     def test_collect_result_raises_adp_error_for_completed_empty_answer(self):
         events = [
             (
@@ -529,6 +606,81 @@ class QueryAdpContractTests(unittest.TestCase):
             {"name": "", "run_id": "", "outputs": []},
         )
 
+    def test_collect_result_normalizes_schema_drift_to_stable_types(self):
+        events = [
+            (
+                "reply",
+                {
+                    "payload": {
+                        "content": "answer",
+                        "is_final": True,
+                        "work_flow": {
+                            "workflow_name": 123,
+                            "workflow_run_id": {"unexpected": "object"},
+                            "outputs": {"unexpected": "object"},
+                        },
+                    },
+                },
+            ),
+            (
+                "reference",
+                {
+                    "payload": {
+                        "references": [
+                            {
+                                "type": 2,
+                                "doc_name": 123,
+                                "name": ["unexpected"],
+                                "content": {"unexpected": "object"},
+                                "url": 456,
+                                "confidence": True,
+                            }
+                        ],
+                    },
+                },
+            ),
+        ]
+
+        result = self.query_adp.collect_result("query", events)
+
+        self.assertEqual(
+            result["knowledge"],
+            [
+                {
+                    "type": "document",
+                    "title": "",
+                    "content": "",
+                    "url": "",
+                    "confidence": None,
+                }
+            ],
+        )
+        self.assertEqual(
+            result["workflow"],
+            {"name": "", "run_id": "", "outputs": []},
+        )
+
+    def test_collect_result_rejects_non_object_payload_with_safe_message(self):
+        secret_payload = (
+            "answer=secret-answer "
+            "url=https://secret.example "
+            "key=test-only-key "
+            "body=secret-request-body"
+        )
+
+        try:
+            self.query_adp.collect_result(
+                "query",
+                [("reply", {"payload": secret_payload})],
+            )
+        except Exception as error:
+            self.assertIsInstance(error, self.query_adp.AdPError)
+            self.assertEqual(error.error_type, "sse")
+            self.assertNotIn("secret", str(error))
+            self.assertNotIn("test-only-key", str(error))
+        else:
+            self.fail("non-object payload was accepted")
+
     def test_query_adp_posts_json_headers_and_timeout(self):
         captured = {}
         response = io.BytesIO(
@@ -536,6 +688,9 @@ class QueryAdpContractTests(unittest.TestCase):
             b'{"content": "answer", "request_id": "req", '
             b'"session_id": "session"}}\n\n'
         )
+        response.headers = {
+            "Content-Type": "text/event-stream; charset=utf-8"
+        }
 
         def opener(request, timeout):
             captured["request"] = request
@@ -565,8 +720,104 @@ class QueryAdpContractTests(unittest.TestCase):
         self.assertEqual(body["content"], "test query")
         self.assertEqual(result["answer"], "answer")
 
+    def test_query_adp_passes_event_generator_directly_to_collector(self):
+        response = io.BytesIO(
+            b'data: {"type": "reply", "payload": '
+            b'{"content": "answer"}}\n\n'
+        )
+        response.headers = {"Content-Type": "text/event-stream"}
+        captured = {}
+
+        def collect(query, events):
+            captured["events"] = events
+            self.assertNotIsInstance(events, list)
+            return {"ok": True}
+
+        config = {
+            "chat_url": "https://example.test/chat/sse",
+            "app_key_env": "TEST_ADP_KEY",
+            "timeout_seconds": 30,
+        }
+        with mock.patch.dict(
+            os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
+        ):
+            with mock.patch.object(
+                self.query_adp,
+                "collect_result",
+                side_effect=collect,
+            ):
+                result = self.query_adp.query_adp(
+                    config,
+                    "test query",
+                    opener=lambda request, timeout: response,
+                )
+
+        self.assertEqual(result, {"ok": True})
+        self.assertTrue(hasattr(captured["events"], "__next__"))
+
+    def test_query_adp_enforces_monotonic_stream_deadline(self):
+        response = io.BytesIO(
+            b'data: {"type": "reply", "payload": '
+            b'{"content": "answer"}}\n\n'
+        )
+        response.headers = {"Content-Type": "text/event-stream"}
+        config = {
+            "chat_url": "https://example.test/chat/sse",
+            "app_key_env": "TEST_ADP_KEY",
+            "timeout_seconds": 1,
+        }
+        with mock.patch.dict(
+            os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
+        ):
+            with mock.patch("time.monotonic", side_effect=[0, 2]):
+                with self.assertRaises(self.query_adp.AdPError) as raised:
+                    self.query_adp.query_adp(
+                        config,
+                        "test query",
+                        opener=lambda request, timeout: response,
+                    )
+
+        self.assertEqual(raised.exception.error_type, "timeout")
+
+    def test_query_adp_rejects_non_sse_and_missing_content_types(self):
+        cases = (
+            ("text/html; charset=utf-8", b"<html>secret login</html>"),
+            ("application/json", b'{"secret": "login"}'),
+            (None, b"secret body"),
+        )
+        config = {
+            "chat_url": "https://secret.example/login",
+            "app_key_env": "TEST_ADP_KEY",
+            "timeout_seconds": 30,
+        }
+        for content_type, response_body in cases:
+            with self.subTest(content_type=content_type):
+                response = io.BytesIO(response_body)
+                response.headers = (
+                    {"Content-Type": content_type}
+                    if content_type is not None
+                    else {}
+                )
+                with mock.patch.dict(
+                    os.environ,
+                    {"TEST_ADP_KEY": "test-only-key"},
+                    clear=True,
+                ):
+                    with self.assertRaises(self.query_adp.AdPError) as raised:
+                        self.query_adp.query_adp(
+                            config,
+                            "test query",
+                            opener=lambda request, timeout: response,
+                        )
+
+                self.assertEqual(raised.exception.error_type, "sse")
+                self.assertNotIn("secret", str(raised.exception))
+                self.assertNotIn("test-only-key", str(raised.exception))
+
     def test_query_adp_classifies_sse_connection_reset_as_safe_network_error(self):
         class ResettingResponse:
+            headers = {"Content-Type": "text/event-stream"}
+
             def __iter__(self):
                 raise ConnectionResetError("secret transport details")
 
@@ -596,6 +847,8 @@ class QueryAdpContractTests(unittest.TestCase):
 
     def test_main_handles_sse_oserror_without_traceback_or_secret(self):
         class FailingResponse:
+            headers = {"Content-Type": "text/event-stream"}
+
             def __iter__(self):
                 raise OSError("secret stream failure")
 
@@ -645,6 +898,8 @@ class QueryAdpContractTests(unittest.TestCase):
 
     def test_query_adp_classifies_incomplete_read_as_safe_network_error(self):
         class TruncatedResponse:
+            headers = {"Content-Type": "text/event-stream"}
+
             def __iter__(self):
                 raise http.client.IncompleteRead(
                     b"secret partial response",
@@ -677,6 +932,8 @@ class QueryAdpContractTests(unittest.TestCase):
 
     def test_main_handles_http_exception_without_traceback_or_secret(self):
         class FailingResponse:
+            headers = {"Content-Type": "text/event-stream"}
+
             def __iter__(self):
                 raise http.client.HTTPException("secret protocol details")
 
@@ -748,9 +1005,73 @@ class QueryAdpContractTests(unittest.TestCase):
         output = json.loads(stdout.getvalue())
         self.assertEqual(exit_code, 1)
         self.assertIs(output["ok"], False)
-        self.assertEqual(output["error_type"], "auth")
+        self.assertEqual(output["error_type"], "config")
         self.assertIn("TEST_ADP_KEY", output["message"])
         self.assertNotIn("test-only-key", stdout.getvalue())
+        self.assertEqual(stderr.getvalue(), "")
+
+    def test_main_reads_query_stdin_as_plain_text_without_execution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory) / "must-not-exist"
+            question = (
+                f'"quoted" $(touch {marker}) '
+                f"`touch {marker}`; touch {marker}"
+            )
+            captured = {}
+
+            def fake_query(config, query, debug=False):
+                captured["body"] = self.query_adp.build_request(config, query)
+                return {
+                    "ok": True,
+                    "query": query,
+                    "answer": "answer",
+                    "knowledge": [],
+                    "workflow": {"name": "", "run_id": "", "outputs": []},
+                    "meta": {
+                        "session_id": "session",
+                        "request_id": "request",
+                        "source": "tencent-adp",
+                    },
+                }
+
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with mock.patch.dict(
+                os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
+            ):
+                with mock.patch.object(
+                    self.query_adp,
+                    "load_config",
+                    return_value={
+                        "chat_url": "https://example.test/chat/sse",
+                        "app_key_env": "TEST_ADP_KEY",
+                    },
+                ):
+                    with mock.patch.object(
+                        self.query_adp,
+                        "query_adp",
+                        side_effect=fake_query,
+                    ):
+                        with mock.patch("sys.stdin", io.StringIO(question)):
+                            with mock.patch("sys.stdout", stdout):
+                                with mock.patch("sys.stderr", stderr):
+                                    try:
+                                        exit_code = self.query_adp.main(
+                                            [
+                                                "--config",
+                                                "unused.json",
+                                                "--query-stdin",
+                                            ]
+                                        )
+                                    except SystemExit as error:
+                                        self.fail(
+                                            "query-stdin rejected with exit "
+                                            + str(error.code)
+                                        )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(captured["body"]["content"], question)
+        self.assertFalse(marker.exists())
         self.assertEqual(stderr.getvalue(), "")
 
     def test_main_classifies_timeout_without_leaking_exception_details(self):
