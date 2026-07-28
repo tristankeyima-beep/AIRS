@@ -16,10 +16,6 @@ SKILL_ROOT = (
     / "门诊慢特病工作规划与任务编排"
     / "chronic-disease-work-planner"
 )
-SENSITIVE_CREDENTIAL_PREFLIGHT_SENTENCE = (
-    "在调用任何下游能力、知识库或内部应用，以及发送或上传任何材料之前，"
-    "先检查当前用户输入、附件可读文本和拟传递内容是否含疑似敏感凭据。"
-)
 
 
 def read(relative_path):
@@ -44,7 +40,9 @@ def extract_markdown_h2_section(content, title):
 
 def assert_sensitive_credential_contract(test_case, content, relative_path):
     literal_contracts = {
-        "完整前置检查句": SENSITIVE_CREDENTIAL_PREFLIGHT_SENTENCE,
+        "每轮重新检查": "每轮",
+        "收到新消息或附件": "收到新消息或附件",
+        "第 0 步": "第 0 步",
         "API 密钥": "API 密钥",
         "访问令牌": "访问令牌",
         "Token": "Token",
@@ -54,7 +52,11 @@ def assert_sensitive_credential_contract(test_case, content, relative_path):
         "私密系统提示": "私密系统提示",
         "秘密配置": "秘密配置",
         "立即停止": "立即停止",
-        "脱敏告警": "脱敏告警",
+        "本轮只能输出": "本轮只能输出",
+        "通用脱敏告警": "通用脱敏告警",
+        "不得复制具体值": "不得把具体值复制",
+        "不得继续生成或更新计划": "不得继续生成或更新计划",
+        "不得继续调用": "不得继续调用",
         "重新确认材料范围": "重新确认材料范围",
         "规划助手层执行": "规划助手层",
         "内网授权不能覆盖或绕过": "不能覆盖或绕过",
@@ -78,6 +80,57 @@ def assert_sensitive_credential_contract(test_case, content, relative_path):
             content,
             required_pattern,
             f"{relative_path}: {contract_name}",
+        )
+
+    pre_processing_sentences = [
+        sentence
+        for sentence in content.split("。")
+        if "输入盘点" in sentence
+    ]
+    test_case.assertEqual(
+        len(pre_processing_sentences),
+        1,
+        f"{relative_path}: 必须用一个前置处理句绑定所有第 0 步对象",
+    )
+    pre_processing_sentence = pre_processing_sentences[0]
+    for required_term in (
+        "输入盘点",
+        "内容复述",
+        "澄清提问",
+        "工作计划生成或更新",
+        "摘要或日志记录",
+        "下游调用",
+        "发送或上传",
+        "之前",
+    ):
+        test_case.assertIn(
+            required_term,
+            pre_processing_sentence,
+            f"{relative_path}: 第 0 步必须早于{required_term}",
+        )
+
+    no_copy_sentences = [
+        sentence
+        for sentence in content.split("。")
+        if "不得把具体值复制" in sentence
+    ]
+    test_case.assertEqual(
+        len(no_copy_sentences),
+        1,
+        f"{relative_path}: 必须集中声明具体值不得进入用户态或内部记录",
+    )
+    no_copy_sentence = no_copy_sentences[0]
+    for prohibited_target in (
+        "计划",
+        "摘要",
+        "问题",
+        "日志",
+        "拟传递内容",
+    ):
+        test_case.assertIn(
+            prohibited_target,
+            no_copy_sentence,
+            f"{relative_path}: 具体值不得复制进{prohibited_target}",
         )
 
 
@@ -234,13 +287,16 @@ class WorkPlannerSkillTests(unittest.TestCase):
             self.assertIn(required_term, content, required_term)
 
     def test_planner_level_sensitive_credential_gate_stops_all_dispatch(self):
-        for relative_path in (
-            "SKILL.md",
-            "references/continuous-execution.md",
-        ):
+        safety_documents = {
+            "SKILL.md": read("SKILL.md"),
+            "references/continuous-execution.md": read(
+                "references/continuous-execution.md"
+            ),
+        }
+        for relative_path, document in safety_documents.items():
             with self.subTest(relative_path=relative_path):
                 safety_gate = extract_markdown_h2_section(
-                    read(relative_path),
+                    document,
                     "敏感凭据停止门",
                 )
                 assert_sensitive_credential_contract(
@@ -249,21 +305,40 @@ class WorkPlannerSkillTests(unittest.TestCase):
                     relative_path,
                 )
 
-    def test_sensitive_credential_checker_rejects_missing_complete_preflight_sentence(self):
+        core = safety_documents["SKILL.md"]
+        self.assertLess(
+            core.index("## 敏感凭据停止门"),
+            core.index("## 执行入口"),
+        )
+
+        continuous = safety_documents["references/continuous-execution.md"]
+        safety_gate_position = continuous.index("## 敏感凭据停止门")
+        for later_section in (
+            "## 模式选择与执行授权",
+            "## 只制定计划",
+            "## 自动连续执行",
+        ):
+            self.assertLess(
+                safety_gate_position,
+                continuous.index(later_section),
+                later_section,
+            )
+
+    def test_sensitive_credential_checker_rejects_missing_zero_step(self):
         safety_gate = extract_markdown_h2_section(
             read("SKILL.md"),
             "敏感凭据停止门",
         )
-        content_without_preflight = safety_gate.replace(
-            SENSITIVE_CREDENTIAL_PREFLIGHT_SENTENCE,
-            "",
+        content_without_zero_step = safety_gate.replace(
+            "第 0 步",
+            "安全检查",
             1,
         )
 
-        with self.assertRaisesRegex(AssertionError, "完整前置检查句"):
+        with self.assertRaisesRegex(AssertionError, "第 0 步"):
             assert_sensitive_credential_contract(
                 self,
-                content_without_preflight,
+                content_without_zero_step,
                 "SKILL.md",
             )
 
@@ -404,15 +479,23 @@ class WorkPlannerSkillTests(unittest.TestCase):
         for required_term in required_terms:
             self.assertIn(required_term, content, required_term)
 
-    def test_markdown_reference_contains_no_inline_markdown_link_syntax(self):
+    def test_final_delivery_reference_contains_no_inline_markdown_link_syntax(self):
         content = read("references/markdown-plan-template.md")
+        final_delivery_section = extract_markdown_h2_section(
+            content,
+            "最终交付模板",
+        )
 
-        assert_no_inline_markdown_link_examples(self, content)
-        self.assertIn("本参考不提供占位链接示例", content)
-        self.assertIn("没有实际地址时输出纯文本状态", content)
+        assert_no_inline_markdown_link_examples(self, final_delivery_section)
+        self.assertIn("本参考不提供占位链接示例", final_delivery_section)
+        self.assertIn("没有实际地址时输出纯文本状态", final_delivery_section)
 
-    def test_markdown_inline_link_check_rejects_empty_and_nested_examples(self):
+    def test_final_delivery_link_check_rejects_empty_and_nested_examples(self):
         content = read("references/markdown-plan-template.md")
+        final_delivery_section = extract_markdown_h2_section(
+            content,
+            "最终交付模板",
+        )
 
         for inline_link_example in (
             "[](地址)",
@@ -423,7 +506,7 @@ class WorkPlannerSkillTests(unittest.TestCase):
                 with self.assertRaisesRegex(AssertionError, "不得包含"):
                     assert_no_inline_markdown_link_examples(
                         self,
-                        f"{content}\n{inline_link_example}",
+                        f"{final_delivery_section}\n{inline_link_example}",
                     )
 
     def test_planning_example_closes_standard_confirmation_dependencies(self):
@@ -650,34 +733,68 @@ class WorkPlannerSkillTests(unittest.TestCase):
 
     def test_implementation_plan_validates_all_suites_and_scans(self):
         content = PLAN_PATH.read_text(encoding="utf-8")
-        expected_suite_contracts = (
-            ("SKILLS/开发验证（非 Skill）", "27 项"),
+        task_six = content.split(
+            "### Task 6:",
+            maxsplit=1,
+        )[1]
+        suite_contracts = (
             (
+                ROOT / "SKILLS" / "开发验证（非 Skill）",
+                "SKILLS/开发验证（非 Skill）",
+                "开发验证",
+            ),
+            (
+                ROOT
+                / "SKILLS"
+                / "慢病知识库检索"
+                / "chronic-disease-knowledge-retrieval"
+                / "tests",
                 "SKILLS/慢病知识库检索/"
                 "chronic-disease-knowledge-retrieval/tests",
-                "28 项",
+                "慢病知识库检索",
             ),
             (
+                ROOT
+                / "SKILLS"
+                / "门诊慢特病认定标准与审核质控助手（完整版）"
+                / "chronic-disease-certification-qc"
+                / "tests",
                 "SKILLS/门诊慢特病认定标准与审核质控助手（完整版）/"
                 "chronic-disease-certification-qc/tests",
-                "216 项",
+                "门诊慢特病认定标准与审核质控助手（完整版）",
             ),
         )
+        discovered_counts = {}
 
-        for suite_path, expected_count in expected_suite_contracts:
-            self.assertIn(suite_path, content, suite_path)
-            self.assertIn(expected_count, content, expected_count)
+        for suite_directory, suite_path, suite_label in suite_contracts:
+            discovered_count = unittest.defaultTestLoader.discover(
+                str(suite_directory),
+                pattern="test_*.py",
+            ).countTestCases()
+            discovered_counts[suite_label] = discovered_count
+            self.assertIn(suite_path, task_six, suite_path)
+            self.assertIn(
+                f"- {suite_label}：{discovered_count} 项；",
+                task_six,
+                suite_label,
+            )
 
-        self.assertIn("当前期望合计：271 项", content)
+        total_count = sum(discovered_counts.values())
+        self.assertIn(f"- 当前期望合计：{total_count} 项。", task_six)
+        self.assertIn(
+            "计数以每次实际运行输出为准，当前数字仅为快照，"
+            "测试增减时同步更新",
+            task_six,
+        )
         self.assertIn(
             "TBD|TODO|待实现|lorem ipsum|placeholder",
-            content,
+            task_six,
         )
         self.assertNotIn(
             "TBD|TODO|待补充|placeholder|lorem ipsum",
-            content,
+            task_six,
         )
-        self.assertIn("rg -n '[A-Za-z]'", content)
+        self.assertIn("rg -n '[A-Za-z]'", task_six)
         for allowed_english in (
             "Skill ID",
             "Markdown",
@@ -686,7 +803,7 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "测试代号",
             "医学单位",
         ):
-            self.assertIn(allowed_english, content, allowed_english)
+            self.assertIn(allowed_english, task_six, allowed_english)
 
         task_five = content.split(
             "### Task 5:",
