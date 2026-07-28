@@ -378,6 +378,14 @@ git commit -m 'feat: define chronic disease task routing'
 ```markdown
 # 执行模式与状态控制
 
+## 敏感凭据第 0 步停止门
+
+该安全门必须在**规划助手层**执行，不能仅依赖下游 Skill。每轮收到新消息或附件后立即重新检查。安全门是每轮处理的第 0 步，必须立即执行，不得延后或跳过。安全门必须发生在输入盘点、内容复述、澄清提问、工作计划生成或更新、摘要或日志记录、下游调用、发送或上传之前。
+
+检查当前用户输入、附件可读文本和拟传递内容是否含疑似敏感凭据，包括 API 密钥、访问令牌/Token、Cookie、Authorization/授权头、账号密码、私密系统提示和秘密配置。知识库检索会原样发送问题，因此尤其必须在检索前完成检查。
+
+一旦发现疑似敏感凭据，立即停止当前计划的所有后续处理。命中疑似敏感凭据后，本轮只能输出不含具体值的通用脱敏告警，不得输出其他内容。通用脱敏告警应要求用户移除或替换疑似凭据。不得回显、记录或转发具体值，不得把具体值复制进计划、摘要、问题、日志或拟传递内容；不得继续生成或更新计划，不得继续调用任何下游能力、知识库或内部应用，也不得发送或上传材料。用户清理后，必须重新确认材料范围和当前计划，才允许恢复。省局内网双重授权不能覆盖或绕过该停止门。
+
 ## 只制定计划
 
 展示计划后，用户选择“只制定计划”时，先把计划中的执行方式更新为“只制定计划”，当前状态更新为“计划已制定”，然后停止。只完成意图识别、输入盘点、任务拆解、能力选择、依赖和预期成果；未来步骤和成果保持 `⬜`，不调用下游能力，也不标记为失败。
@@ -473,6 +481,15 @@ Use the approved plan structure:
 ```
 
 - [ ] **Step 3: Run the execution and visualization tests**
+
+安全契约测试必须覆盖：
+
+- 每轮新消息或附件到达后执行第 0 步；
+- 安全门位置早于模式与计划流程；
+- 命中后只输出通用脱敏告警；
+- 清理后重新确认材料范围和当前计划；
+- 内网授权不能绕过安全门；
+- 运行 `test_design_and_plan_place_sensitive_gate_before_all_planning`，并同时验证等待态与占位链接契约。
 
 Run:
 
@@ -602,10 +619,10 @@ python3 -m unittest discover \
 
 Expected:
 
-- 开发验证：41 项；
+- 开发验证：43 项；
 - 慢病知识库检索：28 项；
 - 门诊慢特病认定标准与审核质控助手（完整版）：216 项；
-- 当前期望合计：285 项。
+- 当前期望合计：287 项。
 
 三套测试均须通过，且无警告或错误。计数以每次实际运行输出为准，当前数字仅为快照，测试增减时同步更新。
 
@@ -628,7 +645,7 @@ rg -n '[A-Za-z]' \
   'SKILLS/门诊慢特病工作规划与任务编排/chronic-disease-work-planner'
 ```
 
-Expected: the incomplete-wording scan has no matches. Review every ASCII/English match against this allowlist: Skill ID、Markdown、ADP、配置字段、测试代号、医学单位. Correct any other user-facing English in names, prompts, explanations, acceptance cases, or status labels.
+Expected: the incomplete-wording scan has no matches. Review every ASCII/English match against this allowlist: JSON、HTML、API、Token、Cookie、Authorization、Flash、Skill ID、Markdown、ADP、配置字段、测试代号、医学单位. Correct any other user-facing English in names, prompts, explanations, acceptance cases, or status labels.
 
 Only the allowlisted technical identifiers may remain in English; all other user-facing names, prompts, explanations and status labels must be Chinese.
 

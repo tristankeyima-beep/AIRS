@@ -68,12 +68,23 @@ def extract_markdown_h3_section(content, title):
     else:
         section_start = content.index(f"\n{heading}") + 1
 
-    next_section = content.find(
-        "\n### ",
-        section_start + len(heading),
-    )
-    if next_section == -1:
+    next_sections = [
+        position
+        for position in (
+            content.find(
+                "\n### ",
+                section_start + len(heading),
+            ),
+            content.find(
+                "\n## ",
+                section_start + len(heading),
+            ),
+        )
+        if position != -1
+    ]
+    if not next_sections:
         return content[section_start:]
+    next_section = min(next_sections)
     return content[section_start:next_section]
 
 
@@ -789,6 +800,82 @@ class WorkPlannerSkillTests(unittest.TestCase):
                 ):
                     self.assertNotIn(reversed_flow, section)
 
+    def test_design_and_plan_place_sensitive_gate_before_all_planning(self):
+        design = DESIGN_PATH.read_text(encoding="utf-8")
+        self.assertIn("## 7A. 敏感凭据第 0 步停止门", design)
+        design_gate = extract_markdown_h2_section(
+            design,
+            "7A. 敏感凭据第 0 步停止门",
+        )
+        assert_sensitive_credential_contract(
+            self,
+            design_gate,
+            "设计稿安全门",
+        )
+        self.assertLess(
+            design.index("## 7A. 敏感凭据第 0 步停止门"),
+            design.index("## 8. 两种执行模式"),
+        )
+
+        plan = PLAN_PATH.read_text(encoding="utf-8")
+        task_four = plan.split(
+            "### Task 4:",
+            maxsplit=1,
+        )[1].split(
+            "### Task 5:",
+            maxsplit=1,
+        )[0]
+        self.assertIn("## 敏感凭据第 0 步停止门", task_four)
+        plan_gate = task_four.split(
+            "## 敏感凭据第 0 步停止门",
+            maxsplit=1,
+        )[1].split(
+            "\n## 只制定计划",
+            maxsplit=1,
+        )[0]
+        assert_sensitive_credential_contract(
+            self,
+            plan_gate,
+            "实施计划 Task 4 安全门",
+        )
+        self.assertLess(
+            task_four.index("## 敏感凭据第 0 步停止门"),
+            task_four.index("## 只制定计划"),
+        )
+        for required_test_contract in (
+            "安全门位置早于模式与计划流程",
+            "test_design_and_plan_place_sensitive_gate_before_all_planning",
+            "每轮新消息或附件",
+            "命中后只输出通用脱敏告警",
+            "清理后重新确认材料范围和当前计划",
+            "内网授权不能绕过",
+        ):
+            self.assertIn(
+                required_test_contract,
+                task_four,
+                required_test_contract,
+            )
+
+        design_test_strategy = design.split(
+            "## 21. 测试策略",
+            maxsplit=1,
+        )[1].split(
+            "\n## 22. ",
+            maxsplit=1,
+        )[0]
+        for required_test_contract in (
+            "每轮第 0 步",
+            "早于输入盘点、内容复述、澄清提问和计划",
+            "只输出通用脱敏告警",
+            "清理后重新确认材料范围和当前计划",
+            "内网授权不能绕过",
+        ):
+            self.assertIn(
+                required_test_contract,
+                design_test_strategy,
+                required_test_contract,
+            )
+
     def test_design_and_plan_keep_future_states_planned_while_waiting(self):
         design = DESIGN_PATH.read_text(encoding="utf-8")
         plan = PLAN_PATH.read_text(encoding="utf-8")
@@ -859,6 +946,30 @@ class WorkPlannerSkillTests(unittest.TestCase):
                 for contract in required_contracts:
                     self.assertIn(contract, content, f"{label}: {contract}")
 
+    def test_design_delivery_sections_do_not_offer_placeholder_links(self):
+        design = DESIGN_PATH.read_text(encoding="utf-8")
+        delivery_sections = (
+            design.split(
+                "## 17. Markdown 工作计划",
+                maxsplit=1,
+            )[1].split(
+                "\n## 18. ",
+                maxsplit=1,
+            )[0]
+            + "\n"
+            + design.split(
+                "## 19. 交付物超链接规则",
+                maxsplit=1,
+            )[1].split(
+                "\n## 20. ",
+                maxsplit=1,
+            )[0]
+        )
+
+        self.assertNotIn("](", delivery_sections)
+        self.assertIn("拿到真实地址后才渲染", delivery_sections)
+        self.assertIn("本稿不提供占位链接示例", delivery_sections)
+
     def test_usage_guide_multiturn_acceptance_scripts_have_required_fields(self):
         content = read("使用说明.md")
         self.assertIn("## 多轮验收脚本", content)
@@ -895,6 +1006,67 @@ class WorkPlannerSkillTests(unittest.TestCase):
                 "不得出现",
             ):
                 self.assertIn(f"**{field}**", script, f"{title}: {field}")
+            first_round = script.split(
+                "**用户输入或回复**",
+                maxsplit=1,
+            )[1].split(
+                "第 2 轮",
+                maxsplit=1,
+            )[0]
+            self.assertIn("第 1 轮", first_round, title)
+            self.assertNotIn("上述标准", first_round, title)
+            self.assertNotIn("这些材料", first_round, title)
+
+        for title in script_titles[:2]:
+            first_round = extract_markdown_h3_section(
+                section,
+                title,
+            ).split(
+                "**用户输入或回复**",
+                maxsplit=1,
+            )[1].split(
+                "第 2 轮",
+                maxsplit=1,
+            )[0]
+            for fixture_term in (
+                "虚构标准",
+                "测试病种",
+                "已确认用于测试",
+                "虚构患者材料",
+                "材料名",
+                "2026-07-01",
+            ):
+                self.assertIn(fixture_term, first_round, f"{title}: {fixture_term}")
+
+        script_three = extract_markdown_h3_section(
+            section,
+            script_titles[2],
+        )
+        for fixture_term in (
+            "ADP 测试知识库",
+            "固定返回",
+            "候选标准甲（测试）",
+            "候选标准乙（测试）",
+            "不配置真实网址",
+        ):
+            self.assertIn(fixture_term, script_three, fixture_term)
+        script_three_first_round = script_three.split(
+            "**用户输入或回复**",
+            maxsplit=1,
+        )[1].split(
+            "第 2 轮",
+            maxsplit=1,
+        )[0]
+        for fixture_term in (
+            "虚构患者材料",
+            "材料名",
+            "2026-07-03",
+        ):
+            self.assertIn(
+                fixture_term,
+                script_three_first_round,
+                fixture_term,
+            )
 
     def test_plan_only_multiturn_script_preserves_planned_states(self):
         content = read("使用说明.md")
@@ -953,14 +1125,72 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "自动连续执行",
             waiting_position,
         )
+        confirmation_position = auto.index(
+            "确认按当前计划开始",
+            automatic_reply_position,
+        )
+        ordered_state_terms = (
+            "编目步骤 ⏳",
+            "编目步骤 ⏸️",
+            "确认编目所用材料清单完整",
+            "编目步骤从 ⏸️ → ⏳",
+            "编目步骤 ✅",
+            "预检步骤 ⏸️",
+            "确认用于预检的材料清单完整",
+            "预检步骤从 ⏸️ → ⏳",
+            "预检步骤 ✅",
+        )
+        for state_term in ordered_state_terms:
+            self.assertIn(state_term, auto, state_term)
+        catalog_running_position = auto.index(
+            "编目步骤 ⏳",
+            confirmation_position,
+        )
+        catalog_paused_position = auto.index(
+            "编目步骤 ⏸️",
+            catalog_running_position,
+        )
+        catalog_reply_position = auto.index(
+            "确认编目所用材料清单完整",
+            catalog_paused_position,
+        )
+        catalog_resumed_position = auto.index(
+            "编目步骤从 ⏸️ → ⏳",
+            catalog_reply_position,
+        )
+        catalog_completed_position = auto.index(
+            "编目步骤 ✅",
+            catalog_resumed_position,
+        )
+        precheck_paused_position = auto.index(
+            "预检步骤 ⏸️",
+            catalog_completed_position,
+        )
+        precheck_reply_position = auto.index(
+            "确认用于预检的材料清单完整",
+            precheck_paused_position,
+        )
+        precheck_resumed_position = auto.index(
+            "预检步骤从 ⏸️ → ⏳",
+            precheck_reply_position,
+        )
+        precheck_completed_position = auto.index(
+            "预检步骤 ✅",
+            precheck_resumed_position,
+        )
         auto_positions = [
             waiting_position,
             automatic_reply_position,
-            auto.index("确认按当前计划开始", automatic_reply_position),
-            auto.index("⏳", automatic_reply_position),
-            auto.index("⏸️", automatic_reply_position),
-            auto.index("恢复", automatic_reply_position),
-            auto.index("✅", automatic_reply_position),
+            confirmation_position,
+            catalog_running_position,
+            catalog_paused_position,
+            catalog_reply_position,
+            catalog_resumed_position,
+            catalog_completed_position,
+            precheck_paused_position,
+            precheck_reply_position,
+            precheck_resumed_position,
+            precheck_completed_position,
         ]
         self.assertEqual(auto_positions, sorted(auto_positions))
         for required_term in (
@@ -968,7 +1198,9 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "第 3 轮",
             "计划外单独询问",
             "第 4 轮",
-            "当前能力从 ⏸️ → ⏳",
+            "第 5 轮",
+            "编目阶段的材料完整性确认只授权编目继续",
+            "预检独立材料完整性确认门",
             "编目 JSON",
             "编目 HTML",
             "预检 JSON",
@@ -1025,8 +1257,31 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "清理并重新提交",
             "重新确认材料范围",
             "重新确认当前计划",
+            "第 2 轮",
+            "第 3 轮",
+            "第 4 轮",
+            "测试病种",
+            "材料名",
+            "2026-07-04",
+            "执行方式：待选择",
+            "第 3 轮不调用",
+            "第 4 轮才执行",
         ):
             self.assertIn(required_term, section, required_term)
+        dialogue = section.split(
+            "**用户输入或回复**",
+            maxsplit=1,
+        )[1].split(
+            "**预期状态快照**",
+            maxsplit=1,
+        )[0]
+        round_positions = [
+            dialogue.index("第 1 轮"),
+            dialogue.index("第 2 轮"),
+            dialogue.index("第 3 轮"),
+            dialogue.index("第 4 轮"),
+        ]
+        self.assertEqual(round_positions, sorted(round_positions))
 
     def test_usage_guide_acceptance_cases_are_reproducible(self):
         content = read("使用说明.md")
@@ -1043,18 +1298,23 @@ class WorkPlannerSkillTests(unittest.TestCase):
         self.assertIn("不得包含患者隐私", acceptance_policy)
         self.assertNotIn("可选真实患者材料", acceptance_section)
 
-        case_numbers = ("一", "二", "三", "四", "五", "六")
+        case_titles = (
+            "用例一：没有认定标准的材料预检",
+            "用例二：资料齐全但目标模糊",
+            "用例三：两份标准下的同一测试患者判读",
+            "用例四：修改现行认定标准",
+            "用例五：只有已确认标准时询问准备材料",
+            "用例六：只要求客观整理患者材料",
+        )
         cases = {}
-        for index, case_number in enumerate(case_numbers):
-            case_content = acceptance_section.split(
-                f"### 用例{case_number}：",
-                maxsplit=1,
-            )[1]
-            if index + 1 < len(case_numbers):
-                case_content = case_content.split(
-                    f"### 用例{case_numbers[index + 1]}：",
-                    maxsplit=1,
-                )[0]
+        for case_number, case_title in zip(
+            ("一", "二", "三", "四", "五", "六"),
+            case_titles,
+        ):
+            case_content = extract_markdown_h3_section(
+                acceptance_section,
+                case_title,
+            )
             cases[case_number] = case_content
             for field in (
                 "验收前置条件",
@@ -1074,11 +1334,16 @@ class WorkPlannerSkillTests(unittest.TestCase):
                 "**用户输入**",
                 maxsplit=1,
             )[0]
-            for case_number in case_numbers
+            for case_number in cases
         }
 
-        for case_number in case_numbers:
+        for case_number in cases:
             self.assertTrue(preconditions[case_number].strip(), f"用例{case_number}: 前置条件为空")
+        self.assertNotIn(
+            "## 多轮验收脚本",
+            cases["六"],
+            "用例六不得吞并后续多轮验收脚本",
+        )
 
         for case_number in ("一", "二", "三", "六"):
             self.assertIn(
@@ -1157,6 +1422,13 @@ class WorkPlannerSkillTests(unittest.TestCase):
         )
         self.assertIn("rg -n '[A-Za-z]'", task_six)
         for allowed_english in (
+            "JSON",
+            "HTML",
+            "API",
+            "Token",
+            "Cookie",
+            "Authorization",
+            "Flash",
             "Skill ID",
             "Markdown",
             "ADP",
