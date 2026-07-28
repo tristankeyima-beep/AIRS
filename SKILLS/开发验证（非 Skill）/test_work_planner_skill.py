@@ -377,9 +377,8 @@ class WorkPlannerSkillTests(unittest.TestCase):
             acceptance_section,
         )
         self.assertIn("均为虚构测试材料", acceptance_section)
-        self.assertIn("不得使用真实患者隐私", acceptance_section)
-        self.assertNotIn("使用真实患者做", acceptance_section)
-        self.assertNotIn("加入真实患者", acceptance_section)
+        self.assertIn("不得包含患者隐私", acceptance_section)
+        self.assertNotIn("真实患者", acceptance_section)
 
         case_numbers = ("一", "二", "三", "四", "五", "六")
         cases = {}
@@ -417,6 +416,22 @@ class WorkPlannerSkillTests(unittest.TestCase):
 
         for case_number in case_numbers:
             self.assertTrue(preconditions[case_number].strip(), f"用例{case_number}: 前置条件为空")
+
+        fictional_fixture_policy = acceptance_section.split(
+            "### 用例一：",
+            maxsplit=1,
+        )[0]
+        for case_number in ("一", "二", "三", "六"):
+            self.assertIn(
+                "患者材料",
+                preconditions[case_number],
+                f"用例{case_number}: 前置条件未说明患者材料夹具",
+            )
+            self.assertIn(
+                "虚构测试材料",
+                fictional_fixture_policy + preconditions[case_number],
+                f"用例{case_number}: 患者材料夹具未明确为虚构测试材料",
+            )
 
     def test_usage_guide_case_four_static_contract_supports_manual_acceptance(self):
         content = read("使用说明.md")
