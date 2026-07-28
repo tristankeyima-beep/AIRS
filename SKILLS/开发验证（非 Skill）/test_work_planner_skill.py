@@ -10,6 +10,13 @@ PLAN_PATH = (
     / "plans"
     / "2026-07-29-chronic-disease-work-planner.md"
 )
+DESIGN_PATH = (
+    ROOT
+    / "docs"
+    / "superpowers"
+    / "specs"
+    / "2026-07-29-chronic-disease-work-planner-design.md"
+)
 SKILL_ROOT = (
     ROOT
     / "SKILLS"
@@ -47,6 +54,22 @@ def extract_markdown_h2_section(content, title):
 
     next_section = content.find(
         "\n## ",
+        section_start + len(heading),
+    )
+    if next_section == -1:
+        return content[section_start:]
+    return content[section_start:next_section]
+
+
+def extract_markdown_h3_section(content, title):
+    heading = f"### {title}"
+    if content.startswith(heading):
+        section_start = 0
+    else:
+        section_start = content.index(f"\n{heading}") + 1
+
+    next_section = content.find(
+        "\n### ",
         section_start + len(heading),
     )
     if next_section == -1:
@@ -715,6 +738,295 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "接受部分交付",
         ):
             self.assertIn(required_term, status_section, required_term)
+
+    def test_design_and_plan_use_one_execution_authorization_order(self):
+        canonical_flow = (
+            "展示完整工作计划 → 用户选择执行方式 → "
+            "选择自动连续执行后明确确认按当前计划开始 → 开始执行"
+        )
+        documents = {
+            "设计稿执行模式": extract_markdown_h2_section(
+                DESIGN_PATH.read_text(encoding="utf-8"),
+                "8. 两种执行模式",
+            ),
+            "实施计划 Task 4": PLAN_PATH.read_text(encoding="utf-8").split(
+                "### Task 4:",
+                maxsplit=1,
+            )[1].split(
+                "### Task 5:",
+                maxsplit=1,
+            )[0],
+        }
+
+        for label, section in documents.items():
+            with self.subTest(label=label):
+                self.assertIn(canonical_flow, section)
+                display_position = section.index("展示完整工作计划")
+                selection_position = section.index(
+                    "用户选择执行方式",
+                    display_position,
+                )
+                confirmation_position = section.index(
+                    "明确确认按当前计划开始",
+                    selection_position,
+                )
+                execution_position = section.index(
+                    "开始执行",
+                    confirmation_position,
+                )
+                self.assertLess(display_position, selection_position)
+                self.assertLess(selection_position, confirmation_position)
+                self.assertLess(confirmation_position, execution_position)
+                self.assertIn("选择模式不等于授权执行", section)
+                self.assertIn("计划未变化", section)
+                self.assertIn("不重复展示", section)
+                self.assertIn("不重复确认", section)
+                self.assertIn("计划已制定", section)
+                self.assertIn("不调用下游", section)
+                for reversed_flow in (
+                    "用户选择“自动连续执行”后，展示完整工作计划",
+                    "用户选择自动连续执行。\n2. 展示完整工作计划",
+                ):
+                    self.assertNotIn(reversed_flow, section)
+
+    def test_design_and_plan_keep_future_states_planned_while_waiting(self):
+        design = DESIGN_PATH.read_text(encoding="utf-8")
+        plan = PLAN_PATH.read_text(encoding="utf-8")
+        sections = {
+            "设计稿计划展示与交付": (
+                design.split(
+                    "## 17. Markdown 工作计划",
+                    maxsplit=1,
+                )[1].split(
+                    "\n## 18. ",
+                    maxsplit=1,
+                )[0]
+                + "\n"
+                + design.split(
+                    "## 19. 交付物超链接规则",
+                    maxsplit=1,
+                )[1].split(
+                    "\n## 20. ",
+                    maxsplit=1,
+                )[0]
+            ),
+            "实施计划 Task 4": plan.split(
+                "### Task 4:",
+                maxsplit=1,
+            )[1].split(
+                "### Task 5:",
+                maxsplit=1,
+            )[0],
+        }
+
+        for label, section in sections.items():
+            with self.subTest(label=label):
+                self.assertIn("等待确认期间", section)
+                self.assertIn("⬜ 尚未开始", section)
+                self.assertIn("⬜ 计划执行后生成", section)
+                self.assertIn("不得提前使用 `❌`", section)
+                self.assertIn("自动执行正常完成或提前结束收敛时", section)
+                self.assertIn("最终未完成", section)
+                self.assertIn("写明原因", section)
+                self.assertNotIn(
+                    "| 结构化认定标准 | ❌ 尚未生成 | 等待确认采用标准 |",
+                    section,
+                )
+                self.assertNotIn(
+                    "| 材料预检与补件清单 | ❌ 尚未生成 | 依赖结构化认定标准 |",
+                    section,
+                )
+
+    def test_design_and_plan_define_planner_and_downstream_delivery_boundaries(self):
+        documents = {
+            "设计稿": DESIGN_PATH.read_text(encoding="utf-8"),
+            "实施计划": PLAN_PATH.read_text(encoding="utf-8"),
+        }
+        required_contracts = (
+            "工作计划只在对话中以 Markdown 展示",
+            "不生成规划 JSON 或规划 HTML",
+            "五个 Flash 下游",
+            "JSON 数据文件",
+            "离线 HTML 页面",
+            "分别列出两个真实链接",
+            "知识检索交付对话结果及实际来源链接",
+            "知识检索没有固定文件",
+            "不得伪造链接或规划文件",
+        )
+
+        for label, content in documents.items():
+            with self.subTest(label=label):
+                for contract in required_contracts:
+                    self.assertIn(contract, content, f"{label}: {contract}")
+
+    def test_usage_guide_multiturn_acceptance_scripts_have_required_fields(self):
+        content = read("使用说明.md")
+        self.assertIn("## 多轮验收脚本", content)
+        section = extract_markdown_h2_section(content, "多轮验收脚本")
+        policy = section.split("### 脚本一：", maxsplit=1)[0]
+
+        for required_policy in (
+            "全部材料均为虚构",
+            "真实平台",
+            "平台版本",
+            "模型版本",
+            "验收时间",
+            "逐轮脱敏对话",
+            "实际链接",
+            "未实测不能声称通过",
+        ):
+            self.assertIn(required_policy, policy, required_policy)
+
+        script_titles = (
+            "脚本一：只制定计划",
+            "脚本二：自动连续执行并完成",
+            "脚本三：候选标准暂停后接受部分交付并终止",
+            "脚本四：敏感凭据第 0 步拦截",
+        )
+        for title in script_titles:
+            script = extract_markdown_h3_section(section, title)
+            for field in (
+                "验收目标",
+                "验收前置条件",
+                "用户输入或回复",
+                "预期状态快照",
+                "预期能力调用",
+                "预期交付",
+                "不得出现",
+            ):
+                self.assertIn(f"**{field}**", script, f"{title}: {field}")
+
+    def test_plan_only_multiturn_script_preserves_planned_states(self):
+        content = read("使用说明.md")
+        self.assertIn("## 多轮验收脚本", content)
+        section = extract_markdown_h3_section(
+            extract_markdown_h2_section(content, "多轮验收脚本"),
+            "脚本一：只制定计划",
+        )
+        display_position = section.index("展示完整工作计划")
+        waiting_position = section.index(
+            "执行方式：待选择",
+            display_position,
+        )
+        plan_only_reply_position = section.index(
+            "只制定计划",
+            waiting_position,
+        )
+        positions = [
+            display_position,
+            waiting_position,
+            plan_only_reply_position,
+            section.index(
+                "执行方式：只制定计划",
+                plan_only_reply_position,
+            ),
+            section.index(
+                "当前状态：计划已制定",
+                plan_only_reply_position,
+            ),
+        ]
+
+        self.assertEqual(positions, sorted(positions))
+        for required_term in (
+            "已确认标准",
+            "虚构患者材料",
+            "先编目再预检",
+            "所有未来步骤和成果保持 ⬜",
+            "不调用任何下游",
+            "不得出现 ❌",
+        ):
+            self.assertIn(required_term, section, required_term)
+
+    def test_auto_and_partial_delivery_multiturn_state_sequences(self):
+        content = read("使用说明.md")
+        self.assertIn("## 多轮验收脚本", content)
+        acceptance = extract_markdown_h2_section(
+            content,
+            "多轮验收脚本",
+        )
+        auto = extract_markdown_h3_section(
+            acceptance,
+            "脚本二：自动连续执行并完成",
+        )
+        waiting_position = auto.index("执行方式：待选择")
+        automatic_reply_position = auto.index(
+            "自动连续执行",
+            waiting_position,
+        )
+        auto_positions = [
+            waiting_position,
+            automatic_reply_position,
+            auto.index("确认按当前计划开始", automatic_reply_position),
+            auto.index("⏳", automatic_reply_position),
+            auto.index("⏸️", automatic_reply_position),
+            auto.index("恢复", automatic_reply_position),
+            auto.index("✅", automatic_reply_position),
+        ]
+        self.assertEqual(auto_positions, sorted(auto_positions))
+        for required_term in (
+            "第 2 轮不执行",
+            "第 3 轮",
+            "计划外单独询问",
+            "第 4 轮",
+            "当前能力从 ⏸️ → ⏳",
+            "编目 JSON",
+            "编目 HTML",
+            "预检 JSON",
+            "预检 HTML",
+            "共 4 个",
+            "实际链接",
+            "不得使用固定或伪造地址",
+            "不输出正式资格结论",
+        ):
+            self.assertIn(required_term, auto, required_term)
+
+        partial = extract_markdown_h3_section(
+            acceptance,
+            "脚本三：候选标准暂停后接受部分交付并终止",
+        )
+        paused_snapshot = partial.index("知识检索步骤 ✅")
+        accepted = partial.index(
+            "停止后续任务，接受当前检索结果作为部分交付"
+        )
+        final_snapshot = partial.index("最终状态快照", accepted)
+        self.assertLess(paused_snapshot, accepted)
+        self.assertLess(accepted, final_snapshot)
+        for required_term in (
+            "确认候选步骤 ⏸️",
+            "后续步骤 ⬜",
+            "候选标准甲",
+            "候选标准乙",
+            "用户接受部分交付/取消后续",
+            "本次承诺但未完成的步骤全部 ❌",
+            "无 ⏳、⏸️、⬜ 遗留",
+            "不自动选择候选标准甲或候选标准乙",
+            "对话结果",
+            "实际来源链接",
+        ):
+            self.assertIn(required_term, partial, required_term)
+
+    def test_sensitive_credential_multiturn_script_stops_at_step_zero(self):
+        content = read("使用说明.md")
+        self.assertIn("## 多轮验收脚本", content)
+        section = extract_markdown_h3_section(
+            extract_markdown_h2_section(content, "多轮验收脚本"),
+            "脚本四：敏感凭据第 0 步拦截",
+        )
+        for required_term in (
+            "访问令牌=<虚构测试值>",
+            "第 0 步",
+            "只输出不含具体值的通用脱敏告警",
+            "不盘点",
+            "不复述",
+            "不提问",
+            "不生成计划",
+            "不调用知识库或下游",
+            "不得回显占位值",
+            "清理并重新提交",
+            "重新确认材料范围",
+            "重新确认当前计划",
+        ):
+            self.assertIn(required_term, section, required_term)
 
     def test_usage_guide_acceptance_cases_are_reproducible(self):
         content = read("使用说明.md")

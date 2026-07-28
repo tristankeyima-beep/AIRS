@@ -4,7 +4,9 @@
 
 **Goal:** 新增“门诊慢特病工作规划与任务编排助手”，为不熟悉智能体的业务用户识别任务意图、盘点关键输入、生成可视化 Markdown 工作计划，并按用户选择只制定计划或自动连续执行。
 
-**Architecture:** 新 Skill 只提供模型可执行的编排规则，不增加运行时脚本、JSON 工作计划或 HTML 模板。`SKILL.md` 保留最关键的触发、交互和边界规则，三份 `references` 分别承载意图路由、连续执行状态机和 Markdown 展示规范；静态契约测试验证目录、关键词和关键禁止项，ADP 对话用例验证实际行为。
+**Architecture:** 新 Skill 只提供模型可执行的编排规则，不增加运行时脚本。工作计划只在对话中以 Markdown 展示，不生成规划 JSON 或规划 HTML。`SKILL.md` 保留最关键的触发、交互和边界规则，三份 `references` 分别承载意图路由、连续执行状态机和 Markdown 展示规范；静态契约测试验证目录、关键词和关键禁止项，ADP 对话用例验证实际行为。
+
+成果边界保持一致：五个 Flash 下游各自正式交付 JSON 数据文件和离线 HTML 页面，最终汇总为每个 Flash 分别列出两个真实链接；知识检索交付对话结果及实际来源链接，知识检索没有固定文件。所有地址必须来自下游或平台实际返回，不得伪造链接或规划文件。
 
 **Tech Stack:** Agent Skill Markdown、YAML 界面配置、Python 3 `unittest` 静态契约测试。
 
@@ -238,8 +240,8 @@ description: 当用户明确要求制定门诊慢特病工作计划，或任务�
    - `references/markdown-plan-template.md`
 4. 说明已识别内容、可完成的两至三个方向及各自成果。
 5. 每轮集中询问一至三个会改变路线的问题，不重复询问已有信息。
-6. 展示完整工作计划，并请用户选择只制定计划或自动连续执行。
-7. 自动连续执行必须在用户确认完整工作计划后开始；无业务确认关口时自动进入下一步。
+6. 展示完整工作计划，并请用户选择只制定计划或自动连续执行；选择模式不等于授权执行。
+7. 选择只制定计划时，更新执行方式和当前状态为“计划已制定”后停止，不调用下游能力；选择自动连续执行时，必须再明确确认按当前计划开始，才可执行。
 8. 暂停时只在计划中记录问题摘要，详细澄清问题不得写入工作计划，必须在计划之外单独提问。
 9. 完成后先列出“本次交付”及实际超链接，再展示最终计划状态。
 
@@ -313,12 +315,12 @@ The file must contain:
 
 | 目标 | 调用能力 | 成果 |
 |---|---|---|
-| 查标准、政策、指南、共识和来源 | `chronic-disease-knowledge-retrieval` | 检索回答、来源和原文片段 |
-| 将政策或自然语言条件变成结构化标准 | `chronic-disease-certification-standard-flash` | 认定标准数据文件和离线页面 |
-| 客观整理患者材料 | `chronic-disease-material-catalog-flash` | 材料目录、时间线和关联线索 |
-| 按已确认标准检查材料和补件 | `chronic-disease-material-precheck-flash` | 预检结果和补件清单 |
-| 比较两份以上标准及受影响规则 | `chronic-disease-standard-version-impact-flash` | 版本差异和影响分析 |
-| 复核患者材料、标准和原审核结果 | `chronic-disease-certification-qc-flash` | 审核质控报告 |
+| 查标准、政策、指南、共识和来源 | `chronic-disease-knowledge-retrieval` | 对话结果及实际来源链接；没有固定文件 |
+| 将政策或自然语言条件变成结构化标准 | `chronic-disease-certification-standard-flash` | JSON 数据文件和离线 HTML 页面 |
+| 客观整理患者材料 | `chronic-disease-material-catalog-flash` | JSON 数据文件和离线 HTML 页面 |
+| 按已确认标准检查材料和补件 | `chronic-disease-material-precheck-flash` | JSON 数据文件和离线 HTML 页面 |
+| 比较两份以上标准及受影响规则 | `chronic-disease-standard-version-impact-flash` | JSON 数据文件和离线 HTML 页面 |
+| 复核患者材料、标准和原审核结果 | `chronic-disease-certification-qc-flash` | JSON 数据文件和离线 HTML 页面 |
 
 ## 关键分流
 
@@ -378,18 +380,23 @@ git commit -m 'feat: define chronic disease task routing'
 
 ## 只制定计划
 
-只完成意图识别、输入盘点、任务拆解、能力选择、依赖和预期成果。后续步骤保持“⬜ 计划执行”，不调用下游能力，也不标记为失败。
+展示计划后，用户选择“只制定计划”时，先把计划中的执行方式更新为“只制定计划”，当前状态更新为“计划已制定”，然后停止。只完成意图识别、输入盘点、任务拆解、能力选择、依赖和预期成果；未来步骤和成果保持 `⬜`，不调用下游能力，也不标记为失败。
 
 ## 自动连续执行
 
-1. 用户选择自动连续执行。
-2. 展示完整工作计划。
-3. 用户确认按完整工作计划开始。
-4. 按计划顺序调用必要能力，并把上一步成果传给下一步。
+唯一授权顺序：展示完整工作计划 → 用户选择执行方式 → 选择自动连续执行后明确确认按当前计划开始 → 开始执行。
+
+选择模式不等于授权执行。计划未变化时，不重复展示完整计划，也不重复确认。
+
+1. 展示完整工作计划，执行方式为“待选择”。
+2. 用户选择执行方式。
+3. 选择自动连续执行后，请用户明确确认按当前计划开始；此时仍不调用下游。
+4. 收到明确确认后，按计划顺序调用必要能力，并把上一步成果传给下一步。
 5. 没有确认关口时不重复询问是否继续。
 6. 遇到确认关口时暂停，在计划外提问；用户回答后从暂停点恢复。
 7. 结果改变后续路线时只重新规划受影响步骤，重大变化再次确认。
-8. 结束时实际执行步骤收敛为“✅ 已完成”或“❌ 未完成”，并说明失败原因。
+8. 等待确认期间，后续尚未执行步骤和成果必须保持 `⬜ 尚未开始` 或 `⬜ 计划执行后生成`，不得提前使用 `❌`。
+9. 只有自动执行正常完成或提前结束收敛时，本次承诺但最终未完成的步骤和成果才标记为 `❌`，并写明原因。
 
 ## 必须暂停的业务关口
 
@@ -404,7 +411,7 @@ git commit -m 'feat: define chronic disease task routing'
 
 ## 省局内网授权
 
-运行环境为省局内网，知识问答应用为已授权内部应用。用户确认自动连续执行和完整工作计划后，可以将本任务范围内的患者原始材料传给知识库检索及其他内部能力，无需重复询问隐私授权。认定标准选择、规则解释、材料完整性和版本顺序仍必须由用户确认。
+运行环境为省局内网，知识问答应用为已授权内部应用。完整工作计划已经展示、用户选择自动连续执行并明确确认按当前计划开始后，可以将本任务范围内的患者原始材料传给知识库检索及其他内部能力，无需重复询问隐私授权。认定标准选择、规则解释、材料完整性和版本顺序仍必须由用户确认。
 ```
 
 - [ ] **Step 2: Write the Markdown plan reference**
@@ -425,9 +432,12 @@ It must also include these rules:
 
 ```markdown
 - 计划只记录问题摘要和“等待确认”，详细问题与选项必须在计划之外单独提问。
-- 已生成文件使用下游能力或平台实际返回的链接。
-- 知识库来源存在地址时保留来源链接。
-- 未生成成果显示“❌ 尚未生成”，不得伪造链接。
+- 工作计划只在对话中以 Markdown 展示，不生成规划 JSON 或规划 HTML。
+- 五个 Flash 下游各自正式交付 JSON 数据文件和离线 HTML 页面；最终汇总必须分别列出两个真实链接。
+- 知识检索交付对话结果及实际来源链接，知识检索没有固定文件。
+- 等待确认期间，未执行成果保持“⬜ 计划执行后生成”，不得提前使用“❌”。
+- 自动执行正常完成或提前结束收敛时，本次承诺但最终未完成的成果才标记“❌”并写明原因。
+- 只能使用下游能力或平台实际返回的地址，不得伪造链接或规划文件。
 - 自动连续执行结束后，回答开头先列“本次交付”快捷入口。
 ```
 
@@ -448,7 +458,7 @@ Use the approved plan structure:
 |---|---|---|---|---|
 | 1 | 检索认定标准 | 门诊慢特病知识库检索 | ✅ 已完成 | 检索结果已在对话中返回 |
 | 2 | 确认采用的标准 | 规划助手 | ⏸️ 正在确认 | 暂无 |
-| 3 | 生成结构化标准 | 认定标准生成 | ⬜ 尚未开始 | 执行后生成 |
+| 3 | 生成结构化标准 | 认定标准生成 | ⬜ 尚未开始 | ⬜ 计划执行后生成 |
 
 ## 二、当前状态
 
@@ -459,7 +469,7 @@ Use the approved plan structure:
 | 交付物 | 状态 | 查看或下载 |
 |---|---|---|
 | 知识检索结果 | ✅ 已返回 | 对话结果；有地址时提供来源链接 |
-| 结构化认定标准 | ❌ 尚未生成 | 等待确认采用标准 |
+| 结构化认定标准 | ⬜ 计划执行后生成 | 等待确认采用标准 |
 ```
 
 - [ ] **Step 3: Run the execution and visualization tests**
@@ -504,7 +514,7 @@ The guide must contain:
 ## 两种使用方式
 
 - 只制定计划：给出步骤、需要准备的资料、能力选择、依赖和预期成果，不自动执行。
-- 自动连续执行：用户确认完整计划后连续推进，只在认定标准选择、规则解释、材料完整性、版本顺序或执行受阻时暂停。
+- 自动连续执行：先展示完整计划，用户选择自动连续执行后再明确确认按当前计划开始，才连续推进；只在认定标准选择、规则解释、材料完整性、版本顺序或执行受阻时暂停。
 
 ## 可以协调的工作
 
@@ -515,8 +525,8 @@ The guide must contain:
 1. 用自然语言说明目标，并上传现有资料。
 2. 助手识别患者材料、认定标准、审核结果和政策或临床依据。
 3. 助手说明可选工作方向及成果，每轮询问一至三个关键问题。
-4. 用户选择只制定计划或自动连续执行。
-5. 自动执行前确认完整计划。
+4. 助手展示完整工作计划，用户选择只制定计划或自动连续执行。
+5. 选择自动连续执行后，用户明确确认按当前计划开始；选择模式不等于授权执行。
 6. 计划用状态图标展示进度，实际交付物提供可点击链接。
 
 ## 使用边界
@@ -536,6 +546,8 @@ The `测试用例` section must cover:
 6. 只要求客观整理材料，不触发标准或审核评价。
 
 Each case must list “用户输入、期望引导、计划路线、预期成果、不得出现” so it can be copied into ADP for acceptance.
+
+在六个单轮测试用例之后新增“多轮验收脚本”章节，至少覆盖：只制定计划、自动连续执行并完成、候选标准暂停后接受部分交付并终止、敏感凭据第 0 步拦截。每套脚本分轮记录用户输入或回复、预期状态快照、预期能力调用、预期交付和不得出现；真实平台验收必须记录平台与模型版本、时间、逐轮脱敏对话和实际链接，未实测不得声称通过。
 
 - [ ] **Step 3: Run the layout and focused contract tests**
 
@@ -590,10 +602,10 @@ python3 -m unittest discover \
 
 Expected:
 
-- 开发验证：34 项；
+- 开发验证：41 项；
 - 慢病知识库检索：28 项；
 - 门诊慢特病认定标准与审核质控助手（完整版）：216 项；
-- 当前期望合计：278 项。
+- 当前期望合计：285 项。
 
 三套测试均须通过，且无警告或错误。计数以每次实际运行输出为准，当前数字仅为快照，测试增减时同步更新。
 
@@ -630,7 +642,7 @@ git diff --stat
 
 Expected: only the planner Skill, its tests, usage guide and implementation plan are changed.
 
-- [ ] **Step 5: Run the six ADP dialogue acceptance cases**
+- [ ] **Step 5: Run the ADP dialogue acceptance cases and multi-round scripts**
 
 For each case in `使用说明.md`, verify:
 
@@ -643,7 +655,7 @@ For each case in `使用说明.md`, verify:
 - generated deliverables use actual clickable links;
 - no final医保资格结论 is produced.
 
-Expected: all six cases meet the expected guidance, route and boundary.
+Expected: all six single-round cases and four multi-round scripts meet the expected guidance, route and boundary. If real ADP execution has not been performed, record it as not executed and do not claim that it passed.
 
 - [ ] **Step 6: Commit any validation-driven corrections**
 
