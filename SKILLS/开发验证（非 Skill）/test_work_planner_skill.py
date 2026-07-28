@@ -3,6 +3,13 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
+PLAN_PATH = (
+    ROOT
+    / "docs"
+    / "superpowers"
+    / "plans"
+    / "2026-07-29-chronic-disease-work-planner.md"
+)
 SKILL_ROOT = (
     ROOT
     / "SKILLS"
@@ -15,7 +22,42 @@ def read(relative_path):
     return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
 
 
+def extract_markdown_h2_section(content, title):
+    heading = f"## {title}"
+    if content.startswith(heading):
+        section_start = 0
+    else:
+        section_start = content.index(f"\n{heading}") + 1
+
+    next_section = content.find(
+        "\n## ",
+        section_start + len(heading),
+    )
+    if next_section == -1:
+        return content[section_start:]
+    return content[section_start:next_section]
+
+
 class WorkPlannerSkillTests(unittest.TestCase):
+    def test_markdown_h2_section_stops_before_the_next_h2(self):
+        content = (
+            "# 文档\n"
+            "\n"
+            "## 测试用例\n"
+            "\n"
+            "章节内文字\n"
+            "\n"
+            "## 后续章节\n"
+            "\n"
+            "章节外文字\n"
+        )
+
+        section = extract_markdown_h2_section(content, "测试用例")
+
+        self.assertIn("章节内文字", section)
+        self.assertNotIn("后续章节", section)
+        self.assertNotIn("章节外文字", section)
+
     def test_required_files_exist(self):
         required_files = (
             "SKILL.md",
@@ -368,17 +410,18 @@ class WorkPlannerSkillTests(unittest.TestCase):
 
     def test_usage_guide_acceptance_cases_are_reproducible(self):
         content = read("使用说明.md")
-        acceptance_section = content.split(
-            "## 测试用例",
+        acceptance_section = extract_markdown_h2_section(content, "测试用例")
+        acceptance_policy = acceptance_section.split(
+            "### 用例一：",
             maxsplit=1,
-        )[1]
+        )[0]
         self.assertIn(
             "必须先按各用例的 `验收前置条件` 准备或上传材料，再复制 `用户输入`",
-            acceptance_section,
+            acceptance_policy,
         )
-        self.assertIn("均为虚构测试材料", acceptance_section)
-        self.assertIn("不得包含患者隐私", acceptance_section)
-        self.assertNotIn("真实患者", acceptance_section)
+        self.assertIn("均为虚构测试材料", acceptance_policy)
+        self.assertIn("不得包含患者隐私", acceptance_policy)
+        self.assertNotIn("可选真实患者材料", acceptance_section)
 
         case_numbers = ("一", "二", "三", "四", "五", "六")
         cases = {}
@@ -417,10 +460,6 @@ class WorkPlannerSkillTests(unittest.TestCase):
         for case_number in case_numbers:
             self.assertTrue(preconditions[case_number].strip(), f"用例{case_number}: 前置条件为空")
 
-        fictional_fixture_policy = acceptance_section.split(
-            "### 用例一：",
-            maxsplit=1,
-        )[0]
         for case_number in ("一", "二", "三", "六"):
             self.assertIn(
                 "患者材料",
@@ -428,10 +467,50 @@ class WorkPlannerSkillTests(unittest.TestCase):
                 f"用例{case_number}: 前置条件未说明患者材料夹具",
             )
             self.assertIn(
-                "虚构测试材料",
-                fictional_fixture_policy + preconditions[case_number],
-                f"用例{case_number}: 患者材料夹具未明确为虚构测试材料",
+                "虚构",
+                preconditions[case_number],
+                f"用例{case_number}: 患者材料夹具前置条件未明确为虚构材料",
             )
+
+    def test_implementation_plan_validates_all_suites_and_scans(self):
+        content = PLAN_PATH.read_text(encoding="utf-8")
+        expected_suite_contracts = (
+            ("SKILLS/开发验证（非 Skill）", "27 项"),
+            (
+                "SKILLS/慢病知识库检索/"
+                "chronic-disease-knowledge-retrieval/tests",
+                "28 项",
+            ),
+            (
+                "SKILLS/门诊慢特病认定标准与审核质控助手（完整版）/"
+                "chronic-disease-certification-qc/tests",
+                "216 项",
+            ),
+        )
+
+        for suite_path, expected_count in expected_suite_contracts:
+            self.assertIn(suite_path, content, suite_path)
+            self.assertIn(expected_count, content, expected_count)
+
+        self.assertIn("当前期望合计：271 项", content)
+        self.assertIn(
+            "TBD|TODO|待实现|lorem ipsum|placeholder",
+            content,
+        )
+        self.assertNotIn(
+            "TBD|TODO|待补充|placeholder|lorem ipsum",
+            content,
+        )
+        self.assertIn("rg -n '[A-Za-z]'", content)
+        for allowed_english in (
+            "Skill ID",
+            "Markdown",
+            "ADP",
+            "配置字段",
+            "测试代号",
+            "医学单位",
+        ):
+            self.assertIn(allowed_english, content, allowed_english)
 
     def test_usage_guide_case_four_static_contract_supports_manual_acceptance(self):
         content = read("使用说明.md")

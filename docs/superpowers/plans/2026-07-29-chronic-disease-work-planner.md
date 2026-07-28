@@ -563,16 +563,39 @@ git commit -m 'docs: explain chronic disease work planner'
 - Verify: `SKILLS/开发验证（非 Skill）/test_skill_layout.py`
 - Verify: `SKILLS/开发验证（非 Skill）/test_work_planner_skill.py`
 
-- [ ] **Step 1: Run every repository Skill test**
+- [ ] **Step 1: Run all repository Skill test suites**
 
 ```bash
 python3 -m unittest discover \
   -s 'SKILLS/开发验证（非 Skill）' \
   -p 'test_*.py' \
   -v
+
+python3 -m unittest discover \
+  -s 'SKILLS/慢病知识库检索/chronic-disease-knowledge-retrieval/tests' \
+  -p 'test_*.py' \
+  -v
+
+find \
+  'SKILLS/门诊慢特病认定标准与审核质控助手（完整版）' \
+  -type d \
+  -name tests \
+  -print
+
+python3 -m unittest discover \
+  -s 'SKILLS/门诊慢特病认定标准与审核质控助手（完整版）/chronic-disease-certification-qc/tests' \
+  -p 'test_*.py' \
+  -v
 ```
 
-Expected: all tests PASS with no warnings or errors.
+Expected:
+
+- 开发验证：27 项；
+- 慢病知识库检索：28 项；
+- 门诊慢特病认定标准与审核质控助手（完整版）：216 项；
+- 当前期望合计：271 项。
+
+三套测试均须通过，且无警告或错误。若测试数量发生变化，以本轮完整输出更新上述计数和合计，不沿用旧快照。
 
 - [ ] **Step 2: Validate the Skill package**
 
@@ -586,13 +609,16 @@ Expected: validation succeeds.
 - [ ] **Step 3: Scan for incomplete wording and accidental English UI text**
 
 ```bash
-rg -n 'TBD|TODO|待补充|placeholder|lorem ipsum' \
+rg -n 'TBD|TODO|待实现|lorem ipsum|placeholder' \
+  'SKILLS/门诊慢特病工作规划与任务编排/chronic-disease-work-planner'
+
+rg -n '[A-Za-z]' \
   'SKILLS/门诊慢特病工作规划与任务编排/chronic-disease-work-planner'
 ```
 
-Expected: no matches.
+Expected: the incomplete-wording scan has no matches. Review every ASCII/English match against this allowlist: Skill ID、Markdown、ADP、配置字段、测试代号、医学单位. Correct any other user-facing English in names, prompts, explanations, acceptance cases, or status labels.
 
-Only Skill identifiers, file-format names and the required `$chronic-disease-work-planner` invocation may remain in English; all user-facing names, prompts, explanations and status labels must be Chinese.
+Only the allowlisted technical identifiers may remain in English; all other user-facing names, prompts, explanations and status labels must be Chinese.
 
 - [ ] **Step 4: Review the staged scope**
 
