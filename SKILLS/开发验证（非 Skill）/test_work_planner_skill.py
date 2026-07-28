@@ -63,6 +63,19 @@ class WorkPlannerSkillTests(unittest.TestCase):
         for required_term in required_terms:
             self.assertIn(required_term, content, required_term)
 
+    def test_explicit_planning_request_overrides_default_non_trigger(self):
+        content = read("SKILL.md")
+        required_terms = (
+            "默认不自动触发",
+            "明确要求制定计划",
+            "拆解任务",
+            "安排步骤",
+            "单一明确任务或指定具体能力",
+        )
+
+        for required_term in required_terms:
+            self.assertIn(required_term, content, required_term)
+
     def test_routing_reference_names_all_six_capabilities(self):
         content = read("references/intent-routing.md")
         required_terms = (
