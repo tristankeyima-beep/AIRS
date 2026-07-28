@@ -14,6 +14,11 @@ EXPECTED_SKILLS = {
 }
 
 COMPLETE_QC_SKILL = "门诊慢特病认定标准与审核质控助手（完整版）/chronic-disease-certification-qc"
+WORK_PLANNER_SKILL = (
+    "门诊慢特病工作规划与任务编排/" "chronic-disease-work-planner"
+)
+
+ORCHESTRATION_SKILLS = {WORK_PLANNER_SKILL}
 
 DESCRIPTION_DOCUMENTS = {
     "认定标准生成（Flash）/chronic-disease-certification-standard-flash": (
@@ -46,6 +51,12 @@ DESCRIPTION_DOCUMENTS = {
         "模式一",
         "模式二",
     ),
+    WORK_PLANNER_SKILL: (
+        "门诊慢特病工作规划与任务编排助手",
+        "只制定计划",
+        "自动连续执行",
+        "测试用例",
+    ),
 }
 
 
@@ -65,6 +76,12 @@ class SkillLayoutTests(unittest.TestCase):
         self.assertTrue((skill_root / "SKILL.md").is_file(), COMPLETE_QC_SKILL)
         self.assertTrue((skill_root / "agents/openai.yaml").is_file(), COMPLETE_QC_SKILL)
         self.assertFalse((ROOT / "chronic-disease-certification-qc").exists())
+
+    def test_orchestration_skills_are_grouped_under_skills(self):
+        for relative_path in ORCHESTRATION_SKILLS:
+            skill_root = SKILLS_ROOT / relative_path
+            self.assertTrue((skill_root / "SKILL.md").is_file(), relative_path)
+            self.assertTrue((skill_root / "agents/openai.yaml").is_file(), relative_path)
 
     def test_every_deliverable_skill_has_a_chinese_usage_guide(self):
         for relative_path, required_terms in DESCRIPTION_DOCUMENTS.items():
