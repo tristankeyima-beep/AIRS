@@ -4,9 +4,12 @@
 import argparse
 import http.client
 import json
+import math
 import os
+import queue
 import socket
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -132,17 +135,70 @@ def _check_deadline(deadline):
         raise AdPError("ADP SSE 读取超时", error_type="timeout")
 
 
+def _bounded_lines(stream, deadline):
+    messages = queue.Queue(maxsize=1)
+    stopped = threading.Event()
+
+    def offer(kind, value=None):
+        while not stopped.is_set():
+            try:
+                messages.put((kind, value), timeout=0.01)
+                return True
+            except queue.Full:
+                continue
+        return False
+
+    def read_lines():
+        try:
+            if hasattr(stream, "readline"):
+                while not stopped.is_set():
+                    line = stream.readline(MAX_SSE_BYTES + 1)
+                    if line in (b"", ""):
+                        offer("eof")
+                        return
+                    if not offer("line", line):
+                        return
+            else:
+                for line in stream:
+                    if not offer("line", line):
+                        return
+                offer("eof")
+        except Exception as error:
+            offer("error", error)
+
+    reader = threading.Thread(target=read_lines, daemon=True)
+    reader.start()
+    try:
+        while True:
+            wait_seconds = None
+            if deadline is not None:
+                wait_seconds = deadline - time.monotonic()
+                if wait_seconds <= 0:
+                    raise AdPError(
+                        "ADP SSE 读取超时",
+                        error_type="timeout",
+                    )
+            try:
+                kind, value = messages.get(timeout=wait_seconds)
+            except queue.Empty as error:
+                raise AdPError(
+                    "ADP SSE 读取超时",
+                    error_type="timeout",
+                ) from error
+            if kind == "eof":
+                return
+            if kind == "error":
+                raise value
+            yield value
+    finally:
+        stopped.set()
+
+
 def read_sse(stream, deadline=None):
     data_lines = []
     byte_count = 0
     event_count = 0
-    iterator = iter(stream)
-    while True:
-        _check_deadline(deadline)
-        try:
-            raw_line = next(iterator)
-        except StopIteration:
-            break
+    for raw_line in _bounded_lines(stream, deadline):
         _check_deadline(deadline)
         byte_count += (
             len(raw_line)
@@ -193,9 +249,13 @@ def _string_or_empty(value):
 
 
 def _number_or_none(value):
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
+    if isinstance(value, bool):
         return None
-    return value
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and math.isfinite(value):
+        return value
+    return None
 
 
 def collect_result(query, events):
@@ -204,18 +264,28 @@ def collect_result(query, events):
     workflow = {"name": "", "run_id": "", "outputs": []}
     request_id = None
     session_id = None
+    bot_reply_incomplete = False
+    token_success = False
     reference_types = {1: "qa", 2: "document", 4: "web"}
 
     for event_name, event in events:
         payload = event.get("payload", {})
         if not isinstance(payload, dict):
             raise AdPError("SSE 事件 payload 格式无效")
-        request_id = payload.get("request_id") or event.get(
-            "request_id"
-        ) or request_id
-        session_id = payload.get("session_id") or event.get(
-            "session_id"
-        ) or session_id
+        if "request_id" in payload or "request_id" in event:
+            value = (
+                payload["request_id"]
+                if "request_id" in payload
+                else event["request_id"]
+            )
+            request_id = value if isinstance(value, str) else None
+        if "session_id" in payload or "session_id" in event:
+            value = (
+                payload["session_id"]
+                if "session_id" in payload
+                else event["session_id"]
+            )
+            session_id = value if isinstance(value, str) else None
 
         if event_name == "error":
             raise AdPError("ADP 返回错误事件")
@@ -224,15 +294,21 @@ def collect_result(query, events):
             and payload.get("status_summary") == "failed"
         ):
             raise AdPError("ADP 工作流执行失败")
+        if (
+            event_name == "token_stat"
+            and payload.get("status_summary") == "success"
+        ):
+            token_success = True
 
         if event_name == "reply":
             content = payload.get("content")
-            if (
-                payload.get("is_from_self") is not True
-                and isinstance(content, str)
-                and content.strip()
-            ):
-                answer = content
+            if payload.get("is_from_self") is not True:
+                if payload.get("is_final") is False:
+                    bot_reply_incomplete = True
+                elif payload.get("is_final") is True:
+                    bot_reply_incomplete = False
+                if isinstance(content, str) and content.strip():
+                    answer = content
             work_flow = payload.get("work_flow")
             if isinstance(work_flow, dict):
                 if "workflow_name" in work_flow:
@@ -274,6 +350,8 @@ def collect_result(query, events):
                     }
                 )
 
+    if bot_reply_incomplete and not token_success:
+        raise AdPError("SSE 在回答完成前结束")
     if not answer:
         raise AdPError("未收到最终回答", error_type="empty_result")
 
@@ -314,7 +392,11 @@ def _response_content_type(response):
 
 def query_adp(config, query, opener=None, debug=False):
     body = build_request(config, query)
-    encoded_body = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    encoded_body = json.dumps(
+        body,
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
     request = urllib.request.Request(
         config["chat_url"],
         data=encoded_body,
@@ -363,7 +445,7 @@ def main(argv=None):
     query_group.add_argument("--query-stdin", action="store_true")
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args(argv)
-    query = sys.stdin.read() if args.query_stdin else args.query
+    query = sys.stdin.readline() if args.query_stdin else args.query
 
     try:
         config = load_config(args.config)
@@ -374,7 +456,7 @@ def main(argv=None):
             "error_type": error.error_type,
             "message": str(error),
         }
-        print(json.dumps(result, ensure_ascii=False))
+        print(json.dumps(result, ensure_ascii=False, allow_nan=False))
         return 1
     except (socket.timeout, TimeoutError):
         result = {
@@ -382,10 +464,10 @@ def main(argv=None):
             "error_type": "timeout",
             "message": "ADP 请求超时",
         }
-        print(json.dumps(result, ensure_ascii=False))
+        print(json.dumps(result, ensure_ascii=False, allow_nan=False))
         return 1
 
-    print(json.dumps(result, ensure_ascii=False))
+    print(json.dumps(result, ensure_ascii=False, allow_nan=False))
     return 0
 
 

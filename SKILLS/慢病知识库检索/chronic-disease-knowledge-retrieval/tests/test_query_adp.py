@@ -5,7 +5,10 @@ import json
 import os
 from pathlib import Path
 import socket
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -452,7 +455,25 @@ class QueryAdpContractTests(unittest.TestCase):
         with self.assertRaises(self.query_adp.AdPError):
             self.query_adp.collect_result("test query", events)
 
-    def test_collect_result_accepts_bot_reply_regardless_of_is_final(self):
+    def test_collect_result_accepts_final_bot_reply_at_clean_eof(self):
+        events = [
+            (
+                "reply",
+                {
+                    "payload": {
+                        "content": "partial secret answer",
+                        "is_from_self": False,
+                        "is_final": True,
+                    },
+                },
+            ),
+        ]
+
+        result = self.query_adp.collect_result("test query", events)
+
+        self.assertEqual(result["answer"], "partial secret answer")
+
+    def test_collect_result_rejects_nonfinal_bot_reply_at_clean_eof(self):
         events = [
             (
                 "reply",
@@ -466,9 +487,11 @@ class QueryAdpContractTests(unittest.TestCase):
             ),
         ]
 
-        result = self.query_adp.collect_result("test query", events)
+        with self.assertRaises(self.query_adp.AdPError) as raised:
+            self.query_adp.collect_result("test query", events)
 
-        self.assertEqual(result["answer"], "partial secret answer")
+        self.assertEqual(raised.exception.error_type, "sse")
+        self.assertNotIn("partial secret answer", str(raised.exception))
 
     def test_collect_result_accepts_bot_reply_after_token_success(self):
         events = [
@@ -761,6 +784,42 @@ class QueryAdpContractTests(unittest.TestCase):
             {"name": "", "run_id": "", "outputs": []},
         )
 
+    def test_collect_result_normalizes_ids_and_nonfinite_confidence(self):
+        events = [
+            (
+                "reply",
+                {
+                    "payload": {
+                        "content": "answer",
+                        "request_id": 123,
+                        "session_id": {"unexpected": "object"},
+                    },
+                },
+            ),
+            (
+                "reference",
+                {
+                    "payload": {
+                        "references": [
+                            {"type": 2, "confidence": float("nan")},
+                            {"type": 2, "confidence": float("inf")},
+                            {"type": 2, "confidence": float("-inf")},
+                            {"type": 2, "confidence": 0.5},
+                        ],
+                    },
+                },
+            ),
+        ]
+
+        result = self.query_adp.collect_result("query", events)
+
+        self.assertIsNone(result["meta"]["request_id"])
+        self.assertIsNone(result["meta"]["session_id"])
+        self.assertEqual(
+            [item["confidence"] for item in result["knowledge"]],
+            [None, None, None, 0.5],
+        )
+
     def test_collect_result_rejects_non_object_payload_with_safe_message(self):
         secret_payload = (
             "answer=secret-answer "
@@ -880,6 +939,80 @@ class QueryAdpContractTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.error_type, "timeout")
 
+    def test_query_adp_deadline_interrupts_blocking_line_read(self):
+        class SlowResponse:
+            headers = {"Content-Type": "text/event-stream"}
+
+            def __init__(self):
+                self.closed = False
+
+            def readline(self, limit):
+                time.sleep(0.2)
+                return b""
+
+            def __iter__(self):
+                time.sleep(0.2)
+                return iter(())
+
+            def close(self):
+                self.closed = True
+
+        response = SlowResponse()
+        config = {
+            "chat_url": "https://example.test/chat/sse",
+            "app_key_env": "TEST_ADP_KEY",
+            "timeout_seconds": 0.05,
+        }
+        started = time.monotonic()
+        with mock.patch.dict(
+            os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
+        ):
+            with self.assertRaises(self.query_adp.AdPError) as raised:
+                self.query_adp.query_adp(
+                    config,
+                    "test query",
+                    opener=lambda request, timeout: response,
+                )
+        elapsed = time.monotonic() - started
+
+        self.assertEqual(raised.exception.error_type, "timeout")
+        self.assertGreater(elapsed, 0.03)
+        self.assertLess(elapsed, 0.15)
+        self.assertTrue(response.closed)
+
+    def test_read_sse_uses_bounded_readline_for_long_unbroken_data(self):
+        max_sse_bytes = self.query_adp.MAX_SSE_BYTES
+
+        class LongLineResponse:
+            def __init__(self):
+                self.limits = []
+                self.iterated = False
+                self.sent = False
+
+            def readline(self, limit):
+                self.limits.append(limit)
+                if self.sent:
+                    return b""
+                self.sent = True
+                return b"x" * limit
+
+            def __iter__(self):
+                self.iterated = True
+                yield b"x" * (max_sse_bytes + 2)
+
+        response = LongLineResponse()
+
+        with self.assertRaises(self.query_adp.AdPError) as raised:
+            list(self.query_adp.read_sse(response))
+
+        self.assertEqual(raised.exception.error_type, "sse")
+        self.assertFalse(response.iterated)
+        self.assertTrue(response.limits)
+        self.assertLessEqual(
+            max(response.limits),
+            max_sse_bytes + 1,
+        )
+
     def test_query_adp_rejects_non_sse_and_missing_content_types(self):
         cases = (
             ("text/html; charset=utf-8", b"<html>secret login</html>"),
@@ -914,6 +1047,78 @@ class QueryAdpContractTests(unittest.TestCase):
                 self.assertEqual(raised.exception.error_type, "sse")
                 self.assertNotIn("secret", str(raised.exception))
                 self.assertNotIn("test-only-key", str(raised.exception))
+
+    def test_all_production_json_dumps_disable_nan_output(self):
+        response = io.BytesIO(
+            b'data: {"type": "reply", "payload": '
+            b'{"content": "answer"}}\n\n'
+        )
+        response.headers = {"Content-Type": "text/event-stream"}
+        config = {
+            "chat_url": "https://example.test/chat/sse",
+            "app_key_env": "TEST_ADP_KEY",
+        }
+        real_dumps = json.dumps
+        dump_options = []
+
+        def strict_dump(*args, **kwargs):
+            dump_options.append(kwargs.copy())
+            return real_dumps(*args, **kwargs)
+
+        stdout = io.StringIO()
+        with mock.patch.dict(
+            os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
+        ):
+            with mock.patch.object(
+                self.query_adp.json,
+                "dumps",
+                side_effect=strict_dump,
+            ):
+                self.query_adp.query_adp(
+                    config,
+                    "query",
+                    opener=lambda request, timeout: response,
+                )
+                with mock.patch.object(
+                    self.query_adp,
+                    "load_config",
+                    return_value=config,
+                ):
+                    with mock.patch.object(
+                        self.query_adp,
+                        "query_adp",
+                        return_value={
+                            "ok": True,
+                            "query": "query",
+                            "answer": "answer",
+                            "knowledge": [],
+                            "workflow": {
+                                "name": "",
+                                "run_id": "",
+                                "outputs": [],
+                            },
+                            "meta": {
+                                "session_id": None,
+                                "request_id": None,
+                                "source": "tencent-adp",
+                            },
+                        },
+                    ):
+                        with mock.patch("sys.stdout", stdout):
+                            exit_code = self.query_adp.main(
+                                [
+                                    "--config",
+                                    "unused.json",
+                                    "--query",
+                                    "query",
+                                ]
+                            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertGreaterEqual(len(dump_options), 2)
+        self.assertTrue(
+            all(options.get("allow_nan") is False for options in dump_options)
+        )
 
     def test_query_adp_classifies_sse_connection_reset_as_safe_network_error(self):
         class ResettingResponse:
@@ -1174,6 +1379,48 @@ class QueryAdpContractTests(unittest.TestCase):
         self.assertEqual(captured["body"]["content"], question)
         self.assertFalse(marker.exists())
         self.assertEqual(stderr.getvalue(), "")
+
+    def test_query_stdin_processes_one_pipe_line_without_waiting_for_eof(self):
+        with tempfile.TemporaryDirectory() as directory:
+            missing_config = Path(directory) / "missing.json"
+            process = subprocess.Popen(
+                [
+                    sys.executable,
+                    str(SCRIPT_PATH),
+                    "--config",
+                    str(missing_config),
+                    "--query-stdin",
+                ],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            self.assertIsNotNone(process.stdin)
+            process.stdin.write('"quoted" $() `backtick`; semicolon\n')
+            process.stdin.flush()
+            finished_without_eof = True
+            try:
+                process.wait(timeout=0.3)
+            except subprocess.TimeoutExpired:
+                finished_without_eof = False
+            finally:
+                process.stdin.close()
+                if process.poll() is None:
+                    process.wait(timeout=1)
+
+            self.assertIsNotNone(process.stdout)
+            stdout = process.stdout.read()
+            process.stdout.close()
+            self.assertIsNotNone(process.stderr)
+            process.stderr.close()
+
+        self.assertTrue(
+            finished_without_eof,
+            "query-stdin waited for pipe EOF after receiving one line",
+        )
+        output = json.loads(stdout)
+        self.assertEqual(output["error_type"], "config")
 
     def test_main_classifies_timeout_without_leaking_exception_details(self):
         stdout = io.StringIO()
