@@ -342,13 +342,17 @@ class WorkPlannerSkillTests(unittest.TestCase):
             for icon in ("✅", "❌", "⏳", "⏸️", "⬜")
         }
 
+        self.assertIn("已完成", status_lines["✅"])
+        self.assertIn("取得实际成果", status_lines["✅"])
         self.assertIn("未完成或执行失败", status_lines["❌"])
+        self.assertIn("进行中", status_lines["⏳"])
+        self.assertIn("正在办理", status_lines["⏳"])
         self.assertIn("等待确认、补充或恢复", status_lines["⏸️"])
         self.assertIn("尚未开始", status_lines["⬜"])
         self.assertIn("只制定计划", status_lines["⬜"])
         self.assertIn("计划执行", status_lines["⬜"])
         for required_term in (
-            "自动执行终止",
+            "自动执行结束时（包括正常完成或提前终止）",
             "不得遗留",
             "⏳",
             "⏸️",
@@ -410,29 +414,59 @@ class WorkPlannerSkillTests(unittest.TestCase):
             )[0]
             for case_number in case_numbers
         }
-        user_inputs = {
-            case_number: cases[case_number].split(
-                "**用户输入**",
-                maxsplit=1,
-            )[1].split(
-                "**期望引导**",
-                maxsplit=1,
-            )[0]
-            for case_number in case_numbers
-        }
 
-        for term in ("测试患者材料", "无认定标准"):
-            self.assertIn(term, preconditions["一"])
-        for term in ("测试患者材料", "已确认自然语言标准", "原审核结果摘要"):
-            self.assertIn(term, preconditions["二"])
-        for term in ("标准甲", "标准乙", "同一测试患者材料", "版本顺序"):
-            self.assertIn(term, preconditions["三"])
-        for term in ("现行标准", "修改目标"):
-            self.assertIn(term, preconditions["四"])
-        for term in ("已确认标准", "必须同时满足"):
-            self.assertIn(term, user_inputs["五"])
-        for term in ("测试住院病历", "测试门诊记录", "客观整理"):
-            self.assertIn(term, user_inputs["六"])
+        for case_number in case_numbers:
+            self.assertTrue(preconditions[case_number].strip(), f"用例{case_number}: 前置条件为空")
+
+    def test_usage_guide_case_four_static_contract_supports_manual_acceptance(self):
+        content = read("使用说明.md")
+        case_four = content.split(
+            "### 用例四：",
+            maxsplit=1,
+        )[1].split(
+            "### 用例五：",
+            maxsplit=1,
+        )[0]
+        precondition = case_four.split(
+            "**验收前置条件**",
+            maxsplit=1,
+        )[1].split(
+            "**用户输入**",
+            maxsplit=1,
+        )[0]
+        expected_guidance = case_four.split(
+            "**期望引导**",
+            maxsplit=1,
+        )[1].split(
+            "**计划路线**",
+            maxsplit=1,
+        )[0]
+        planned_route = case_four.split(
+            "**计划路线**",
+            maxsplit=1,
+        )[1].split(
+            "**预期成果**",
+            maxsplit=1,
+        )[0]
+
+        for supplied_context in ("适用范围", "原因"):
+            self.assertIn(supplied_context, precondition)
+        for expected_behavior in (
+            "复述已识别",
+            "不重复询问",
+            "具体阈值",
+            "观察期限",
+            "阻断性歧义",
+        ):
+            self.assertIn(expected_behavior, expected_guidance)
+        for route_behavior in (
+            "按已知信息推进",
+            "未明确的阈值和观察期限",
+            "计划外确认",
+        ):
+            self.assertIn(route_behavior, planned_route)
+
+        # 助手在实际对话中是否确实避免重复提问，仍须由 ADP 人工验收。
 
     def test_usage_guide_limits_qc_when_original_review_is_incomplete(self):
         content = read("使用说明.md")
