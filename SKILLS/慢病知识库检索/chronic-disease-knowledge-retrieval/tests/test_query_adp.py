@@ -1,7 +1,10 @@
 import importlib.util
 import io
+import json
 import os
 from pathlib import Path
+import socket
+import tempfile
 import unittest
 from unittest import mock
 
@@ -20,6 +23,39 @@ class QueryAdpContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.query_adp = load_query_adp()
+
+    def test_load_config_reads_utf8_json_and_validates_required_fields(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "配置.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "chat_url": "https://example.test/chat/sse",
+                        "app_key_env": "TEST_ADP_KEY",
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            config = self.query_adp.load_config(path)
+
+        self.assertEqual(config["app_key_env"], "TEST_ADP_KEY")
+
+    def test_load_config_rejects_blank_required_field_without_secret(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            path.write_text(
+                '{"chat_url": " ", "app_key_env": "TEST_ADP_KEY"}',
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                self.query_adp.ConfigError, "chat_url"
+            ) as raised:
+                self.query_adp.load_config(path)
+
+        self.assertNotIn("test-only-key", str(raised.exception))
 
     def test_build_request_uses_app_key_and_preserves_query_identity(self):
         config = {
@@ -42,6 +78,41 @@ class QueryAdpContractTests(unittest.TestCase):
         self.assertEqual(request["workflow_status"], "enable")
         self.assertEqual(request["search_network"], "disable")
         self.assertEqual(request["streaming_throttle"], 10)
+        self.assertEqual(request["incremental"], False)
+        self.assertEqual(request["visitor_labels"], [])
+        self.assertEqual(request["custom_variables"], {})
+        self.assertEqual(request["stream"], "enable")
+        self.assertEqual(
+            set(request),
+            {
+                "request_id",
+                "session_id",
+                "visitor_biz_id",
+                "bot_app_key",
+                "content",
+                "incremental",
+                "streaming_throttle",
+                "visitor_labels",
+                "custom_variables",
+                "search_network",
+                "stream",
+                "workflow_status",
+            },
+        )
+
+    def test_build_request_trims_query_and_uses_default_app_key_env(self):
+        with mock.patch.dict(
+            os.environ, {"ADP_APP_KEY": "test-only-key"}, clear=True
+        ):
+            request = self.query_adp.build_request({}, "  test query  ")
+
+        self.assertEqual(request["content"], "test query")
+
+    def test_build_request_rejects_blank_query(self):
+        with self.assertRaisesRegex(
+            self.query_adp.ConfigError, "查询内容不能为空"
+        ):
+            self.query_adp.build_request({}, " \n ")
 
     def test_build_request_without_app_key_raises_safe_config_error(self):
         config = {
@@ -86,6 +157,34 @@ class QueryAdpContractTests(unittest.TestCase):
                 },
             },
         )
+
+    def test_read_sse_ignores_comments_and_parses_modern_multiline_event(self):
+        stream = io.BytesIO(
+            b": keep-alive\n"
+            b'data: {"type": "reply",\n'
+            b'data: "payload": {"content": "modern answer"}}\n\n'
+        )
+
+        events = list(self.query_adp.read_sse(stream))
+
+        self.assertEqual(
+            events,
+            [
+                (
+                    "reply",
+                    {
+                        "type": "reply",
+                        "payload": {"content": "modern answer"},
+                    },
+                )
+            ],
+        )
+
+    def test_read_sse_rejects_malformed_json_with_safe_message(self):
+        with self.assertRaisesRegex(
+            self.query_adp.AdPError, "^SSE 事件不是有效 JSON$"
+        ):
+            list(self.query_adp.read_sse(io.BytesIO(b"data: {bad}\n\n")))
 
     def test_collect_result_separates_answer_reference_workflow_and_ids(self):
         events = [
@@ -239,6 +338,136 @@ class QueryAdpContractTests(unittest.TestCase):
 
         with self.assertRaises(self.query_adp.AdPError):
             self.query_adp.collect_result("test query", events)
+
+    def test_collect_result_uses_latest_reply_and_maps_reference_types(self):
+        events = [
+            ("reply", {"payload": {"content": "first"}}),
+            ("reply", {"payload": {"content": "  "}}),
+            (
+                "reply",
+                {
+                    "payload": {
+                        "content": "latest",
+                        "request_id": "request-latest",
+                        "session_id": "session-latest",
+                    }
+                },
+            ),
+            (
+                "reference",
+                {
+                    "payload": {
+                        "references": [
+                            {"type": 1, "name": "qa"},
+                            {"type": 2, "name": "document"},
+                            {"type": 4, "name": "web"},
+                        ]
+                    }
+                },
+            ),
+        ]
+
+        result = self.query_adp.collect_result("query", events)
+
+        self.assertEqual(result["answer"], "latest")
+        self.assertEqual(
+            [item["type"] for item in result["knowledge"]],
+            ["qa", "document", "web"],
+        )
+        self.assertNotIn("bot_app_key", json.dumps(result))
+
+    def test_query_adp_posts_json_headers_and_timeout(self):
+        captured = {}
+        response = io.BytesIO(
+            b'data: {"type": "reply", "payload": '
+            b'{"content": "answer", "request_id": "req", '
+            b'"session_id": "session"}}\n\n'
+        )
+
+        def opener(request, timeout):
+            captured["request"] = request
+            captured["timeout"] = timeout
+            return response
+
+        config = {
+            "chat_url": "https://example.test/chat/sse",
+            "app_key_env": "TEST_ADP_KEY",
+            "timeout_seconds": 37,
+        }
+        with mock.patch.dict(
+            os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
+        ):
+            result = self.query_adp.query_adp(
+                config, " test query ", opener=opener
+            )
+
+        request = captured["request"]
+        headers = {name.lower(): value for name, value in request.header_items()}
+        body = json.loads(request.data.decode("utf-8"))
+        self.assertEqual(request.get_method(), "POST")
+        self.assertEqual(request.full_url, config["chat_url"])
+        self.assertEqual(headers["content-type"], "application/json")
+        self.assertEqual(headers["accept"], "text/event-stream")
+        self.assertEqual(captured["timeout"], 37)
+        self.assertEqual(body["content"], "test query")
+        self.assertEqual(result["answer"], "answer")
+
+    def test_main_prints_safe_json_for_missing_app_key(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "chat_url": "https://example.test/chat/sse",
+                        "app_key_env": "TEST_ADP_KEY",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with mock.patch.dict(os.environ, {}, clear=True):
+                with mock.patch("sys.stdout", stdout):
+                    with mock.patch("sys.stderr", stderr):
+                        exit_code = self.query_adp.main(
+                            ["--config", str(path), "--query", "query"]
+                        )
+
+        output = json.loads(stdout.getvalue())
+        self.assertEqual(exit_code, 1)
+        self.assertIs(output["ok"], False)
+        self.assertEqual(output["error_type"], "auth")
+        self.assertIn("TEST_ADP_KEY", output["message"])
+        self.assertNotIn("test-only-key", stdout.getvalue())
+        self.assertEqual(stderr.getvalue(), "")
+
+    def test_main_classifies_timeout_without_leaking_exception_details(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with mock.patch.object(
+            self.query_adp,
+            "load_config",
+            return_value={
+                "chat_url": "https://secret.example/path?token=secret",
+                "app_key_env": "TEST_ADP_KEY",
+            },
+        ):
+            with mock.patch.object(
+                self.query_adp,
+                "query_adp",
+                side_effect=socket.timeout("secret timeout details"),
+            ):
+                with mock.patch("sys.stdout", stdout):
+                    with mock.patch("sys.stderr", stderr):
+                        exit_code = self.query_adp.main(
+                            ["--config", "unused.json", "--query", "query"]
+                        )
+
+        output = json.loads(stdout.getvalue())
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(output["error_type"], "timeout")
+        self.assertNotIn("secret", stdout.getvalue())
+        self.assertEqual(stderr.getvalue(), "")
 
 
 if __name__ == "__main__":
