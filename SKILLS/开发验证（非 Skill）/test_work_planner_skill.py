@@ -466,6 +466,32 @@ class WorkPlannerSkillTests(unittest.TestCase):
         ):
             self.assertIn(route_behavior, planned_route)
 
+        for ordered_stage in (
+            "确认",
+            "阈值",
+            "观察期限",
+            "检索",
+            "拟修订版",
+            "版本影响",
+        ):
+            self.assertIn(ordered_stage, planned_route)
+
+        confirmation_position = planned_route.index("确认")
+        threshold_position = planned_route.index("阈值")
+        duration_position = planned_route.index("观察期限")
+        retrieval_position = planned_route.index("检索")
+        draft_position = planned_route.index("拟修订版")
+        impact_position = planned_route.index("版本影响")
+
+        for prerequisite_position in (
+            confirmation_position,
+            threshold_position,
+            duration_position,
+        ):
+            self.assertLess(prerequisite_position, retrieval_position)
+        self.assertLess(retrieval_position, draft_position)
+        self.assertLess(draft_position, impact_position)
+
         # 助手在实际对话中是否确实避免重复提问，仍须由 ADP 人工验收。
 
     def test_usage_guide_limits_qc_when_original_review_is_incomplete(self):
