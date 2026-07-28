@@ -208,6 +208,31 @@ class WorkPlannerSkillTests(unittest.TestCase):
         self.assertNotIn("❌", planning_example)
         self.assertNotIn("chronic-disease-", content)
 
+    def test_planning_example_closes_standard_confirmation_dependencies(self):
+        content = read("references/markdown-plan-template.md")
+        planning_example = content.split(
+            "### 计划模式最小示例",
+            maxsplit=1,
+        )[1].split(
+            "### 自动执行模式最小示例",
+            maxsplit=1,
+        )[0]
+        task_progress = planning_example.split(
+            "## 一、任务进度",
+            maxsplit=1,
+        )[1].split(
+            "## 二、当前状态",
+            maxsplit=1,
+        )[0]
+
+        self.assertIn("确认采用的认定标准", task_progress)
+        self.assertEqual(task_progress.count("| ⬜ 计划执行 |"), 3)
+        self.assertIn(
+            "| 3 | 生成结构化标准 | 认定标准生成 | 步骤 2 的确认结果 |",
+            task_progress,
+        )
+        self.assertNotIn("❌", planning_example)
+
     def test_paused_execution_resumes_the_correct_step(self):
         content = read("references/continuous-execution.md")
         required_terms = (
@@ -232,7 +257,8 @@ class WorkPlannerSkillTests(unittest.TestCase):
         )[0]
 
         required_example_terms = (
-            "> 已具备内容：患者申请材料",
+            "> 任务目标：检索并生成糖尿病结构化认定标准",
+            "> 已具备内容：病种名称、适用地区、政策时间范围",
             "> 需提前准备：确认本次采用的认定标准",
             "确认采用的认定标准",
             "⏸️ 等待确认",
@@ -247,6 +273,15 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "## 二、当前状态",
             maxsplit=1,
         )[0]
+        lookup_row = next(
+            line
+            for line in task_progress.splitlines()
+            if "| 1 | 检索认定标准 |" in line
+        )
+        self.assertNotIn("患者申请材料", automatic_example)
+        for policy_locator in ("病种", "地区", "时间范围"):
+            self.assertIn(policy_locator, lookup_row, policy_locator)
+
         self.assertLess(
             task_progress.index("检索认定标准"),
             task_progress.index("确认采用的认定标准"),
