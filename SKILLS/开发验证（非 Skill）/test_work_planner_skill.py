@@ -48,6 +48,21 @@ class WorkPlannerSkillTests(unittest.TestCase):
         for required_term in required_terms:
             self.assertIn(required_term, content, required_term)
 
+    def test_skill_narrows_trigger_boundary(self):
+        content = read("SKILL.md")
+        required_terms = (
+            "在门诊慢特病业务中",
+            "未说明期望成果",
+            "两项以上",
+            "单一明确任务",
+            "指定具体能力",
+            "改写、排版",
+            "非门诊慢特病任务",
+        )
+
+        for required_term in required_terms:
+            self.assertIn(required_term, content, required_term)
+
     def test_routing_reference_names_all_six_capabilities(self):
         content = read("references/intent-routing.md")
         required_terms = (
