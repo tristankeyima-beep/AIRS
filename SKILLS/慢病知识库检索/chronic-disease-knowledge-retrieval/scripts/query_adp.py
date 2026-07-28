@@ -2,11 +2,13 @@
 """Query a Tencent ADP knowledge application over HTTP SSE."""
 
 import argparse
+import http.client
 import json
 import os
 import socket
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 
@@ -35,6 +37,34 @@ def load_config(path):
     for name in ("chat_url", "app_key_env"):
         if not isinstance(config.get(name), str) or not config[name].strip():
             raise ConfigError("配置缺少有效字段: " + name)
+
+    chat_url = config["chat_url"].strip()
+    try:
+        parsed_url = urllib.parse.urlparse(chat_url)
+        hostname = parsed_url.hostname
+    except ValueError as error:
+        raise ConfigError("配置字段无效: chat_url") from error
+    if parsed_url.scheme not in ("http", "https") or not hostname:
+        raise ConfigError("配置字段无效: chat_url")
+    config["chat_url"] = chat_url
+
+    if "timeout_seconds" in config:
+        timeout = config["timeout_seconds"]
+        if (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not timeout > 0
+        ):
+            raise ConfigError("配置字段无效: timeout_seconds")
+
+    if "streaming_throttle" in config:
+        throttle = config["streaming_throttle"]
+        if (
+            isinstance(throttle, bool)
+            or not isinstance(throttle, int)
+            or not 1 <= throttle <= 100
+        ):
+            raise ConfigError("配置字段无效: streaming_throttle")
     return config
 
 
@@ -117,10 +147,6 @@ def read_sse(stream):
             if value.startswith(" "):
                 value = value[1:]
             data_lines.append(value)
-
-    parsed = _parse_sse_data(data_lines)
-    if parsed is not None:
-        yield parsed
 
 
 def collect_result(query, events):
@@ -230,6 +256,8 @@ def query_adp(config, query, opener=None, debug=False):
         raise AdPError("无法连接 ADP 服务", error_type="network") from error
     except (socket.timeout, TimeoutError) as error:
         raise AdPError("ADP 请求超时", error_type="timeout") from error
+    except http.client.HTTPException as error:
+        raise AdPError("ADP SSE 响应中断", error_type="network") from error
     except OSError as error:
         raise AdPError("ADP SSE 连接中断", error_type="network") from error
 

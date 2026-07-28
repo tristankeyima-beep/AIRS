@@ -1,4 +1,5 @@
 import importlib.util
+import http.client
 import io
 import json
 import os
@@ -56,6 +57,89 @@ class QueryAdpContractTests(unittest.TestCase):
                 self.query_adp.load_config(path)
 
         self.assertNotIn("test-only-key", str(raised.exception))
+
+    def test_load_config_rejects_chat_url_without_http_scheme_and_host(self):
+        invalid_urls = (
+            "ftp://example.test/chat/sse",
+            "https:///missing-host",
+            "example.test/chat/sse",
+        )
+        for chat_url in invalid_urls:
+            with self.subTest(chat_url=chat_url):
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / "config.json"
+                    path.write_text(
+                        json.dumps(
+                            {
+                                "chat_url": chat_url,
+                                "app_key_env": "TEST_ADP_KEY",
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+
+                    with self.assertRaisesRegex(
+                        self.query_adp.ConfigError, "chat_url"
+                    ):
+                        self.query_adp.load_config(path)
+
+    def test_load_config_rejects_invalid_timeout_and_throttle_values(self):
+        invalid_values = (
+            ("timeout_seconds", 0),
+            ("timeout_seconds", -1),
+            ("timeout_seconds", True),
+            ("timeout_seconds", "30"),
+            ("streaming_throttle", 0),
+            ("streaming_throttle", 101),
+            ("streaming_throttle", True),
+            ("streaming_throttle", 1.5),
+        )
+        for field, value in invalid_values:
+            with self.subTest(field=field, value=value):
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / "config.json"
+                    config = {
+                        "chat_url": "https://example.test/chat/sse",
+                        "app_key_env": "TEST_ADP_KEY",
+                        field: value,
+                    }
+                    path.write_text(
+                        json.dumps(config),
+                        encoding="utf-8",
+                    )
+
+                    with self.assertRaisesRegex(
+                        self.query_adp.ConfigError, field
+                    ):
+                        self.query_adp.load_config(path)
+
+    def test_main_reports_invalid_stream_config_as_config_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "chat_url": "not-a-url",
+                        "app_key_env": "TEST_ADP_KEY",
+                        "timeout_seconds": 0,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with mock.patch.dict(os.environ, {}, clear=True):
+                with mock.patch("sys.stdout", stdout):
+                    with mock.patch("sys.stderr", stderr):
+                        exit_code = self.query_adp.main(
+                            ["--config", str(path), "--query", "query"]
+                        )
+
+        output = json.loads(stdout.getvalue())
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(output["error_type"], "config")
+        self.assertNotIn("test-only-key", stdout.getvalue())
+        self.assertEqual(stderr.getvalue(), "")
 
     def test_build_request_uses_app_key_and_preserves_query_identity(self):
         config = {
@@ -185,6 +269,19 @@ class QueryAdpContractTests(unittest.TestCase):
             self.query_adp.AdPError, "^SSE 事件不是有效 JSON$"
         ):
             list(self.query_adp.read_sse(io.BytesIO(b"data: {bad}\n\n")))
+
+    def test_read_sse_discards_unterminated_event_at_eof(self):
+        stream = io.BytesIO(
+            b'data: {"type": "reply", "payload": '
+            b'{"content": "truncated answer"}}\n'
+        )
+
+        events = list(self.query_adp.read_sse(stream))
+
+        self.assertEqual(events, [])
+        with self.assertRaises(self.query_adp.AdPError) as raised:
+            self.query_adp.collect_result("query", events)
+        self.assertEqual(raised.exception.error_type, "empty_result")
 
     def test_collect_result_separates_answer_reference_workflow_and_ids(self):
         events = [
@@ -456,6 +553,87 @@ class QueryAdpContractTests(unittest.TestCase):
         class FailingResponse:
             def __iter__(self):
                 raise OSError("secret stream failure")
+
+            def close(self):
+                pass
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        config = {
+            "chat_url": "https://example.test/chat/sse",
+            "app_key_env": "TEST_ADP_KEY",
+        }
+        with mock.patch.dict(
+            os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
+        ):
+            with mock.patch.object(
+                self.query_adp, "load_config", return_value=config
+            ):
+                with mock.patch.object(
+                    self.query_adp.urllib.request,
+                    "urlopen",
+                    return_value=FailingResponse(),
+                ):
+                    with mock.patch("sys.stdout", stdout):
+                        with mock.patch("sys.stderr", stderr):
+                            try:
+                                exit_code = self.query_adp.main(
+                                    [
+                                        "--config",
+                                        "unused.json",
+                                        "--query",
+                                        "query",
+                                    ]
+                                )
+                            except Exception as error:
+                                self.fail(
+                                    "main leaked exception type "
+                                    + type(error).__name__
+                                )
+
+        output = json.loads(stdout.getvalue())
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(output["error_type"], "network")
+        self.assertNotIn("secret", stdout.getvalue())
+        self.assertNotIn("test-only-key", stdout.getvalue())
+        self.assertEqual(stderr.getvalue(), "")
+
+    def test_query_adp_classifies_incomplete_read_as_safe_network_error(self):
+        class TruncatedResponse:
+            def __iter__(self):
+                raise http.client.IncompleteRead(
+                    b"secret partial response",
+                    100,
+                )
+
+            def close(self):
+                pass
+
+        config = {
+            "chat_url": "https://example.test/chat/sse",
+            "app_key_env": "TEST_ADP_KEY",
+        }
+        with mock.patch.dict(
+            os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
+        ):
+            try:
+                self.query_adp.query_adp(
+                    config,
+                    "test query",
+                    opener=lambda request, timeout: TruncatedResponse(),
+                )
+            except Exception as error:
+                self.assertIsInstance(error, self.query_adp.AdPError)
+                self.assertEqual(error.error_type, "network")
+                self.assertNotIn("secret", str(error))
+                self.assertNotIn("test-only-key", str(error))
+            else:
+                self.fail("query_adp did not report a network failure")
+
+    def test_main_handles_http_exception_without_traceback_or_secret(self):
+        class FailingResponse:
+            def __iter__(self):
+                raise http.client.HTTPException("secret protocol details")
 
             def close(self):
                 pass
