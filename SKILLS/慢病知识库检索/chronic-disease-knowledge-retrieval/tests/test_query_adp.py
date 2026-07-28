@@ -403,6 +403,51 @@ class QueryAdpContractTests(unittest.TestCase):
         with self.assertRaises(self.query_adp.AdPError):
             self.query_adp.collect_result("test query", events)
 
+    def test_collect_result_rejects_partial_reply_when_finality_is_signaled(self):
+        events = [
+            (
+                "reply",
+                {
+                    "payload": {
+                        "content": "partial secret answer",
+                        "is_final": False,
+                    },
+                },
+            ),
+        ]
+
+        with self.assertRaises(self.query_adp.AdPError) as raised:
+            self.query_adp.collect_result("test query", events)
+
+        self.assertEqual(raised.exception.error_type, "sse")
+        self.assertNotIn("partial secret answer", str(raised.exception))
+
+    def test_collect_result_rejects_nonfinal_reply_even_after_token_success(self):
+        events = [
+            (
+                "reply",
+                {
+                    "payload": {
+                        "content": "partial answer",
+                        "is_final": False,
+                    },
+                },
+            ),
+            (
+                "token_stat",
+                {
+                    "payload": {
+                        "status_summary": "success",
+                    },
+                },
+            ),
+        ]
+
+        with self.assertRaises(self.query_adp.AdPError) as raised:
+            self.query_adp.collect_result("test query", events)
+
+        self.assertEqual(raised.exception.error_type, "sse")
+
     def test_collect_result_raises_adp_error_for_completed_empty_answer(self):
         events = [
             (

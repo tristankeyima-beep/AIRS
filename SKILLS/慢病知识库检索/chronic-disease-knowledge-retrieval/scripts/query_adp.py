@@ -155,6 +155,8 @@ def collect_result(query, events):
     workflow = {"name": "", "run_id": "", "outputs": []}
     request_id = None
     session_id = None
+    finality_signaled = False
+    final_reply_seen = False
     reference_types = {1: "qa", 2: "document", 4: "web"}
 
     for event_name, event in events:
@@ -175,6 +177,10 @@ def collect_result(query, events):
             raise AdPError("ADP 工作流执行失败")
 
         if event_name == "reply":
+            if "is_final" in payload:
+                finality_signaled = True
+                if payload["is_final"] is True:
+                    final_reply_seen = True
             content = payload.get("content")
             if isinstance(content, str) and content.strip():
                 answer = content
@@ -208,6 +214,8 @@ def collect_result(query, events):
                     }
                 )
 
+    if finality_signaled and not final_reply_seen:
+        raise AdPError("SSE 未收到最终回答事件")
     if not answer:
         raise AdPError("未收到最终回答", error_type="empty_result")
 
