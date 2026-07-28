@@ -19,6 +19,22 @@ import uuid
 
 MAX_SSE_EVENTS = 1000
 MAX_SSE_BYTES = 5 * 1024 * 1024
+_CLOSE_REQUESTS = queue.Queue(maxsize=1)
+
+
+def _close_worker():
+    while True:
+        response, finished = _CLOSE_REQUESTS.get()
+        try:
+            response.close()
+        except Exception:
+            pass
+        finally:
+            finished.set()
+
+
+_CLOSE_THREAD = threading.Thread(target=_close_worker, daemon=True)
+_CLOSE_THREAD.start()
 
 
 class ConfigError(Exception):
@@ -106,12 +122,19 @@ def build_request(config, query):
     }
 
 
+def _reject_json_constant(value):
+    raise ValueError("non-finite JSON constant")
+
+
 def _parse_sse_data(lines):
     if not lines:
         return None
     try:
-        event = json.loads("\n".join(lines))
-    except json.JSONDecodeError as error:
+        event = json.loads(
+            "\n".join(lines),
+            parse_constant=_reject_json_constant,
+        )
+    except (json.JSONDecodeError, ValueError) as error:
         raise AdPError("SSE 事件不是有效 JSON") from error
 
     if (
@@ -258,6 +281,22 @@ def _number_or_none(value):
     return None
 
 
+def _json_safe(value):
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: _json_safe(item)
+            for key, item in value.items()
+            if isinstance(key, str)
+        }
+    return None
+
+
 def collect_result(query, events):
     answer = ""
     knowledge = []
@@ -322,7 +361,9 @@ def collect_result(query, events):
                 if "outputs" in work_flow:
                     outputs = work_flow["outputs"]
                     workflow["outputs"] = (
-                        outputs if isinstance(outputs, list) else []
+                        _json_safe(outputs)
+                        if isinstance(outputs, list)
+                        else []
                     )
 
         if event_name == "reference":
@@ -390,6 +431,38 @@ def _response_content_type(response):
     return content_type.split(";", 1)[0].strip().lower()
 
 
+def _interrupt_response_socket(response):
+    pending = [response]
+    seen = set()
+    while pending and len(seen) < 16:
+        current = pending.pop()
+        if current is None or id(current) in seen:
+            continue
+        seen.add(id(current))
+        if isinstance(current, socket.socket):
+            try:
+                current.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            return
+        for name in ("_sock", "sock", "socket", "fp", "raw", "_fp"):
+            try:
+                nested = getattr(current, name, None)
+            except Exception:
+                continue
+            if nested is not None:
+                pending.append(nested)
+
+
+def _bounded_response_close(response):
+    finished = threading.Event()
+    try:
+        _CLOSE_REQUESTS.put_nowait((response, finished))
+    except queue.Full:
+        return
+    finished.wait(timeout=0.02)
+
+
 def query_adp(config, query, opener=None, debug=False):
     body = build_request(config, query)
     encoded_body = json.dumps(
@@ -420,7 +493,8 @@ def query_adp(config, query, opener=None, debug=False):
                 events = _debug_events(events)
             return collect_result(body["content"], events)
         finally:
-            response.close()
+            _interrupt_response_socket(response)
+            _bounded_response_close(response)
     except urllib.error.HTTPError as error:
         if error.code in (401, 403):
             raise AdPError("ADP 身份认证失败", error_type="auth") from error

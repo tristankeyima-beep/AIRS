@@ -8,6 +8,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from unittest import mock
@@ -272,6 +273,25 @@ class QueryAdpContractTests(unittest.TestCase):
             self.query_adp.AdPError, "^SSE 事件不是有效 JSON$"
         ):
             list(self.query_adp.read_sse(io.BytesIO(b"data: {bad}\n\n")))
+
+    def test_read_sse_rejects_nonfinite_json_constants(self):
+        constants = (b"NaN", b"Infinity", b"-Infinity")
+        for constant in constants:
+            with self.subTest(constant=constant):
+                stream = io.BytesIO(
+                    b'data: {"type": "reply", "payload": {"content": '
+                    + constant
+                    + b"}}\n\n"
+                )
+
+                with self.assertRaises(self.query_adp.AdPError) as raised:
+                    list(self.query_adp.read_sse(stream))
+
+                self.assertEqual(raised.exception.error_type, "sse")
+                self.assertNotIn(
+                    constant.decode("ascii"),
+                    str(raised.exception),
+                )
 
     def test_read_sse_discards_unterminated_event_at_eof(self):
         stream = io.BytesIO(
@@ -820,6 +840,37 @@ class QueryAdpContractTests(unittest.TestCase):
             [None, None, None, 0.5],
         )
 
+    def test_collect_result_normalizes_nested_nonfinite_workflow_outputs(self):
+        events = [
+            (
+                "reply",
+                {
+                    "payload": {
+                        "content": "answer",
+                        "work_flow": {
+                            "outputs": [
+                                {
+                                    "scores": [
+                                        float("nan"),
+                                        float("inf"),
+                                        0.5,
+                                    ]
+                                }
+                            ]
+                        },
+                    },
+                },
+            ),
+        ]
+
+        result = self.query_adp.collect_result("query", events)
+
+        self.assertEqual(
+            result["workflow"]["outputs"],
+            [{"scores": [None, None, 0.5]}],
+        )
+        json.dumps(result, ensure_ascii=False, allow_nan=False)
+
     def test_collect_result_rejects_non_object_payload_with_safe_message(self):
         secret_payload = (
             "answer=secret-answer "
@@ -979,6 +1030,66 @@ class QueryAdpContractTests(unittest.TestCase):
         self.assertGreater(elapsed, 0.03)
         self.assertLess(elapsed, 0.15)
         self.assertTrue(response.closed)
+
+    def test_query_adp_interrupts_socket_backed_reader_before_close(self):
+        client_socket, peer_socket = socket.socketpair()
+        reader = client_socket.makefile("rb")
+
+        class SocketResponse:
+            headers = {"Content-Type": "text/event-stream"}
+
+            def __init__(self):
+                self.fp = reader
+
+            def readline(self, limit):
+                return reader.readline(limit)
+
+            def close(self):
+                reader.close()
+                client_socket.close()
+
+        response = SocketResponse()
+        config = {
+            "chat_url": "https://example.test/chat/sse",
+            "app_key_env": "TEST_ADP_KEY",
+            "timeout_seconds": 0.05,
+        }
+
+        def release_peer():
+            try:
+                peer_socket.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            peer_socket.close()
+
+        cleanup_timer = threading.Timer(0.22, release_peer)
+        cleanup_timer.daemon = True
+        cleanup_timer.start()
+        started = time.monotonic()
+        try:
+            with mock.patch.dict(
+                os.environ,
+                {"TEST_ADP_KEY": "test-only-key"},
+                clear=True,
+            ):
+                with self.assertRaises(self.query_adp.AdPError) as raised:
+                    self.query_adp.query_adp(
+                        config,
+                        "test query",
+                        opener=lambda request, timeout: response,
+                    )
+            elapsed = time.monotonic() - started
+        finally:
+            cleanup_timer.cancel()
+            release_peer()
+            try:
+                client_socket.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            client_socket.close()
+
+        self.assertEqual(raised.exception.error_type, "timeout")
+        self.assertLess(elapsed, 0.15)
 
     def test_read_sse_uses_bounded_readline_for_long_unbroken_data(self):
         max_sse_bytes = self.query_adp.MAX_SSE_BYTES
