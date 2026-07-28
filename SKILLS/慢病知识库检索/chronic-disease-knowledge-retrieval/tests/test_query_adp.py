@@ -452,32 +452,32 @@ class QueryAdpContractTests(unittest.TestCase):
         with self.assertRaises(self.query_adp.AdPError):
             self.query_adp.collect_result("test query", events)
 
-    def test_collect_result_rejects_partial_reply_when_finality_is_signaled(self):
+    def test_collect_result_accepts_bot_reply_regardless_of_is_final(self):
         events = [
             (
                 "reply",
                 {
                     "payload": {
                         "content": "partial secret answer",
+                        "is_from_self": False,
                         "is_final": False,
                     },
                 },
             ),
         ]
 
-        with self.assertRaises(self.query_adp.AdPError) as raised:
-            self.query_adp.collect_result("test query", events)
+        result = self.query_adp.collect_result("test query", events)
 
-        self.assertEqual(raised.exception.error_type, "sse")
-        self.assertNotIn("partial secret answer", str(raised.exception))
+        self.assertEqual(result["answer"], "partial secret answer")
 
-    def test_collect_result_rejects_nonfinal_reply_even_after_token_success(self):
+    def test_collect_result_accepts_bot_reply_after_token_success(self):
         events = [
             (
                 "reply",
                 {
                     "payload": {
                         "content": "partial answer",
+                        "is_from_self": False,
                         "is_final": False,
                     },
                 },
@@ -492,18 +492,71 @@ class QueryAdpContractTests(unittest.TestCase):
             ),
         ]
 
-        with self.assertRaises(self.query_adp.AdPError) as raised:
-            self.query_adp.collect_result("test query", events)
+        result = self.query_adp.collect_result("test query", events)
 
-        self.assertEqual(raised.exception.error_type, "sse")
+        self.assertEqual(result["answer"], "partial answer")
 
-    def test_collect_result_does_not_fallback_to_partial_when_final_is_empty(self):
+    def test_collect_result_selects_latest_bot_reply_from_cloud_sequence(self):
         events = [
             (
                 "reply",
                 {
                     "payload": {
-                        "content": "partial secret answer",
+                        "content": "原查询",
+                        "is_from_self": True,
+                        "is_final": True,
+                    },
+                },
+            ),
+            ("token_stat", {"payload": {"status_summary": "processing"}}),
+        ]
+        for content in (
+            "糖",
+            "糖尿病",
+            "糖尿病诊断",
+            "糖尿病诊断标准",
+            "糖尿病诊断标准完整",
+            "糖尿病诊断标准完整答案",
+        ):
+            events.append(
+                (
+                    "reply",
+                    {
+                        "payload": {
+                            "content": content,
+                            "is_from_self": False,
+                            "is_final": False,
+                        },
+                    },
+                )
+            )
+        events.append(
+            ("token_stat", {"payload": {"status_summary": "success"}})
+        )
+
+        result = self.query_adp.collect_result("原查询", events)
+
+        self.assertEqual(result["answer"], "糖尿病诊断标准完整答案")
+
+    def test_collect_result_keeps_nonempty_bot_reply_before_empty_update(self):
+        events = [
+            (
+                "reply",
+                {
+                    "payload": {
+                        "content": "原查询",
+                        "is_from_self": True,
+                        "is_final": True,
+                    },
+                },
+            ),
+            ("token_stat", {"payload": {"status_summary": "processing"}}),
+            (
+                "reply",
+                {
+                    "payload": {
+                        "content": "完整 bot 答案",
+                        "is_from_self": False,
                         "is_final": False,
                     },
                 },
@@ -513,17 +566,65 @@ class QueryAdpContractTests(unittest.TestCase):
                 {
                     "payload": {
                         "content": "",
+                        "is_from_self": False,
+                        "is_final": False,
+                    },
+                },
+            ),
+            ("token_stat", {"payload": {"status_summary": "success"}}),
+        ]
+
+        result = self.query_adp.collect_result("原查询", events)
+
+        self.assertEqual(result["answer"], "完整 bot 答案")
+
+    def test_collect_result_rejects_stream_with_only_self_echo(self):
+        events = [
+            (
+                "reply",
+                {
+                    "payload": {
+                        "content": "原查询",
+                        "is_from_self": True,
+                        "is_final": True,
+                    },
+                },
+            ),
+            ("token_stat", {"payload": {"status_summary": "success"}}),
+        ]
+
+        with self.assertRaises(self.query_adp.AdPError) as raised:
+            self.query_adp.collect_result("原查询", events)
+
+        self.assertEqual(raised.exception.error_type, "empty_result")
+
+    def test_collect_result_keeps_nonempty_bot_content_when_later_reply_is_empty(self):
+        events = [
+            (
+                "reply",
+                {
+                    "payload": {
+                        "content": "partial secret answer",
+                        "is_from_self": False,
+                        "is_final": False,
+                    },
+                },
+            ),
+            (
+                "reply",
+                {
+                    "payload": {
+                        "content": "",
+                        "is_from_self": False,
                         "is_final": True,
                     },
                 },
             ),
         ]
 
-        with self.assertRaises(self.query_adp.AdPError) as raised:
-            self.query_adp.collect_result("test query", events)
+        result = self.query_adp.collect_result("test query", events)
 
-        self.assertEqual(raised.exception.error_type, "empty_result")
-        self.assertNotIn("partial secret answer", str(raised.exception))
+        self.assertEqual(result["answer"], "partial secret answer")
 
     def test_collect_result_raises_adp_error_for_completed_empty_answer(self):
         events = [
