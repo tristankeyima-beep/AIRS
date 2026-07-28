@@ -1,0 +1,4 @@
+interface:
+  display_name: "门诊慢特病标准版本影响 Flash"
+  short_description: "比对认定标准版本差异及可选材料判读影响"
+  default_prompt: "使用 $chronic-disease-standard-version-impact-flash 比对门诊慢特病认定标准版本，并生成影响分析 HTML。"

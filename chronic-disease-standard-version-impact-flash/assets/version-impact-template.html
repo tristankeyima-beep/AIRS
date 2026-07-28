@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>认定标准版本比对与影响分析</title>
+  <style>
+    :root{--ink:#172535;--muted:#617184;--line:#dce5ed;--paper:#fff;--bg:#f5f8fb;--accent:#176d87;--soft:#e5f4f8;--good:#27714c;--goodbg:#e9f6ed;--warn:#875916;--warnbg:#fff6e5}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}.shell{width:min(1320px,100%);margin:auto;padding:24px;display:grid;grid-template-columns:210px minmax(0,1fr);gap:18px}nav{position:sticky;top:16px;align-self:start;padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:14px}nav strong{display:block;margin-bottom:8px}nav a{display:block;padding:5px 0;color:var(--muted);text-decoration:none}section{margin-bottom:14px;padding:20px;background:var(--paper);border:1px solid var(--line);border-radius:14px}.hero{background:linear-gradient(135deg,#eaf9fb,#fff)}h1,h2,h3,p{margin-top:0}h1{font-size:30px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.card{padding:13px;border:1px solid var(--line);border-radius:10px}.label{display:block;color:var(--muted);font-size:12px;margin:7px 0 2px}.badge{display:inline-block;padding:2px 8px;border-radius:999px;background:var(--soft);color:#15536a;font-size:12px}.good{background:var(--goodbg);color:var(--good)}.warn{background:var(--warnbg);color:var(--warn)}table{width:100%;border-collapse:collapse}th,td{padding:9px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{color:var(--muted);font-size:13px}ul{padding-left:20px}pre{padding:10px;background:#f7f9fb;white-space:pre-wrap;word-break:break-word}.notice{padding:11px;background:var(--soft);color:#15536a;border-radius:9px}.empty{color:var(--muted);font-style:italic}.error{margin:30px;padding:18px;background:#fff1f1;color:#8c2424;border-radius:10px}@media(max-width:800px){.shell{padding:12px;grid-template-columns:1fr}nav{position:static}nav a{display:inline-block;margin-right:10px}table{display:block;overflow:auto}}
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script id="flash-data" type="application/json">__FLASH_DATA_JSON__</script>
+  <script>
+    (() => {
+      "use strict";
+      const app = document.getElementById("app");
+      const slot = document.getElementById("flash-data");
+      const stateText = {met:"满足",not_met:"不满足",unknown:"无法判断",meets:"符合",does_not_meet:"不符合",uncertain:"无法确定"};
+      const statusLabel = value => stateText[value] || value || "未提供";
+      const readableText = value => String(value ?? "")
+        .replace(/\bS(\d+):R(\d+)\b/g, (_, version, rule) => `版本${version}·规则${rule}`)
+        .replace(/\bS(\d+)\b/g, (_, version) => `版本${version}`)
+        .replace(/\bR(\d+)\b/g, (_, number) => `规则${number}`)
+        .replace(/规则\s+规则(\d+)/g, "规则$1")
+        .replace(/\bAND\b/g, "且")
+        .replace(/\bOR\b/g, "或");
+      const node = (tag, value, className) => { const el = document.createElement(tag); if (className) el.className = className; if (value !== undefined && value !== null) el.textContent = readableText(value); return el; };
+      const add = (parent, ...children) => { children.flat().filter(Boolean).forEach(child => parent.appendChild(child)); return parent; };
+      const section = (id, title) => { const el = node("section"); el.id = id; const heading = node("h2", title); heading.id = `${id}-title`; el.setAttribute("aria-labelledby", heading.id); el.appendChild(heading); return el; };
+      const detail = (label, value) => add(node("div"), node("span", label, "label"), node("div", value || "未提供"));
+      const list = items => { if (!items || !items.length) return node("p", "无", "empty"); const ul = node("ul"); items.forEach(item => ul.appendChild(node("li", item))); return ul; };
+      const fail = message => app.replaceChildren(node("div", message, "error"));
+      function check(data) { if (!data || data.schemaVersion !== "flash-1.0" || data.mode !== "standard_version_impact") throw Error("报告数据不是标准版本影响成果。"); if (!Array.isArray(data.standardInputs) || data.standardInputs.length < 2) throw Error("至少需要两份标准。"); }
+      function navigation(shell) { const nav = node("nav"); add(nav, node("strong", "报告目录")); [["overview","报告概览"],["versions","版本与排序依据"],["groups","可比条件组"],["changes","标准差异"],["assessments","各版本规则证据判读"],["delta","判读变化原因"],["analysis","分析记录"],["sources","原始标准与材料"],["confirmation","确认记录"]].forEach(([id,title]) => { const link = node("a", title); link.href = `#${id}`; nav.appendChild(link); }); shell.appendChild(nav); }
+      function overview(data) { const el = section("overview", "报告概览"); el.className = "hero"; const grid = node("div", null, "grid"); add(grid, detail("病种", data.meta.diseaseName), detail("生成日期", data.meta.generatedAt), detail("标准数量", `${data.standardInputs.length} 份`)); add(el, node("h1", data.meta.reportTitle), node("p", "标准差异及规则证据判读仅供审核参考。", "notice"), grid); return el; }
+      function versions(data) { const el = section("versions", "版本与排序依据"); const grid = node("div", null, "grid"); data.standardInputs.forEach(item => { const card = node("article", null, "card"); add(card, node("h3", `${item.standardKey} · ${item.name}`), detail("文件版本", item.documentVersion), detail("生效信息", item.effectiveInfo), detail("来源", item.sourceName)); grid.appendChild(card); }); add(el, detail("比较顺序", data.meta.comparisonOrder), detail("排序依据", data.meta.orderBasis), grid); return el; }
+      function groups(data) { const el = section("groups", "可比条件组"); data.conditionGroups.forEach(group => { const card = node("article", null, "card"); add(card, node("h3", group.title), node("span", group.matchingStatus, "badge"), list(group.members.map(member => `${member.scopedRuleId}：${member.sourceReference}`))); el.appendChild(card); }); return el; }
+      function changes(data) { const el = section("changes", "标准差异"); const table = node("table"), header = node("tr"); ["类型","差异摘要","受影响规则","人工复核"].forEach(title => header.appendChild(node("th", title))); table.appendChild(header); data.changes.forEach(change => { const row = node("tr"); add(row, node("td", change.type), node("td", change.summary), node("td", change.affectedRules.join("、")), node("td", change.manualReviewRequired ? "需要" : "不需要")); table.appendChild(row); }); el.appendChild(table); return el; }
+      function assessments(data) { const el = section("assessments", "各版本规则证据判读"); if (!data.versionAssessments.length) { el.appendChild(node("p", "未提供申请材料，未生成版本下规则证据判读。", "empty")); return el; } data.versionAssessments.forEach(assessment => { const card = node("article", null, "card"); add(card, node("h3", `${assessment.standardKey} 版参考判读`), detail("参考结果",statusLabel(assessment.referenceResult)), node("span", "材料事实", "label"), list(assessment.materialFacts)); assessment.ruleJudgments.forEach(judgment => card.appendChild(node("p", `${judgment.ruleId}：${statusLabel(judgment.result)}；${judgment.reason}`))); el.appendChild(card); }); return el; }
+      function delta(data) { const el = section("delta", "判读变化原因"); if (!data.assessmentDelta.length) { el.appendChild(node("p", "无跨版本判读变化。", "empty")); return el; } data.assessmentDelta.forEach(item => { const card = node("article", null, "card"); add(card, node("h3", `${item.fromStandardKey} → ${item.toStandardKey}`), node("p", item.summary), detail("变化规则", item.changedRules.join("、")), detail("差异类型", item.differenceType)); el.appendChild(card); }); return el; }
+      function analysis(data) { const el = section("analysis", "分析记录"), record = data.analysisRecord; add(el, detail("输入概括", record.inputSummary.join("；")), detail("采用解释", record.interpretations.join("；")), detail("证据发现", record.evidenceFindings.join("；")), detail("不确定项", record.uncertainties.join("；") || "无"), node("p", record.preliminaryConclusion, "notice")); return el; }
+      function sources(data) { const el = section("sources", "原始标准与材料"); data.standardInputs.forEach(item => { const card = node("article", null, "card"); add(card, node("h3", item.sourceName), node("pre", item.content)); el.appendChild(card); }); data.materialDocuments.forEach(item => { const card = node("article", null, "card"); add(card, node("h3", item.name), node("pre", item.content)); el.appendChild(card); }); return el; }
+      function confirmation(data) { const el = section("confirmation", "确认记录"), record = data.confirmation; add(el, detail("标准范围与顺序", record.standardsConfirmed ? "已确认" : "未确认"), detail("标准确认回复", record.standardsUserResponse), detail("材料完整性", record.materialsConfirmedComplete ? "已确认" : "未提供材料"), detail("材料确认回复", record.materialsUserResponse), node("span", "已展示材料", "label"), list(record.inventoryShown)); return el; }
+      try { const data = JSON.parse(slot.textContent); check(data); const shell = node("div", null, "shell"); navigation(shell); const main = node("main"); [overview,versions,groups,changes,assessments,delta,analysis,sources,confirmation].forEach(render => main.appendChild(render(data))); shell.appendChild(main); app.replaceChildren(shell); } catch (error) { fail(`无法生成版本影响报告：${error.message}`); }
+    })();
+  </script>
+</body>
+</html>

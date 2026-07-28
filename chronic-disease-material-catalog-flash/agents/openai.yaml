@@ -1,0 +1,4 @@
+interface:
+  display_name: "门诊慢特病材料编目 Flash"
+  short_description: "轻量整理患者材料目录、时间线与关联线索"
+  default_prompt: "使用 $chronic-disease-material-catalog-flash 对门诊慢特病患者申请材料进行客观编目与归位，并生成 JSON 和可视化 HTML。"

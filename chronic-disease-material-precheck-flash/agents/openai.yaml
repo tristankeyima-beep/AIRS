@@ -1,0 +1,4 @@
+interface:
+  display_name: "门诊慢特病材料预检 Flash"
+  short_description: "依据已确认标准预检申请材料并生成补件清单"
+  default_prompt: "使用 $chronic-disease-material-precheck-flash 对门诊慢特病申请材料进行预检并生成补充信息或补件清单。"

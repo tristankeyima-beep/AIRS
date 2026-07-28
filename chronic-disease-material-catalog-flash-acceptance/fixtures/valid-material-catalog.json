@@ -1,0 +1,121 @@
+{
+  "schemaVersion": "flash-1.0",
+  "mode": "material_catalog",
+  "meta": {
+    "reportTitle": "材料证据编目与归位报告",
+    "subjectName": "",
+    "generatedAt": "2026-07-27"
+  },
+  "sourceDocuments": [
+    {
+      "name": "门诊病历-2026-06-04",
+      "type": "patient_material",
+      "content": "门诊病历\n出具机构：示例市第一医院\n日期：2026-06-04\n诊断：示例疾病\n记录：复诊，继续既往治疗。"
+    },
+    {
+      "name": "门诊病历-复印件-日期待核对",
+      "type": "patient_material",
+      "content": "门诊病历复印件\n出具机构：示例市第一医院\n诊断：示例疾病\n记录：复诊，继续既往治疗。"
+    }
+  ],
+  "analysisRecord": {
+    "inputSummary": [
+      "已确认收到两份患者材料，其中一份日期明确，另一份未识别到日期。"
+    ],
+    "catalogingBasis": [
+      "仅依据每份材料原文中明确出现的机构、日期、诊断和记录进行编目。"
+    ],
+    "evidenceFindings": [
+      "两份材料均明确出现示例市第一医院、示例疾病和复诊记录。"
+    ],
+    "uncertainties": [
+      "复印件未识别到明确日期，且与日期明确病历的关系需人工核对。"
+    ],
+    "preliminaryConclusion": "本报告仅完成材料客观编目与归位，不构成资格、材料充分性或审核结论。"
+  },
+  "catalog": [
+    {
+      "sourceName": "门诊病历-2026-06-04",
+      "documentType": "病历",
+      "readability": "可编目",
+      "issuer": "示例市第一医院",
+      "dateRange": {
+        "start": "2026-06-04",
+        "end": "2026-06-04",
+        "display": "2026-06-04"
+      },
+      "facts": [
+        {
+          "text": "诊断：示例疾病",
+          "category": "诊断",
+          "sourceReference": "门诊病历-2026-06-04：诊断行"
+        },
+        {
+          "text": "记录：复诊，继续既往治疗。",
+          "category": "治疗",
+          "sourceReference": "门诊病历-2026-06-04：记录行"
+        }
+      ],
+      "pendingChecks": []
+    },
+    {
+      "sourceName": "门诊病历-复印件-日期待核对",
+      "documentType": "病历",
+      "readability": "可编目",
+      "issuer": "示例市第一医院",
+      "dateRange": {
+        "start": "",
+        "end": "",
+        "display": "日期待核对"
+      },
+      "facts": [
+        {
+          "text": "诊断：示例疾病",
+          "category": "诊断",
+          "sourceReference": "门诊病历-复印件-日期待核对：诊断行"
+        },
+        {
+          "text": "记录：复诊，继续既往治疗。",
+          "category": "治疗",
+          "sourceReference": "门诊病历-复印件-日期待核对：记录行"
+        }
+      ],
+      "pendingChecks": [
+        "材料原文未识别到明确日期。"
+      ]
+    }
+  ],
+  "timelines": [
+    {
+      "sourceName": "门诊病历-2026-06-04",
+      "date": "2026-06-04",
+      "display": "2026-06-04",
+      "sortStatus": "已确认"
+    },
+    {
+      "sourceName": "门诊病历-复印件-日期待核对",
+      "date": "",
+      "display": "日期待核对",
+      "sortStatus": "待核对"
+    }
+  ],
+  "relationships": [
+    {
+      "sourceNames": [
+        "门诊病历-2026-06-04",
+        "门诊病历-复印件-日期待核对"
+      ],
+      "type": "疑似重复",
+      "basis": "两份材料原文均出现示例市第一医院、示例疾病和“复诊，继续既往治疗”记录。",
+      "status": "待核对"
+    }
+  ],
+  "confirmation": {
+    "confirmed": true,
+    "inventoryShown": [
+      "门诊病历-2026-06-04",
+      "门诊病历-复印件-日期待核对"
+    ],
+    "userResponse": "确认材料完整。"
+  }
+}
