@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import unittest
 
 
@@ -800,22 +801,35 @@ class WorkPlannerSkillTests(unittest.TestCase):
                 ):
                     self.assertNotIn(reversed_flow, section)
 
-    def test_design_and_plan_place_sensitive_gate_before_all_planning(self):
+    def test_design_and_plan_place_sensitive_gate_before_inputs_and_planning(
+        self,
+    ):
         design = DESIGN_PATH.read_text(encoding="utf-8")
-        self.assertIn("## 7A. 敏感凭据第 0 步停止门", design)
+        self.assertIn("## 2.1 敏感凭据第 0 步停止门", design)
         design_gate = extract_markdown_h2_section(
             design,
-            "7A. 敏感凭据第 0 步停止门",
+            "2.1 敏感凭据第 0 步停止门",
         )
         assert_sensitive_credential_contract(
             self,
             design_gate,
             "设计稿安全门",
         )
-        self.assertLess(
-            design.index("## 7A. 敏感凭据第 0 步停止门"),
-            design.index("## 8. 两种执行模式"),
+        design_gate_position = design.index(
+            "## 2.1 敏感凭据第 0 步停止门"
         )
+        for later_heading in (
+            "## 4. 四类关键业务输入",
+            "## 5. 触发规则",
+            "## 6. 面向非专业用户的交互原则",
+            "## 8. 两种执行模式",
+        ):
+            self.assertLess(
+                design_gate_position,
+                design.index(later_heading),
+                later_heading,
+            )
+        self.assertNotIn("## 7A. 敏感凭据第 0 步停止门", design)
 
         plan = PLAN_PATH.read_text(encoding="utf-8")
         task_four = plan.split(
@@ -844,7 +858,7 @@ class WorkPlannerSkillTests(unittest.TestCase):
         )
         for required_test_contract in (
             "安全门位置早于模式与计划流程",
-            "test_design_and_plan_place_sensitive_gate_before_all_planning",
+            "test_design_and_plan_place_sensitive_gate_before_inputs_and_planning",
             "每轮新消息或附件",
             "命中后只输出通用脱敏告警",
             "清理后重新确认材料范围和当前计划",
@@ -855,6 +869,20 @@ class WorkPlannerSkillTests(unittest.TestCase):
                 task_four,
                 required_test_contract,
             )
+        task_four_run_command = task_four.split(
+            "Run:",
+            maxsplit=1,
+        )[1].split(
+            "Expected:",
+            maxsplit=1,
+        )[0]
+        for test_method in (
+            "test_continuous_execution_keeps_business_confirmation_gates",
+            "test_markdown_plan_has_visual_states_and_real_links_only",
+            "test_design_and_plan_place_sensitive_gate_before_inputs_and_planning",
+        ):
+            self.assertIn(test_method, task_four_run_command, test_method)
+        self.assertIn("Expected: 3 tests PASS.", task_four)
 
         design_test_strategy = design.split(
             "## 21. 测试策略",
@@ -875,6 +903,41 @@ class WorkPlannerSkillTests(unittest.TestCase):
                 design_test_strategy,
                 required_test_contract,
             )
+
+    def test_design_plan_example_keeps_all_later_steps_unstarted_at_pause(
+        self,
+    ):
+        design = DESIGN_PATH.read_text(encoding="utf-8")
+        example = design.split(
+            "### 17.2 计划示例",
+            maxsplit=1,
+        )[1].split(
+            "\n## 18. 澄清问题与工作计划分离",
+            maxsplit=1,
+        )[0]
+        self.assertIn("> 当前进度：1 / 5", example)
+        task_table = example.split(
+            "## 一、任务进度",
+            maxsplit=1,
+        )[1].split(
+            "## 二、当前状态",
+            maxsplit=1,
+        )[0]
+        task_rows = [
+            line
+            for line in task_table.splitlines()
+            if re.match(r"^\|\s*\d+\s*\|", line)
+        ]
+        first_paused_index = next(
+            index
+            for index, row in enumerate(task_rows)
+            if "⏸️" in row
+        )
+        later_rows = task_rows[first_paused_index + 1 :]
+        self.assertTrue(later_rows)
+        for row in later_rows:
+            self.assertIn("⬜", row, row)
+            self.assertNotIn("✅", row, row)
 
     def test_design_and_plan_keep_future_states_planned_while_waiting(self):
         design = DESIGN_PATH.read_text(encoding="utf-8")
@@ -1135,10 +1198,11 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "确认编目所用材料清单完整",
             "编目步骤从 ⏸️ → ⏳",
             "编目步骤 ✅",
-            "预检步骤 ⏸️",
+            "预检步骤从 ⬜ → ⏳",
+            "预检步骤从 ⏳ → ⏸️",
             "确认用于预检的材料清单完整",
             "预检步骤从 ⏸️ → ⏳",
-            "预检步骤 ✅",
+            "预检步骤从 ⏳ → ✅",
         )
         for state_term in ordered_state_terms:
             self.assertIn(state_term, auto, state_term)
@@ -1162,9 +1226,13 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "编目步骤 ✅",
             catalog_resumed_position,
         )
-        precheck_paused_position = auto.index(
-            "预检步骤 ⏸️",
+        precheck_running_position = auto.index(
+            "预检步骤从 ⬜ → ⏳",
             catalog_completed_position,
+        )
+        precheck_paused_position = auto.index(
+            "预检步骤从 ⏳ → ⏸️",
+            precheck_running_position,
         )
         precheck_reply_position = auto.index(
             "确认用于预检的材料清单完整",
@@ -1175,7 +1243,7 @@ class WorkPlannerSkillTests(unittest.TestCase):
             precheck_reply_position,
         )
         precheck_completed_position = auto.index(
-            "预检步骤 ✅",
+            "预检步骤从 ⏳ → ✅",
             precheck_resumed_position,
         )
         auto_positions = [
@@ -1187,12 +1255,14 @@ class WorkPlannerSkillTests(unittest.TestCase):
             catalog_reply_position,
             catalog_resumed_position,
             catalog_completed_position,
+            precheck_running_position,
             precheck_paused_position,
             precheck_reply_position,
             precheck_resumed_position,
             precheck_completed_position,
         ]
         self.assertEqual(auto_positions, sorted(auto_positions))
+        self.assertNotIn("预检步骤从 ⬜ → ⏸️", auto)
         for required_term in (
             "第 2 轮不执行",
             "第 3 轮",
@@ -1265,7 +1335,14 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "2026-07-04",
             "执行方式：待选择",
             "第 3 轮不调用",
-            "第 4 轮才执行",
+            "第 4 轮才调用预检能力",
+            "预检步骤从 ⬜ → ⏳",
+            "预检步骤从 ⏳ → ⏸️",
+            "**预检能力内部完整状态约定**",
+            "⬜ → ⏳",
+            "⏳ → ⏸️",
+            "⏸️ → ⏳",
+            "⏳ → ✅",
         ):
             self.assertIn(required_term, section, required_term)
         dialogue = section.split(
@@ -1282,6 +1359,53 @@ class WorkPlannerSkillTests(unittest.TestCase):
             dialogue.index("第 4 轮"),
         ]
         self.assertEqual(round_positions, sorted(round_positions))
+        precheck_running_position = dialogue.index(
+            "预检步骤从 ⬜ → ⏳",
+            round_positions[-1],
+        )
+        precheck_paused_position = dialogue.index(
+            "预检步骤从 ⏳ → ⏸️",
+            precheck_running_position,
+        )
+        self.assertLess(precheck_running_position, precheck_paused_position)
+        self.assertNotIn("预检步骤从 ⬜ → ⏸️", section)
+
+        full_transition_contract = section.split(
+            "**预检能力内部完整状态约定**",
+            maxsplit=1,
+        )[1].split(
+            "**预期状态快照**",
+            maxsplit=1,
+        )[0]
+        transition_positions = [
+            full_transition_contract.index("⬜ → ⏳"),
+            full_transition_contract.index("⏳ → ⏸️"),
+            full_transition_contract.index("⏸️ → ⏳"),
+            full_transition_contract.index("⏳ → ✅"),
+        ]
+        self.assertEqual(transition_positions, sorted(transition_positions))
+        state_snapshot = section.split(
+            "**预期状态快照**",
+            maxsplit=1,
+        )[1].split(
+            "**预期能力调用**",
+            maxsplit=1,
+        )[0]
+        expected_calls = section.split(
+            "**预期能力调用**",
+            maxsplit=1,
+        )[1].split(
+            "**预期交付**",
+            maxsplit=1,
+        )[0]
+        for transition in (
+            "⬜ → ⏳",
+            "⏳ → ⏸️",
+            "⏸️ → ⏳",
+            "⏳ → ✅",
+        ):
+            self.assertIn(transition, state_snapshot, transition)
+            self.assertIn(transition, expected_calls, transition)
 
     def test_usage_guide_acceptance_cases_are_reproducible(self):
         content = read("使用说明.md")

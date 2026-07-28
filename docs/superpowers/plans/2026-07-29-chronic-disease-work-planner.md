@@ -485,11 +485,12 @@ Use the approved plan structure:
 安全契约测试必须覆盖：
 
 - 每轮新消息或附件到达后执行第 0 步；
+- 安全门位置早于四类输入、触发规则和交互原则；
 - 安全门位置早于模式与计划流程；
 - 命中后只输出通用脱敏告警；
 - 清理后重新确认材料范围和当前计划；
 - 内网授权不能绕过安全门；
-- 运行 `test_design_and_plan_place_sensitive_gate_before_all_planning`，并同时验证等待态与占位链接契约。
+- 运行 `test_design_and_plan_place_sensitive_gate_before_inputs_and_planning`，并同时验证等待态与占位链接契约。
 
 Run:
 
@@ -497,10 +498,11 @@ Run:
 python3 'SKILLS/开发验证（非 Skill）/test_work_planner_skill.py' \
   WorkPlannerSkillTests.test_continuous_execution_keeps_business_confirmation_gates \
   WorkPlannerSkillTests.test_markdown_plan_has_visual_states_and_real_links_only \
+  WorkPlannerSkillTests.test_design_and_plan_place_sensitive_gate_before_inputs_and_planning \
   -v
 ```
 
-Expected: both tests PASS.
+Expected: 3 tests PASS.
 
 - [ ] **Step 4: Commit execution and presentation rules**
 
@@ -619,10 +621,10 @@ python3 -m unittest discover \
 
 Expected:
 
-- 开发验证：43 项；
+- 开发验证：44 项；
 - 慢病知识库检索：28 项；
 - 门诊慢特病认定标准与审核质控助手（完整版）：216 项；
-- 当前期望合计：287 项。
+- 当前期望合计：288 项。
 
 三套测试均须通过，且无警告或错误。计数以每次实际运行输出为准，当前数字仅为快照，测试增减时同步更新。
 
