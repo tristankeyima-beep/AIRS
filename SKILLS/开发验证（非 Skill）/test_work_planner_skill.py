@@ -208,6 +208,63 @@ class WorkPlannerSkillTests(unittest.TestCase):
         self.assertNotIn("❌", planning_example)
         self.assertNotIn("chronic-disease-", content)
 
+    def test_paused_execution_resumes_the_correct_step(self):
+        content = read("references/continuous-execution.md")
+        required_terms = (
+            "独立确认步骤",
+            "执行中的能力",
+            "当前步骤 ⏸️ → ⏳",
+            "取得正式成果后",
+            "从下游能力内部暂停点继续",
+        )
+
+        for required_term in required_terms:
+            self.assertIn(required_term, content, required_term)
+
+    def test_automatic_example_confirms_standard_and_preserves_lookup_errors(self):
+        content = read("references/markdown-plan-template.md")
+        automatic_example = content.split(
+            "### 自动执行模式最小示例",
+            maxsplit=1,
+        )[1].split(
+            "## 最终交付模板",
+            maxsplit=1,
+        )[0]
+
+        required_example_terms = (
+            "> 已具备内容：患者申请材料",
+            "> 需提前准备：确认本次采用的认定标准",
+            "确认采用的认定标准",
+            "⏸️ 等待确认",
+        )
+        for required_term in required_example_terms:
+            self.assertIn(required_term, automatic_example, required_term)
+
+        task_progress = automatic_example.split(
+            "## 一、任务进度",
+            maxsplit=1,
+        )[1].split(
+            "## 二、当前状态",
+            maxsplit=1,
+        )[0]
+        self.assertLess(
+            task_progress.index("检索认定标准"),
+            task_progress.index("确认采用的认定标准"),
+        )
+        self.assertLess(
+            task_progress.index("确认采用的认定标准"),
+            task_progress.index("生成结构化标准"),
+        )
+
+        required_error_terms = (
+            "未配置",
+            "鉴权失败",
+            "不可访问",
+            "不得归并为“检索无结果”",
+        )
+        for required_term in required_error_terms:
+            self.assertIn(required_term, content, required_term)
+
     def test_skill_preserves_business_boundaries(self):
         content = read("SKILL.md")
         required_terms = (
