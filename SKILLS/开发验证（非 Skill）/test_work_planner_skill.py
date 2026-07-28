@@ -987,6 +987,323 @@ class WorkPlannerSkillTests(unittest.TestCase):
                     section,
                 )
 
+    def test_design_distinguishes_pause_recovery_and_terminal_convergence(
+        self,
+    ):
+        design = DESIGN_PATH.read_text(encoding="utf-8")
+        pause_section = extract_markdown_h2_section(
+            design,
+            "9. 暂停与重新规划",
+        )
+        interaction_section = extract_markdown_h2_section(
+            design,
+            "18. 澄清问题与工作计划分离",
+        )
+
+        for section in (pause_section, interaction_section):
+            for required_term in (
+                "独立确认步骤",
+                "确认步骤从 ⏸️ → ✅",
+                "下一执行步骤从 ⬜ → ⏳",
+                "执行中的能力",
+                "当前同一步骤从 ⏸️ → ⏳",
+                "能力内部暂停点",
+                "取得正式成果后才从 ⏳ → ✅",
+                "不得提前进入下一步",
+                "取消",
+                "部分交付",
+                "不可恢复失败",
+                "最终状态收敛",
+            ):
+                self.assertIn(required_term, section, required_term)
+            independent_pause = section.index("独立确认步骤")
+            independent_complete = section.index(
+                "确认步骤从 ⏸️ → ✅",
+                independent_pause,
+            )
+            next_running = section.index(
+                "下一执行步骤从 ⬜ → ⏳",
+                independent_complete,
+            )
+            in_capability_pause = section.index(
+                "执行中的能力",
+                next_running,
+            )
+            in_capability_resume = section.index(
+                "当前同一步骤从 ⏸️ → ⏳",
+                in_capability_pause,
+            )
+            in_capability_complete = section.index(
+                "取得正式成果后才从 ⏳ → ✅",
+                in_capability_resume,
+            )
+            terminal_convergence = section.index(
+                "最终状态收敛",
+                in_capability_complete,
+            )
+            self.assertEqual(
+                [
+                    independent_pause,
+                    independent_complete,
+                    next_running,
+                    in_capability_pause,
+                    in_capability_resume,
+                    in_capability_complete,
+                    terminal_convergence,
+                ],
+                sorted(
+                    [
+                        independent_pause,
+                        independent_complete,
+                        next_running,
+                        in_capability_pause,
+                        in_capability_resume,
+                        in_capability_complete,
+                        terminal_convergence,
+                    ]
+                ),
+            )
+        self.assertNotIn(
+            "用户回答后：\n\n"
+            "- 更新原计划状态；\n"
+            "- 将确认步骤标记为完成；\n"
+            "- 将下一步骤标记为执行中；",
+            interaction_section,
+        )
+        execution_test_strategy = extract_markdown_h3_section(
+            extract_markdown_h2_section(design, "21. 测试策略"),
+            "21.2 执行模式",
+        )
+        for required_term in (
+            "独立确认步骤",
+            "确认步骤从 ⏸️ → ✅",
+            "下一执行步骤从 ⬜ → ⏳",
+            "执行中的能力",
+            "当前同一步骤从 ⏸️ → ⏳",
+            "取得正式成果后才从 ⏳ → ✅",
+            "取消",
+            "部分交付",
+            "不可恢复失败",
+            "最终状态收敛",
+        ):
+            self.assertIn(
+                required_term,
+                execution_test_strategy,
+                required_term,
+            )
+        self.assertNotIn(
+            "用户回答后从暂停点恢复",
+            execution_test_strategy,
+        )
+
+    def test_implementation_plan_task2_matches_runtime_trigger_boundary(
+        self,
+    ):
+        plan = PLAN_PATH.read_text(encoding="utf-8")
+        task_two = plan.split(
+            "### Task 2:",
+            maxsplit=1,
+        )[1].split(
+            "### Task 3:",
+            maxsplit=1,
+        )[0]
+        for required_term in (
+            "门诊慢特病六项能力",
+            "两项及以上（含两项）",
+            "默认不自动触发单一明确任务或指定能力",
+            "用户明确要求制定计划、拆解任务或安排步骤时优先触发",
+            "非门诊慢特病任务仍然排除",
+        ):
+            self.assertIn(required_term, task_two, required_term)
+        default_direct = task_two.index(
+            "默认不自动触发单一明确任务或指定能力"
+        )
+        planning_override = task_two.index(
+            "用户明确要求制定计划、拆解任务或安排步骤时优先触发",
+            default_direct,
+        )
+        self.assertLess(default_direct, planning_override)
+        self.assertNotIn(
+            "涉及知识检索与两个以上审核环节",
+            task_two,
+        )
+
+    def test_implementation_plan_task3_distinguishes_standard_states_and_order(
+        self,
+    ):
+        plan = PLAN_PATH.read_text(encoding="utf-8")
+        task_three = plan.split(
+            "### Task 3:",
+            maxsplit=1,
+        )[1].split(
+            "### Task 4:",
+            maxsplit=1,
+        )[0]
+        for required_term in (
+            "完全未提供认定标准",
+            "已提供但未确认",
+            "不自动检索",
+            "核验来源",
+            "核验现行有效性",
+            "继续查找其他标准",
+            "只有已确认标准",
+        ):
+            self.assertIn(required_term, task_three, required_term)
+        missing_standard = task_three.index("完全未提供认定标准")
+        missing_lookup = task_three.index(
+            "调用 `chronic-disease-knowledge-retrieval`",
+            missing_standard,
+        )
+        provided_unconfirmed = task_three.index(
+            "已提供但未确认",
+            missing_lookup,
+        )
+        no_automatic_lookup = task_three.index(
+            "不自动检索",
+            provided_unconfirmed,
+        )
+        self.assertEqual(
+            [
+                missing_standard,
+                missing_lookup,
+                provided_unconfirmed,
+                no_automatic_lookup,
+            ],
+            sorted(
+                [
+                    missing_standard,
+                    missing_lookup,
+                    provided_unconfirmed,
+                    no_automatic_lookup,
+                ]
+            ),
+        )
+
+        standard_change = task_three.split(
+            "## 标准修改",
+            maxsplit=1,
+        )[1]
+        change_positions = [
+            standard_change.index("提供现行标准"),
+            standard_change.index(
+                "确认拟修改内容、适用范围和业务原因或目标"
+            ),
+            standard_change.index("检索政策、指南、共识等修改依据"),
+            standard_change.index("生成拟修订版并取得用户确认"),
+            standard_change.index("版本比对"),
+            standard_change.index("可选患者材料"),
+        ]
+        self.assertEqual(change_positions, sorted(change_positions))
+        self.assertNotIn(
+            "只有标准并询问准备什么材料：先给通用准备清单",
+            task_three,
+        )
+
+    def test_implementation_plan_task4_has_two_resume_paths_and_termination(
+        self,
+    ):
+        plan = PLAN_PATH.read_text(encoding="utf-8")
+        task_four = plan.split(
+            "### Task 4:",
+            maxsplit=1,
+        )[1].split(
+            "### Task 5:",
+            maxsplit=1,
+        )[0]
+        for required_term in (
+            "独立确认步骤",
+            "确认步骤从 ⏸️ → ✅",
+            "下一执行步骤从 ⬜ → ⏳",
+            "执行中的能力",
+            "当前同一步骤从 ⏸️ → ⏳",
+            "能力内部暂停点",
+            "取得正式成果后才从 ⏳ → ✅",
+            "不得提前进入下一步",
+            "取消",
+            "接受部分交付",
+            "不可恢复失败",
+            "终止并收敛",
+        ):
+            self.assertIn(required_term, task_four, required_term)
+        independent_pause = task_four.index("独立确认步骤")
+        next_running = task_four.index(
+            "下一执行步骤从 ⬜ → ⏳",
+            independent_pause,
+        )
+        in_capability_pause = task_four.index(
+            "执行中的能力",
+            next_running,
+        )
+        in_capability_resume = task_four.index(
+            "当前同一步骤从 ⏸️ → ⏳",
+            in_capability_pause,
+        )
+        terminal_convergence = task_four.index(
+            "终止并收敛",
+            in_capability_resume,
+        )
+        self.assertEqual(
+            [
+                independent_pause,
+                next_running,
+                in_capability_pause,
+                in_capability_resume,
+                terminal_convergence,
+            ],
+            sorted(
+                [
+                    independent_pause,
+                    next_running,
+                    in_capability_pause,
+                    in_capability_resume,
+                    terminal_convergence,
+                ]
+            ),
+        )
+        self.assertNotIn(
+            "用户回答后从暂停点恢复",
+            task_four,
+        )
+
+    def test_design_and_plan_limit_internal_authorization_scope(self):
+        design = DESIGN_PATH.read_text(encoding="utf-8")
+        plan = PLAN_PATH.read_text(encoding="utf-8")
+        sections = {
+            "设计稿省局内网授权": extract_markdown_h2_section(
+                design,
+                "16. 省局内网授权前提",
+            ),
+            "实施计划 Task 4 省局内网授权": (
+                plan.split(
+                    "### Task 4:",
+                    maxsplit=1,
+                )[1].split(
+                    "### Task 5:",
+                    maxsplit=1,
+                )[0].split(
+                    "## 省局内网授权",
+                    maxsplit=1,
+                )[1].split(
+                    "\n```",
+                    maxsplit=1,
+                )[0]
+            ),
+        }
+        for label, section in sections.items():
+            with self.subTest(label=label):
+                for required_term in (
+                    "已确认计划范围内的省局内部应用",
+                    "不覆盖其他外部服务",
+                    "计划外发送",
+                    "不绕过敏感凭据停止门",
+                    "业务确认门仍保留",
+                ):
+                    self.assertIn(
+                        required_term,
+                        section,
+                        f"{label}: {required_term}",
+                    )
+
     def test_design_and_plan_define_planner_and_downstream_delivery_boundaries(self):
         documents = {
             "设计稿": DESIGN_PATH.read_text(encoding="utf-8"),
@@ -1343,8 +1660,10 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "⏳ → ⏸️",
             "⏸️ → ⏳",
             "⏳ → ✅",
+            "本轮验收到达暂停点",
         ):
             self.assertIn(required_term, section, required_term)
+        self.assertNotIn("闭合", section)
         dialogue = section.split(
             "**用户输入或回复**",
             maxsplit=1,
