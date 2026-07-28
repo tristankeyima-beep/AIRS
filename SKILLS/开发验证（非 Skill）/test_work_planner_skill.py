@@ -312,6 +312,21 @@ class WorkPlannerSkillTests(unittest.TestCase):
         for required_term in required_terms:
             self.assertIn(required_term, content, required_term)
 
+    def test_usage_guide_preserves_execution_status_contract(self):
+        content = read("使用说明.md")
+        required_terms = (
+            "可恢复失败",
+            "不可恢复失败",
+            "重大重新规划",
+            "重新确认",
+            "未完成或执行失败",
+            "用户取消",
+            "接受部分交付",
+        )
+
+        for required_term in required_terms:
+            self.assertIn(required_term, content, required_term)
+
 
 if __name__ == "__main__":
     unittest.main()
