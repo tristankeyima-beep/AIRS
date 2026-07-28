@@ -4,7 +4,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SKILL_ROOT = ROOT / "chronic-disease-standard-version-impact-flash"
+SKILL_ROOT = ROOT / "SKILLS/版本管理/chronic-disease-standard-version-impact-flash"
 FIXTURE = ROOT / "chronic-disease-standard-version-impact-flash-acceptance/fixtures/valid-version-impact.json"
 
 

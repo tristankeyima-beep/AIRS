@@ -4,7 +4,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SKILL_ROOT = ROOT / "chronic-disease-material-precheck-flash"
+SKILL_ROOT = ROOT / "SKILLS/材料管理/chronic-disease-material-precheck-flash"
 FIXTURE = ROOT / "chronic-disease-material-precheck-flash-acceptance/fixtures/valid-material-precheck.json"
 
 
