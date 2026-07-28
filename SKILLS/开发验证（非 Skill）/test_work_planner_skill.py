@@ -95,6 +95,25 @@ class WorkPlannerSkillTests(unittest.TestCase):
         for required_term in required_terms:
             self.assertIn(required_term, content, required_term)
 
+    def test_routing_distinguishes_standard_states_and_review_intents(self):
+        content = read("references/intent-routing.md")
+        required_terms = (
+            "完全未提供标准",
+            "已提供但未确认",
+            "不自动检索",
+            "已确认标准",
+            "现行有效性",
+            "临床或业务合理性",
+            "能否配置",
+            "现有患者材料能否覆盖规则",
+            "拟修改内容",
+            "适用范围",
+            "业务原因或目标",
+        )
+
+        for required_term in required_terms:
+            self.assertIn(required_term, content, required_term)
+
     def test_continuous_execution_keeps_business_confirmation_gates(self):
         content = read("references/continuous-execution.md")
         required_terms = (
