@@ -148,6 +148,66 @@ class WorkPlannerSkillTests(unittest.TestCase):
         for required_term in required_terms:
             self.assertIn(required_term, content, required_term)
 
+    def test_execution_mode_selection_precedes_authorization(self):
+        required_terms = (
+            "先展示完整工作计划",
+            "选择执行方式不等于授权执行",
+            "计划未变化",
+            "不重复确认",
+        )
+
+        for relative_path in (
+            "SKILL.md",
+            "references/continuous-execution.md",
+        ):
+            content = read(relative_path)
+            for required_term in required_terms:
+                self.assertIn(
+                    required_term,
+                    content,
+                    f"{relative_path}: {required_term}",
+                )
+
+    def test_continuous_execution_defines_state_transitions_and_end_states(self):
+        content = read("references/continuous-execution.md")
+        required_terms = (
+            "⬜ → ⏳",
+            "⏳ → ✅",
+            "⏳ → ⏸️",
+            "用户取消",
+            "接受部分交付",
+            "不可恢复失败",
+        )
+
+        for required_term in required_terms:
+            self.assertIn(required_term, content, required_term)
+
+    def test_markdown_plan_separates_planned_and_executed_deliverables(self):
+        content = read("references/markdown-plan-template.md")
+        required_terms = (
+            "任务目标",
+            "已具备内容",
+            "需提前准备",
+            "依赖",
+            "⬜ 计划执行后生成",
+            "[交付物名称](下游或平台实际返回的文件地址)",
+            "知识库未返回来源地址",
+            "检索无结果",
+        )
+
+        for required_term in required_terms:
+            self.assertIn(required_term, content, required_term)
+
+        planning_example = content.split(
+            "### 计划模式最小示例",
+            maxsplit=1,
+        )[1].split(
+            "### 自动执行模式最小示例",
+            maxsplit=1,
+        )[0]
+        self.assertNotIn("❌", planning_example)
+        self.assertNotIn("chronic-disease-", content)
+
     def test_skill_preserves_business_boundaries(self):
         content = read("SKILL.md")
         required_terms = (
