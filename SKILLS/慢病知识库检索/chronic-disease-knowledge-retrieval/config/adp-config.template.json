@@ -1,0 +1,8 @@
+{
+  "chat_url": "https://替换为实际的ADP-SSE地址",
+  "app_key_env": "ADP_APP_KEY",
+  "timeout_seconds": 120,
+  "streaming_throttle": 10,
+  "workflow_status": "enable",
+  "search_network": "disable"
+}
