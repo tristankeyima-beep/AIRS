@@ -6,14 +6,14 @@ ROOT = Path(__file__).resolve().parents[2]
 SKILLS_ROOT = ROOT / "SKILLS"
 
 EXPECTED_SKILLS = {
-    "认定标准/chronic-disease-certification-standard-flash",
-    "审核质控/chronic-disease-certification-qc-flash",
-    "材料管理/chronic-disease-material-catalog-flash",
-    "材料管理/chronic-disease-material-precheck-flash",
-    "版本管理/chronic-disease-standard-version-impact-flash",
+    "认定标准生成（Flash）/chronic-disease-certification-standard-flash",
+    "审核质控（Flash）/chronic-disease-certification-qc-flash",
+    "申请材料预检与补件清单（Flash）/chronic-disease-material-precheck-flash",
+    "材料证据编目与归位（Flash）/chronic-disease-material-catalog-flash",
+    "认定标准版本比对与影响分析（Flash）/chronic-disease-standard-version-impact-flash",
 }
 
-COMPLETE_QC_SKILL = "完整版/chronic-disease-certification-qc"
+COMPLETE_QC_SKILL = "门诊慢特病认定标准与审核质控助手（完整版）/chronic-disease-certification-qc"
 
 
 class SkillLayoutTests(unittest.TestCase):
