@@ -376,6 +376,17 @@ class QueryAdpContractTests(unittest.TestCase):
         )
         self.assertNotIn("bot_app_key", json.dumps(result))
 
+    def test_collect_result_uses_stable_empty_workflow_defaults(self):
+        result = self.query_adp.collect_result(
+            "query",
+            [("reply", {"payload": {"content": "answer"}})],
+        )
+
+        self.assertEqual(
+            result["workflow"],
+            {"name": "", "run_id": "", "outputs": []},
+        )
+
     def test_query_adp_posts_json_headers_and_timeout(self):
         captured = {}
         response = io.BytesIO(
@@ -411,6 +422,84 @@ class QueryAdpContractTests(unittest.TestCase):
         self.assertEqual(captured["timeout"], 37)
         self.assertEqual(body["content"], "test query")
         self.assertEqual(result["answer"], "answer")
+
+    def test_query_adp_classifies_sse_connection_reset_as_safe_network_error(self):
+        class ResettingResponse:
+            def __iter__(self):
+                raise ConnectionResetError("secret transport details")
+
+            def close(self):
+                pass
+
+        config = {
+            "chat_url": "https://example.test/chat/sse",
+            "app_key_env": "TEST_ADP_KEY",
+        }
+        with mock.patch.dict(
+            os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
+        ):
+            try:
+                self.query_adp.query_adp(
+                    config,
+                    "test query",
+                    opener=lambda request, timeout: ResettingResponse(),
+                )
+            except Exception as error:
+                self.assertIsInstance(error, self.query_adp.AdPError)
+                self.assertEqual(error.error_type, "network")
+                self.assertNotIn("secret", str(error))
+                self.assertNotIn("test-only-key", str(error))
+            else:
+                self.fail("query_adp did not report a network failure")
+
+    def test_main_handles_sse_oserror_without_traceback_or_secret(self):
+        class FailingResponse:
+            def __iter__(self):
+                raise OSError("secret stream failure")
+
+            def close(self):
+                pass
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        config = {
+            "chat_url": "https://example.test/chat/sse",
+            "app_key_env": "TEST_ADP_KEY",
+        }
+        with mock.patch.dict(
+            os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
+        ):
+            with mock.patch.object(
+                self.query_adp, "load_config", return_value=config
+            ):
+                with mock.patch.object(
+                    self.query_adp.urllib.request,
+                    "urlopen",
+                    return_value=FailingResponse(),
+                ):
+                    with mock.patch("sys.stdout", stdout):
+                        with mock.patch("sys.stderr", stderr):
+                            try:
+                                exit_code = self.query_adp.main(
+                                    [
+                                        "--config",
+                                        "unused.json",
+                                        "--query",
+                                        "query",
+                                    ]
+                                )
+                            except Exception as error:
+                                self.fail(
+                                    "main leaked exception type "
+                                    + type(error).__name__
+                                )
+
+        output = json.loads(stdout.getvalue())
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(output["error_type"], "network")
+        self.assertNotIn("secret", stdout.getvalue())
+        self.assertNotIn("test-only-key", stdout.getvalue())
+        self.assertEqual(stderr.getvalue(), "")
 
     def test_main_prints_safe_json_for_missing_app_key(self):
         with tempfile.TemporaryDirectory() as directory:

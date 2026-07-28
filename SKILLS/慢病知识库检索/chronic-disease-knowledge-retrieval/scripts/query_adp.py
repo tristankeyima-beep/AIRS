@@ -126,7 +126,7 @@ def read_sse(stream):
 def collect_result(query, events):
     answer = ""
     knowledge = []
-    workflow = {"name": None, "run_id": None, "outputs": {}}
+    workflow = {"name": "", "run_id": "", "outputs": []}
     request_id = None
     session_id = None
     reference_types = {1: "qa", 2: "document", 4: "web"}
@@ -230,6 +230,8 @@ def query_adp(config, query, opener=None, debug=False):
         raise AdPError("无法连接 ADP 服务", error_type="network") from error
     except (socket.timeout, TimeoutError) as error:
         raise AdPError("ADP 请求超时", error_type="timeout") from error
+    except OSError as error:
+        raise AdPError("ADP SSE 连接中断", error_type="network") from error
 
     if debug:
         for event_name, _ in events:
