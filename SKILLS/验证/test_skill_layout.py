@@ -13,7 +13,7 @@ EXPECTED_SKILLS = {
     "版本管理/chronic-disease-standard-version-impact-flash",
 }
 
-COMPLETE_QC_SKILL = "审核质控/门诊慢特病审核质控完整版"
+COMPLETE_QC_SKILL = "完整版/chronic-disease-certification-qc"
 
 
 class SkillLayoutTests(unittest.TestCase):
@@ -27,7 +27,7 @@ class SkillLayoutTests(unittest.TestCase):
         for relative_path in EXPECTED_SKILLS:
             self.assertFalse((ROOT / Path(relative_path).name).exists(), relative_path)
 
-    def test_complete_qc_skill_uses_its_chinese_category_name(self):
+    def test_complete_qc_skill_is_grouped_under_the_complete_edition(self):
         skill_root = SKILLS_ROOT / COMPLETE_QC_SKILL
         self.assertTrue((skill_root / "SKILL.md").is_file(), COMPLETE_QC_SKILL)
         self.assertTrue((skill_root / "agents/openai.yaml").is_file(), COMPLETE_QC_SKILL)
