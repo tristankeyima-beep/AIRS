@@ -21,7 +21,9 @@
 确认配置与环境变量已在目标内网环境生效后运行：
 
 ```bash
-python3 "<SKILL_ROOT>/scripts/query_adp.py" --config "<SKILL_ROOT>/config/adp-config.json" --query "请检索一个已知慢病条目，并返回依据来源"
+python3 "<SKILL_ROOT>/scripts/query_adp.py" --config "<SKILL_ROOT>/config/adp-config.json" --query-stdin
 ```
 
-检查标准输出为 UTF-8 JSON，且顶层 `ok` 为 `true`。若不是，按 `error_type` 区分：配置文件或环境变量缺失为“未配置”，认证错误或 HTTP 401/403 为“鉴权失败”，网络、超时或 SSE 错误为“不可访问”，空结果为“检索无结果”。不要在日志中输出 AppKey。
+命令启动后，通过执行工具独立的 stdin 通道发送自检问题，例如“请检索一个已知慢病条目，并返回依据来源”。不要把问题插值或拼接进命令，不要用管道、`echo`、here-document 或其他 shell 方式传入；若执行环境不能安全提供独立 stdin，停止自检并提示维护人员。
+
+检查标准输出为 UTF-8 JSON，且顶层 `ok` 为 `true`。若不是，按 `error_type` 区分：配置文件或环境变量缺失为“未配置”（`config`），HTTP 401/403 为“鉴权失败”（`auth`），网络或 SSE 等错误按现有错误契约说明为“不可访问”，空结果为“检索无结果”。不要在日志中输出 AppKey。
