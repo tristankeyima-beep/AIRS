@@ -27,3 +27,4 @@ build/
 
 # Isolated feature worktrees
 .worktrees/
+SKILLS/慢病知识库检索/chronic-disease-knowledge-retrieval/config/adp-config.json

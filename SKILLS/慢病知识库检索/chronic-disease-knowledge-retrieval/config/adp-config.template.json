@@ -1,0 +1,10 @@
+{
+  "chat_url": "",
+  "app_key": "",
+  "secret_id": "",
+  "secret_key": "",
+  "timeout_seconds": 120,
+  "streaming_throttle": 10,
+  "workflow_status": "enable",
+  "search_network": "disable"
+}
