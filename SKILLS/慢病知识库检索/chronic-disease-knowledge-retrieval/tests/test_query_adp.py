@@ -67,12 +67,37 @@ class QueryAdpContractTests(unittest.TestCase):
             )
 
             with self.assertRaisesRegex(
-                self.query_adp.ConfigError, "app_key"
+                self.query_adp.ConfigError,
+                r"^配置缺少有效字段: app_key$",
             ) as raised:
                 self.query_adp.load_config(path)
 
         message = str(raised.exception)
         self.assertNotIn("test-only-app-key", message)
+        self.assertNotIn("test-only-secret-id", message)
+        self.assertNotIn("test-only-secret-key", message)
+
+    def test_load_config_rejects_missing_app_key_without_leaking_secrets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "chat_url": "https://example.test/chat/sse",
+                        "secret_id": "test-only-secret-id",
+                        "secret_key": "test-only-secret-key",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                self.query_adp.ConfigError,
+                r"^配置缺少有效字段: app_key$",
+            ) as raised:
+                self.query_adp.load_config(path)
+
+        message = str(raised.exception)
         self.assertNotIn("test-only-secret-id", message)
         self.assertNotIn("test-only-secret-key", message)
 
@@ -206,9 +231,10 @@ class QueryAdpContractTests(unittest.TestCase):
             "workflow_status": "enable",
             "search_network": "disable",
         }
-        request = self.query_adp.build_request(
-            config, "糖尿病的诊断标准是什么？"
-        )
+        with mock.patch.dict(os.environ, {}, clear=True):
+            request = self.query_adp.build_request(
+                config, "糖尿病的诊断标准是什么？"
+            )
 
         self.assertEqual(request["content"], "糖尿病的诊断标准是什么？")
         self.assertEqual(request["bot_app_key"], "test-only-app-key")
@@ -1011,7 +1037,10 @@ class QueryAdpContractTests(unittest.TestCase):
             "secret_key": "test-only-secret-key",
             "timeout_seconds": 37,
         }
-        result = self.query_adp.query_adp(config, " test query ", opener=opener)
+        with mock.patch.dict(os.environ, {}, clear=True):
+            result = self.query_adp.query_adp(
+                config, " test query ", opener=opener
+            )
 
         request = captured["request"]
         headers = {name.lower(): value for name, value in request.header_items()}
