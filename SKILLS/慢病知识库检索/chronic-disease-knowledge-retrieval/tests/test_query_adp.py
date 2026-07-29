@@ -73,7 +73,6 @@ class QueryAdpContractTests(unittest.TestCase):
                 self.query_adp.load_config(path)
 
         message = str(raised.exception)
-        self.assertNotIn("test-only-app-key", message)
         self.assertNotIn("test-only-secret-id", message)
         self.assertNotIn("test-only-secret-key", message)
 
@@ -120,6 +119,30 @@ class QueryAdpContractTests(unittest.TestCase):
         self.assertNotIn("secret_id", config)
         self.assertNotIn("secret_key", config)
 
+    def test_load_config_allows_each_optional_signing_field_individually(self):
+        for field, value in (
+            ("secret_id", "test-only-secret-id"),
+            ("secret_key", "test-only-secret-key"),
+        ):
+            with self.subTest(field=field):
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / "config.json"
+                    path.write_text(
+                        json.dumps(
+                            {
+                                "chat_url": "https://example.test/chat/sse",
+                                "app_key": "test-only-app-key",
+                                field: value,
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+
+                    config = self.query_adp.load_config(path)
+
+                self.assertEqual(config["app_key"], "test-only-app-key")
+                self.assertEqual(config[field], value)
+
     def test_load_config_rejects_chat_url_without_http_scheme_and_host(self):
         invalid_urls = (
             "ftp://example.test/chat/sse",
@@ -134,7 +157,7 @@ class QueryAdpContractTests(unittest.TestCase):
                         json.dumps(
                             {
                                 "chat_url": chat_url,
-                                "app_key": "test-only-app-key",
+                                "app_key_env": "TEST_ADP_KEY",
                             }
                         ),
                         encoding="utf-8",
@@ -162,7 +185,7 @@ class QueryAdpContractTests(unittest.TestCase):
                     path = Path(directory) / "config.json"
                     config = {
                         "chat_url": "https://example.test/chat/sse",
-                        "app_key": "test-only-app-key",
+                        "app_key_env": "TEST_ADP_KEY",
                         field: value,
                     }
                     path.write_text(
@@ -184,7 +207,7 @@ class QueryAdpContractTests(unittest.TestCase):
                     path.write_text(
                         (
                             '{"chat_url":"https://example.test/chat/sse",'
-                            '"app_key":"test-only-app-key",'
+                            '"app_key_env":"TEST_ADP_KEY",'
                             f'"timeout_seconds":{timeout}}}'
                         ),
                         encoding="utf-8",
@@ -202,7 +225,7 @@ class QueryAdpContractTests(unittest.TestCase):
                 json.dumps(
                     {
                         "chat_url": "not-a-url",
-                        "app_key": "test-only-app-key",
+                        "app_key_env": "TEST_ADP_KEY",
                         "timeout_seconds": 0,
                     }
                 ),
@@ -210,16 +233,16 @@ class QueryAdpContractTests(unittest.TestCase):
             )
             stdout = io.StringIO()
             stderr = io.StringIO()
-            with mock.patch("sys.stdout", stdout):
-                with mock.patch("sys.stderr", stderr):
-                    exit_code = self.query_adp.main(
-                        ["--config", str(path), "--query", "query"]
-                    )
+            with mock.patch.dict(os.environ, {}, clear=True):
+                with mock.patch("sys.stdout", stdout):
+                    with mock.patch("sys.stderr", stderr):
+                        exit_code = self.query_adp.main(
+                            ["--config", str(path), "--query", "query"]
+                        )
 
         output = json.loads(stdout.getvalue())
         self.assertEqual(exit_code, 1)
         self.assertEqual(output["error_type"], "config")
-        self.assertNotIn("test-only-key", stdout.getvalue())
         self.assertEqual(stderr.getvalue(), "")
 
     def test_build_request_uses_app_key_and_preserves_query_identity(self):
@@ -231,7 +254,14 @@ class QueryAdpContractTests(unittest.TestCase):
             "workflow_status": "enable",
             "search_network": "disable",
         }
-        with mock.patch.dict(os.environ, {}, clear=True):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "ADP_APP_KEY": "poison-default-app-key",
+                "TEST_LEGACY_ADP_KEY": "poison-custom-app-key",
+            },
+            clear=True,
+        ):
             request = self.query_adp.build_request(
                 config, "糖尿病的诊断标准是什么？"
             )
@@ -252,6 +282,8 @@ class QueryAdpContractTests(unittest.TestCase):
         self.assertNotIn("secret_key", request)
         self.assertNotIn("test-only-secret-id", request_json)
         self.assertNotIn("test-only-secret-key", request_json)
+        self.assertNotIn("poison-default-app-key", request_json)
+        self.assertNotIn("poison-custom-app-key", request_json)
         self.assertEqual(
             set(request),
             {
@@ -1037,7 +1069,14 @@ class QueryAdpContractTests(unittest.TestCase):
             "secret_key": "test-only-secret-key",
             "timeout_seconds": 37,
         }
-        with mock.patch.dict(os.environ, {}, clear=True):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "ADP_APP_KEY": "poison-default-app-key",
+                "TEST_LEGACY_ADP_KEY": "poison-custom-app-key",
+            },
+            clear=True,
+        ):
             result = self.query_adp.query_adp(
                 config, " test query ", opener=opener
             )
@@ -1057,6 +1096,8 @@ class QueryAdpContractTests(unittest.TestCase):
         body_json = request.data.decode("utf-8")
         self.assertNotIn("test-only-secret-id", body_json)
         self.assertNotIn("test-only-secret-key", body_json)
+        self.assertNotIn("poison-default-app-key", body_json)
+        self.assertNotIn("poison-custom-app-key", body_json)
         self.assertEqual(result["answer"], "answer")
 
     def test_query_adp_passes_event_generator_directly_to_collector(self):
@@ -1074,19 +1115,22 @@ class QueryAdpContractTests(unittest.TestCase):
 
         config = {
             "chat_url": "https://example.test/chat/sse",
-            "app_key": "test-only-app-key",
+            "app_key_env": "TEST_ADP_KEY",
             "timeout_seconds": 30,
         }
-        with mock.patch.object(
-            self.query_adp,
-            "collect_result",
-            side_effect=collect,
+        with mock.patch.dict(
+            os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
         ):
-            result = self.query_adp.query_adp(
-                config,
-                "test query",
-                opener=lambda request, timeout: response,
-            )
+            with mock.patch.object(
+                self.query_adp,
+                "collect_result",
+                side_effect=collect,
+            ):
+                result = self.query_adp.query_adp(
+                    config,
+                    "test query",
+                    opener=lambda request, timeout: response,
+                )
 
         self.assertEqual(result, {"ok": True})
         self.assertTrue(hasattr(captured["events"], "__next__"))
@@ -1099,16 +1143,19 @@ class QueryAdpContractTests(unittest.TestCase):
         response.headers = {"Content-Type": "text/event-stream"}
         config = {
             "chat_url": "https://example.test/chat/sse",
-            "app_key": "test-only-app-key",
+            "app_key_env": "TEST_ADP_KEY",
             "timeout_seconds": 1,
         }
-        with mock.patch("time.monotonic", side_effect=[0, 2]):
-            with self.assertRaises(self.query_adp.AdPError) as raised:
-                self.query_adp.query_adp(
-                    config,
-                    "test query",
-                    opener=lambda request, timeout: response,
-                )
+        with mock.patch.dict(
+            os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
+        ):
+            with mock.patch("time.monotonic", side_effect=[0, 2]):
+                with self.assertRaises(self.query_adp.AdPError) as raised:
+                    self.query_adp.query_adp(
+                        config,
+                        "test query",
+                        opener=lambda request, timeout: response,
+                    )
 
         self.assertEqual(raised.exception.error_type, "timeout")
 
@@ -1133,16 +1180,19 @@ class QueryAdpContractTests(unittest.TestCase):
         response = SlowResponse()
         config = {
             "chat_url": "https://example.test/chat/sse",
-            "app_key": "test-only-app-key",
+            "app_key_env": "TEST_ADP_KEY",
             "timeout_seconds": 0.05,
         }
         started = time.monotonic()
-        with self.assertRaises(self.query_adp.AdPError) as raised:
-            self.query_adp.query_adp(
-                config,
-                "test query",
-                opener=lambda request, timeout: response,
-            )
+        with mock.patch.dict(
+            os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
+        ):
+            with self.assertRaises(self.query_adp.AdPError) as raised:
+                self.query_adp.query_adp(
+                    config,
+                    "test query",
+                    opener=lambda request, timeout: response,
+                )
         elapsed = time.monotonic() - started
 
         self.assertEqual(raised.exception.error_type, "timeout")
@@ -1170,7 +1220,7 @@ class QueryAdpContractTests(unittest.TestCase):
         response = SocketResponse()
         config = {
             "chat_url": "https://example.test/chat/sse",
-            "app_key": "test-only-app-key",
+            "app_key_env": "TEST_ADP_KEY",
             "timeout_seconds": 0.05,
         }
 
@@ -1186,12 +1236,17 @@ class QueryAdpContractTests(unittest.TestCase):
         cleanup_timer.start()
         started = time.monotonic()
         try:
-            with self.assertRaises(self.query_adp.AdPError) as raised:
-                self.query_adp.query_adp(
-                    config,
-                    "test query",
-                    opener=lambda request, timeout: response,
-                )
+            with mock.patch.dict(
+                os.environ,
+                {"TEST_ADP_KEY": "test-only-key"},
+                clear=True,
+            ):
+                with self.assertRaises(self.query_adp.AdPError) as raised:
+                    self.query_adp.query_adp(
+                        config,
+                        "test query",
+                        opener=lambda request, timeout: response,
+                    )
             elapsed = time.monotonic() - started
         finally:
             cleanup_timer.cancel()
@@ -1246,7 +1301,7 @@ class QueryAdpContractTests(unittest.TestCase):
         )
         config = {
             "chat_url": "https://secret.example/login",
-            "app_key": "test-only-app-key",
+            "app_key_env": "TEST_ADP_KEY",
             "timeout_seconds": 30,
         }
         for content_type, response_body in cases:
@@ -1257,12 +1312,17 @@ class QueryAdpContractTests(unittest.TestCase):
                     if content_type is not None
                     else {}
                 )
-                with self.assertRaises(self.query_adp.AdPError) as raised:
-                    self.query_adp.query_adp(
-                        config,
-                        "test query",
-                        opener=lambda request, timeout: response,
-                    )
+                with mock.patch.dict(
+                    os.environ,
+                    {"TEST_ADP_KEY": "test-only-key"},
+                    clear=True,
+                ):
+                    with self.assertRaises(self.query_adp.AdPError) as raised:
+                        self.query_adp.query_adp(
+                            config,
+                            "test query",
+                            opener=lambda request, timeout: response,
+                        )
 
                 self.assertEqual(raised.exception.error_type, "sse")
                 self.assertNotIn("secret", str(raised.exception))
@@ -1276,7 +1336,7 @@ class QueryAdpContractTests(unittest.TestCase):
         response.headers = {"Content-Type": "text/event-stream"}
         config = {
             "chat_url": "https://example.test/chat/sse",
-            "app_key": "test-only-app-key",
+            "app_key_env": "TEST_ADP_KEY",
         }
         real_dumps = json.dumps
         dump_options = []
@@ -1286,25 +1346,28 @@ class QueryAdpContractTests(unittest.TestCase):
             return real_dumps(*args, **kwargs)
 
         stdout = io.StringIO()
-        with mock.patch.object(
-            self.query_adp.json,
-            "dumps",
-            side_effect=strict_dump,
+        with mock.patch.dict(
+            os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
         ):
-            self.query_adp.query_adp(
-                config,
-                "query",
-                opener=lambda request, timeout: response,
-            )
             with mock.patch.object(
-                self.query_adp,
-                "load_config",
-                return_value=config,
+                self.query_adp.json,
+                "dumps",
+                side_effect=strict_dump,
             ):
+                self.query_adp.query_adp(
+                    config,
+                    "query",
+                    opener=lambda request, timeout: response,
+                )
                 with mock.patch.object(
                     self.query_adp,
-                    "query_adp",
-                    return_value={
+                    "load_config",
+                    return_value=config,
+                ):
+                    with mock.patch.object(
+                        self.query_adp,
+                        "query_adp",
+                        return_value={
                             "ok": True,
                             "query": "query",
                             "answer": "answer",
@@ -1319,17 +1382,17 @@ class QueryAdpContractTests(unittest.TestCase):
                                 "request_id": None,
                                 "source": "tencent-adp",
                             },
-                    },
-                ):
-                    with mock.patch("sys.stdout", stdout):
-                        exit_code = self.query_adp.main(
-                            [
-                                "--config",
-                                "unused.json",
-                                "--query",
-                                "query",
-                            ]
-                        )
+                        },
+                    ):
+                        with mock.patch("sys.stdout", stdout):
+                            exit_code = self.query_adp.main(
+                                [
+                                    "--config",
+                                    "unused.json",
+                                    "--query",
+                                    "query",
+                                ]
+                            )
 
         self.assertEqual(exit_code, 0)
         self.assertGreaterEqual(len(dump_options), 2)
@@ -1349,21 +1412,24 @@ class QueryAdpContractTests(unittest.TestCase):
 
         config = {
             "chat_url": "https://example.test/chat/sse",
-            "app_key": "test-only-app-key",
+            "app_key_env": "TEST_ADP_KEY",
         }
-        try:
-            self.query_adp.query_adp(
-                config,
-                "test query",
-                opener=lambda request, timeout: ResettingResponse(),
-            )
-        except Exception as error:
-            self.assertIsInstance(error, self.query_adp.AdPError)
-            self.assertEqual(error.error_type, "network")
-            self.assertNotIn("secret", str(error))
-            self.assertNotIn("test-only-key", str(error))
-        else:
-            self.fail("query_adp did not report a network failure")
+        with mock.patch.dict(
+            os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
+        ):
+            try:
+                self.query_adp.query_adp(
+                    config,
+                    "test query",
+                    opener=lambda request, timeout: ResettingResponse(),
+                )
+            except Exception as error:
+                self.assertIsInstance(error, self.query_adp.AdPError)
+                self.assertEqual(error.error_type, "network")
+                self.assertNotIn("secret", str(error))
+                self.assertNotIn("test-only-key", str(error))
+            else:
+                self.fail("query_adp did not report a network failure")
 
     def test_main_handles_sse_oserror_without_traceback_or_secret(self):
         class FailingResponse:
@@ -1379,32 +1445,35 @@ class QueryAdpContractTests(unittest.TestCase):
         stderr = io.StringIO()
         config = {
             "chat_url": "https://example.test/chat/sse",
-            "app_key": "test-only-app-key",
+            "app_key_env": "TEST_ADP_KEY",
         }
-        with mock.patch.object(
-            self.query_adp, "load_config", return_value=config
+        with mock.patch.dict(
+            os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
         ):
             with mock.patch.object(
-                self.query_adp.urllib.request,
-                "urlopen",
-                return_value=FailingResponse(),
+                self.query_adp, "load_config", return_value=config
             ):
-                with mock.patch("sys.stdout", stdout):
-                    with mock.patch("sys.stderr", stderr):
-                        try:
-                            exit_code = self.query_adp.main(
-                                [
-                                    "--config",
-                                    "unused.json",
-                                    "--query",
-                                    "query",
-                                ]
-                            )
-                        except Exception as error:
-                            self.fail(
-                                "main leaked exception type "
-                                + type(error).__name__
-                            )
+                with mock.patch.object(
+                    self.query_adp.urllib.request,
+                    "urlopen",
+                    return_value=FailingResponse(),
+                ):
+                    with mock.patch("sys.stdout", stdout):
+                        with mock.patch("sys.stderr", stderr):
+                            try:
+                                exit_code = self.query_adp.main(
+                                    [
+                                        "--config",
+                                        "unused.json",
+                                        "--query",
+                                        "query",
+                                    ]
+                                )
+                            except Exception as error:
+                                self.fail(
+                                    "main leaked exception type "
+                                    + type(error).__name__
+                                )
 
         output = json.loads(stdout.getvalue())
         self.assertEqual(exit_code, 1)
@@ -1428,21 +1497,24 @@ class QueryAdpContractTests(unittest.TestCase):
 
         config = {
             "chat_url": "https://example.test/chat/sse",
-            "app_key": "test-only-app-key",
+            "app_key_env": "TEST_ADP_KEY",
         }
-        try:
-            self.query_adp.query_adp(
-                config,
-                "test query",
-                opener=lambda request, timeout: TruncatedResponse(),
-            )
-        except Exception as error:
-            self.assertIsInstance(error, self.query_adp.AdPError)
-            self.assertEqual(error.error_type, "network")
-            self.assertNotIn("secret", str(error))
-            self.assertNotIn("test-only-key", str(error))
-        else:
-            self.fail("query_adp did not report a network failure")
+        with mock.patch.dict(
+            os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
+        ):
+            try:
+                self.query_adp.query_adp(
+                    config,
+                    "test query",
+                    opener=lambda request, timeout: TruncatedResponse(),
+                )
+            except Exception as error:
+                self.assertIsInstance(error, self.query_adp.AdPError)
+                self.assertEqual(error.error_type, "network")
+                self.assertNotIn("secret", str(error))
+                self.assertNotIn("test-only-key", str(error))
+            else:
+                self.fail("query_adp did not report a network failure")
 
     def test_main_handles_http_exception_without_traceback_or_secret(self):
         class FailingResponse:
@@ -1458,32 +1530,35 @@ class QueryAdpContractTests(unittest.TestCase):
         stderr = io.StringIO()
         config = {
             "chat_url": "https://example.test/chat/sse",
-            "app_key": "test-only-app-key",
+            "app_key_env": "TEST_ADP_KEY",
         }
-        with mock.patch.object(
-            self.query_adp, "load_config", return_value=config
+        with mock.patch.dict(
+            os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
         ):
             with mock.patch.object(
-                self.query_adp.urllib.request,
-                "urlopen",
-                return_value=FailingResponse(),
+                self.query_adp, "load_config", return_value=config
             ):
-                with mock.patch("sys.stdout", stdout):
-                    with mock.patch("sys.stderr", stderr):
-                        try:
-                            exit_code = self.query_adp.main(
-                                [
-                                    "--config",
-                                    "unused.json",
-                                    "--query",
-                                    "query",
-                                ]
-                            )
-                        except Exception as error:
-                            self.fail(
-                                "main leaked exception type "
-                                + type(error).__name__
-                            )
+                with mock.patch.object(
+                    self.query_adp.urllib.request,
+                    "urlopen",
+                    return_value=FailingResponse(),
+                ):
+                    with mock.patch("sys.stdout", stdout):
+                        with mock.patch("sys.stderr", stderr):
+                            try:
+                                exit_code = self.query_adp.main(
+                                    [
+                                        "--config",
+                                        "unused.json",
+                                        "--query",
+                                        "query",
+                                    ]
+                                )
+                            except Exception as error:
+                                self.fail(
+                                    "main leaked exception type "
+                                    + type(error).__name__
+                                )
 
         output = json.loads(stdout.getvalue())
         self.assertEqual(exit_code, 1)
@@ -1499,8 +1574,7 @@ class QueryAdpContractTests(unittest.TestCase):
                 json.dumps(
                     {
                         "chat_url": "https://example.test/chat/sse",
-                        "secret_id": "test-only-secret-id",
-                        "secret_key": "test-only-secret-key",
+                        "app_key_env": "TEST_ADP_KEY",
                     }
                 ),
                 encoding="utf-8",
@@ -1518,10 +1592,7 @@ class QueryAdpContractTests(unittest.TestCase):
         self.assertEqual(exit_code, 1)
         self.assertIs(output["ok"], False)
         self.assertEqual(output["error_type"], "config")
-        self.assertIn("app_key", output["message"])
-        self.assertNotIn("test-only-app-key", stdout.getvalue())
-        self.assertNotIn("test-only-secret-id", stdout.getvalue())
-        self.assertNotIn("test-only-secret-key", stdout.getvalue())
+        self.assertIn("TEST_ADP_KEY", output["message"])
         self.assertEqual(stderr.getvalue(), "")
 
     def test_main_reads_query_stdin_as_plain_text_without_execution(self):
@@ -1550,35 +1621,38 @@ class QueryAdpContractTests(unittest.TestCase):
 
             stdout = io.StringIO()
             stderr = io.StringIO()
-            with mock.patch.object(
-                self.query_adp,
-                "load_config",
-                return_value={
-                    "chat_url": "https://example.test/chat/sse",
-                    "app_key": "test-only-app-key",
-                },
+            with mock.patch.dict(
+                os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
             ):
                 with mock.patch.object(
                     self.query_adp,
-                    "query_adp",
-                    side_effect=fake_query,
+                    "load_config",
+                    return_value={
+                        "chat_url": "https://example.test/chat/sse",
+                        "app_key_env": "TEST_ADP_KEY",
+                    },
                 ):
-                    with mock.patch("sys.stdin", io.StringIO(question)):
-                        with mock.patch("sys.stdout", stdout):
-                            with mock.patch("sys.stderr", stderr):
-                                try:
-                                    exit_code = self.query_adp.main(
-                                        [
-                                            "--config",
-                                            "unused.json",
-                                            "--query-stdin",
-                                        ]
-                                    )
-                                except SystemExit as error:
-                                    self.fail(
-                                        "query-stdin rejected with exit "
-                                        + str(error.code)
-                                    )
+                    with mock.patch.object(
+                        self.query_adp,
+                        "query_adp",
+                        side_effect=fake_query,
+                    ):
+                        with mock.patch("sys.stdin", io.StringIO(question)):
+                            with mock.patch("sys.stdout", stdout):
+                                with mock.patch("sys.stderr", stderr):
+                                    try:
+                                        exit_code = self.query_adp.main(
+                                            [
+                                                "--config",
+                                                "unused.json",
+                                                "--query-stdin",
+                                            ]
+                                        )
+                                    except SystemExit as error:
+                                        self.fail(
+                                            "query-stdin rejected with exit "
+                                            + str(error.code)
+                                        )
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(captured["body"]["content"], question)
@@ -1635,7 +1709,7 @@ class QueryAdpContractTests(unittest.TestCase):
             "load_config",
             return_value={
                 "chat_url": "https://secret.example/path?token=secret",
-                "app_key": "test-only-app-key",
+                "app_key_env": "TEST_ADP_KEY",
             },
         ):
             with mock.patch.object(
