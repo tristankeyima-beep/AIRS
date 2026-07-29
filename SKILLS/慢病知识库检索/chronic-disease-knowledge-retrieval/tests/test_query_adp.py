@@ -1588,15 +1588,22 @@ class QueryAdpContractTests(unittest.TestCase):
                 json.dumps(
                     {
                         "chat_url": "https://example.test/chat/sse",
-                        "app_key_env": "TEST_ADP_KEY",
-                        "app_key": "test-only-app-key",
+                        "secret_id": "test-only-secret-id",
+                        "secret_key": "test-only-secret-key",
                     }
                 ),
                 encoding="utf-8",
             )
             stdout = io.StringIO()
             stderr = io.StringIO()
-            with mock.patch.dict(os.environ, {}, clear=True):
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "ADP_APP_KEY": "poison-default-app-key",
+                    "TEST_LEGACY_ADP_KEY": "poison-custom-app-key",
+                },
+                clear=True,
+            ):
                 with mock.patch("sys.stdout", stdout):
                     with mock.patch("sys.stderr", stderr):
                         exit_code = self.query_adp.main(
@@ -1607,7 +1614,11 @@ class QueryAdpContractTests(unittest.TestCase):
         self.assertEqual(exit_code, 1)
         self.assertIs(output["ok"], False)
         self.assertEqual(output["error_type"], "config")
-        self.assertIn("TEST_ADP_KEY", output["message"])
+        self.assertEqual(output["message"], "配置缺少有效字段: app_key")
+        self.assertNotIn("test-only-secret-id", stdout.getvalue())
+        self.assertNotIn("test-only-secret-key", stdout.getvalue())
+        self.assertNotIn("poison-default-app-key", stdout.getvalue())
+        self.assertNotIn("poison-custom-app-key", stdout.getvalue())
         self.assertEqual(stderr.getvalue(), "")
 
     def test_main_reads_query_stdin_as_plain_text_without_execution(self):
