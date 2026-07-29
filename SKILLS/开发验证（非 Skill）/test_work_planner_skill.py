@@ -89,6 +89,15 @@ def extract_markdown_h3_section(content, title):
     return content[section_start:next_section]
 
 
+def extract_plan_task(content, task_number):
+    task_start = f"### Task {task_number}:"
+    section = content.split(task_start, maxsplit=1)[1]
+    next_task = f"### Task {task_number + 1}:"
+    if next_task in section:
+        return section.split(next_task, maxsplit=1)[0]
+    return section
+
+
 TRIGGER_CAPABILITIES = (
     "知识检索",
     "标准生成",
@@ -164,86 +173,85 @@ def assert_trigger_section(test_case, label, section):
     )
 
 
-def assert_cross_document_trigger_contract(test_case, sections):
+def assert_standard_section(test_case, label, chapters):
     test_case.assertEqual(
-        set(sections),
-        {"设计稿", "实施计划", "运行时 Skill", "使用说明"},
+        set(chapters),
+        {"完全未提供", "已提供未确认", "已确认", "标准修改"},
+        f"{label}: 标准状态章节不完整",
     )
-    for label, section in sections.items():
-        assert_trigger_section(test_case, label, section)
 
-
-def assert_standard_section(test_case, label, section):
-    for required_term in (
-        "完全未提供",
-        "已提供但未确认",
-        "不自动检索",
-        "已确认标准",
-        "通用准备清单",
-        "标准修改",
-    ):
-        test_case.assertIn(
-            required_term,
-            section,
-            f"{label}: {required_term}",
-        )
-    missing_position = section.index("完全未提供")
-    lookup_position = section.index("知识库检索", missing_position)
-    provided_position = section.index("已提供但未确认", lookup_position)
-    no_lookup_position = section.index("不自动检索", provided_position)
-    confirmed_position = section.index("已确认标准", no_lookup_position)
-    checklist_position = section.index(
-        "通用准备清单",
-        confirmed_position,
-    )
-    test_case.assertEqual(
-        [
-            missing_position,
-            lookup_position,
-            provided_position,
-            no_lookup_position,
-            confirmed_position,
-            checklist_position,
-        ],
-        sorted(
-            [
-                missing_position,
-                lookup_position,
-                provided_position,
-                no_lookup_position,
-                confirmed_position,
-                checklist_position,
-            ]
+    missing = chapters["完全未提供"]
+    assert_regex_sequence(
+        test_case,
+        f"{label}完全未提供",
+        missing,
+        (
+            r"(?:完全未提供|没有提供|手头没有).*?标准",
+            r"(?:知识库检索|检索候选|检索.*候选)",
+            r"(?:用户确认|请用户确认|确认候选|"
+            r"补充修正|补充或修正|补充或修订|"
+            r"补充、确认或修订)",
         ),
     )
-    standard_change = section.split("标准修改", maxsplit=1)[1]
+
+    unconfirmed = chapters["已提供未确认"]
+    assert_regex_sequence(
+        test_case,
+        f"{label}已提供未确认",
+        unconfirmed,
+        (
+            r"(?:已提供但未确认|已经提供标准但未确认|"
+            r"已提供.*?尚未确认|标准已提供.*?未确认)",
+            r"(?:先|首先).*?(?:确认|请用户确认)",
+            r"(?:不自动检索|不能自动检索|不会自动检索|"
+            r"仅在.*?要求.*?才.*?检索|只有.*?要求.*?才.*?检索)",
+        ),
+    )
+    test_case.assertNotRegex(
+        unconfirmed,
+        r"(?:已提供但未确认|已提供.*尚未确认|标准已提供.*未确认)"
+        r".{0,120}(?:立即|直接|默认|必须|应当)自动检索",
+        f"{label}: 未确认标准不得自动检索",
+    )
+
+    confirmed = chapters["已确认"]
+    assert_regex_sequence(
+        test_case,
+        f"{label}已确认",
+        confirmed,
+        (
+            r"已确认标准",
+            r"通用准备清单",
+            r"(?:引导|邀请|询问).*?"
+            r"(?:材料预检|预检|上传.*?材料)",
+        ),
+    )
+
+    standard_change = chapters["标准修改"]
     assert_regex_sequence(
         test_case,
         f"{label}标准修改",
         standard_change,
         (
-            r"现行标准",
+            r"(?:确认|提供并确认).*?现行标准",
             r"拟修改内容",
             r"适用范围",
-            r"业务原因(?:或目标)?",
+            r"(?:业务原因|原因或目标|业务原因或目标)",
             r"检索",
-            r"拟修订版",
-            r"确认",
-            r"(?:版本影响|版本比对|比较现行版)",
-            r"(?:可选|可邀请).*?患者材料",
+            r"(?:生成|形成).*?拟修订(?:版|标准)",
+            r"(?:用户确认|由用户确认|取得用户确认|"
+            r"请您确认|请用户确认)",
+            r"(?:版本影响|版本比对|版本比较|"
+            r"比较现行版|比较现行版本)",
+            r"(?:可选|可邀请).*?(?:真实)?患者材料",
         ),
     )
-    for contradiction in (
-        r"已提供但未确认.{0,40}(?:时|就|应当|必须)自动检索",
-        r"完全未提供.{0,40}不检索",
-        r"先检索.{0,80}再确认拟修改内容",
-        r"未确认标准.{0,40}通用准备清单",
-    ):
-        test_case.assertNotRegex(
-            section,
-            contradiction,
-            f"{label}: 出现相反标准状态语义 {contradiction}",
-        )
+    test_case.assertNotRegex(
+        standard_change,
+        r"先检索.{0,160}(?:再|然后).*"
+        r"(?:确认|询问).*拟修改内容",
+        f"{label}: 修改目标应先确认再检索",
+    )
 
 
 def assert_cross_document_standard_contract(test_case, sections):
@@ -256,28 +264,54 @@ def assert_cross_document_standard_contract(test_case, sections):
 
 
 def assert_pause_section(test_case, label, section):
+    assert_regex_sequence(
+        test_case,
+        f"{label}独立确认恢复",
+        section,
+        (
+            r"(?:独立确认步骤|独立的确认步骤|"
+            r"确认采用的认定标准.*?暂停)",
+            r"(?:确认步骤|该确认步骤).*?"
+            r"⏸️(?:\s*→\s*|.{0,12}?变为\s*)✅",
+            r"(?:下一执行步骤|下一步骤).*?"
+            r"⬜(?:\s*→\s*|.{0,12}?变为\s*)⏳",
+        ),
+    )
+    assert_regex_sequence(
+        test_case,
+        f"{label}能力内部恢复",
+        section,
+        (
+            r"(?:执行中的能力|同一.{0,30}?步骤|预检步骤)",
+            r"(?:当前|同一).*?步骤.*?"
+            r"⏸️(?:\s*→\s*|.{0,12}?变(?:回|为)\s*)⏳",
+            r"(?:能力内部暂停点|下游能力内部暂停点|"
+            r"继续当前能力|从暂停位置继续)",
+            r"(?:正式成果|JSON.*?HTML).*?"
+            r"(?:⏳(?:\s*→\s*|.{0,12}?变为\s*)✅|才.*?✅)",
+        ),
+    )
     for pattern in (
-        r"独立确认步骤",
-        r"确认步骤.*⏸️ → ✅",
-        r"下一执行步骤.*⬜ → ⏳",
-        r"执行中的能力",
-        r"当前.*步骤.*⏸️ → ⏳",
-        r"(?:能力内部暂停点|下游能力内部暂停点|继续当前能力)",
-        r"正式成果.*⏳ → ✅",
         r"取消",
         r"(?:接受)?部分交付",
         r"不可恢复失败",
-        r"(?:最终状态收敛|终止并收敛|不得留下|不得遗留)",
+        r"(?:最终状态收敛|终止并收敛|"
+        r"不得留下|不得遗留|无.*遗留|全部.*❌)",
     ):
         test_case.assertRegex(
             section,
             pattern,
-            f"{label}: {pattern}",
+            f"{label}: 终止收敛缺少 {pattern}",
         )
     for contradiction in (
-        r"所有用户回答后.*(?:直接进入下一步|确认步骤.*✅)",
-        r"用户回答后.*当前.*步骤.*(?:⏸️ → ✅|直接.*✅)",
-        r"确认后.*提前进入下一步",
+        r"(?:执行中的能力|同一.*步骤).{0,160}"
+        r"⏸️\s*→\s*✅",
+        r"(?:内部暂停|暂停位置).{0,160}"
+        r"(?:直接进入下一步|可以提前进入下一步|"
+        r"可提前进入下一步|会提前进入下一步|"
+        r"将提前进入下一步)",
+        r"(?:取消|部分交付|不可恢复失败).{0,160}"
+        r"(?:继续执行|保持.*(?:⏳|⏸️|⬜))",
     ):
         test_case.assertNotRegex(
             section,
@@ -299,10 +333,11 @@ def assert_authorization_section(test_case, label, section):
     for pattern in (
         r"已确认计划范围内",
         r"省局内部应用",
-        r"不覆盖其他外部服务",
-        r"计划外发送",
+        r"(?:不覆盖|不能覆盖).*其他外部服务",
+        r"(?:不覆盖|不能覆盖).*计划外发送",
         r"(?:不绕过|不能覆盖或绕过).*敏感凭据",
-        r"业务确认门.*(?:仍保留|仍必须|不能绕过)",
+        r"(?:业务确认门.*(?:仍保留|仍必须|不能绕过)|"
+        r"认定标准选择.*仍必须由用户确认)",
     ):
         test_case.assertRegex(
             section,
@@ -310,9 +345,12 @@ def assert_authorization_section(test_case, label, section):
             f"{label}: {pattern}",
         )
     for contradiction in (
-        r"(?:可以|可).*覆盖其他外部服务",
-        r"(?:可以|可).*计划外发送",
-        r"授权.*(?:可以|可|能够|会|将)(?:覆盖|绕过).*敏感凭据停止门",
+        r"(?:授权|确认).{0,80}(?:可以|可|允许)"
+        r"(?:覆盖|调用).*其他外部服务",
+        r"(?:授权|确认).{0,80}(?:可以|可|允许)"
+        r"(?:覆盖|进行).*计划外发送",
+        r"(?:授权|确认).{0,80}(?:可以|可|允许)"
+        r"(?:覆盖|绕过|关闭|跳过).*敏感凭据停止门",
         r"业务确认门.*(?:不再保留|可以绕过)",
     ):
         test_case.assertNotRegex(
@@ -1418,6 +1456,305 @@ class WorkPlannerSkillTests(unittest.TestCase):
                 mutated_task_two,
             )
 
+    def test_standard_contract_is_consistent_across_relevant_documents(
+        self,
+    ):
+        design = DESIGN_PATH.read_text(encoding="utf-8")
+        plan = PLAN_PATH.read_text(encoding="utf-8")
+        routing = read("references/intent-routing.md")
+        usage = read("使用说明.md")
+        design_missing = extract_markdown_h2_section(
+            design,
+            "11. 缺少认定标准时的公共前置流程",
+        )
+        task_three = extract_plan_task(plan, 3)
+        routing_missing = extract_markdown_h2_section(
+            routing,
+            "缺少认定标准",
+        )
+        usage_boundaries = extract_markdown_h2_section(
+            usage,
+            "重要边界",
+        )
+
+        assert_cross_document_standard_contract(
+            self,
+            {
+                "设计稿": {
+                    "完全未提供": extract_markdown_h3_section(
+                        design_missing,
+                        "完全未提供认定标准",
+                    ),
+                    "已提供未确认": extract_markdown_h3_section(
+                        design_missing,
+                        "标准已提供但未确认",
+                    ),
+                    "已确认": extract_markdown_h3_section(
+                        extract_markdown_h2_section(
+                            design,
+                            "15. 典型意图处理",
+                        ),
+                        "15.2 只有标准，询问需要准备什么材料",
+                    ),
+                    "标准修改": extract_markdown_h2_section(
+                        design,
+                        "14. 标准修改与版本影响路线",
+                    ),
+                },
+                "实施计划": {
+                    "完全未提供": extract_markdown_h3_section(
+                        task_three,
+                        "完全未提供认定标准",
+                    ),
+                    "已提供未确认": extract_markdown_h3_section(
+                        task_three,
+                        "已提供但未确认",
+                    ),
+                    "已确认": (
+                        task_three.split(
+                            "### 已确认标准",
+                            maxsplit=1,
+                        )[1].split(
+                            "## 标准修改",
+                            maxsplit=1,
+                        )[0]
+                    ),
+                    "标准修改": task_three.split(
+                        "## 标准修改",
+                        maxsplit=1,
+                    )[1],
+                },
+                "运行时路由": {
+                    "完全未提供": extract_markdown_h3_section(
+                        routing_missing,
+                        "完全未提供标准",
+                    ),
+                    "已提供未确认": extract_markdown_h3_section(
+                        routing_missing,
+                        "已提供但未确认",
+                    ),
+                    "已确认": extract_markdown_h3_section(
+                        extract_markdown_h2_section(
+                            routing,
+                            "关键分流",
+                        ),
+                        "只有已确认标准，询问准备什么材料",
+                    ),
+                    "标准修改": extract_markdown_h2_section(
+                        routing,
+                        "标准修改",
+                    ),
+                },
+                "使用说明": {
+                    "完全未提供": extract_markdown_h3_section(
+                        usage_boundaries,
+                        "完全未提供认定标准",
+                    ),
+                    "已提供未确认": extract_markdown_h3_section(
+                        usage_boundaries,
+                        "标准已提供但未确认",
+                    ),
+                    "已确认": extract_markdown_h3_section(
+                        usage_boundaries,
+                        "已确认标准",
+                    ),
+                    "标准修改": extract_markdown_h3_section(
+                        usage_boundaries,
+                        "修改认定标准",
+                    ),
+                },
+            },
+        )
+
+    def test_standard_contract_rejects_automatic_lookup_for_unconfirmed_input(
+        self,
+    ):
+        routing = read("references/intent-routing.md")
+        missing_section = extract_markdown_h2_section(
+            routing,
+            "缺少认定标准",
+        )
+        unconfirmed = extract_markdown_h3_section(
+            missing_section,
+            "已提供但未确认",
+        )
+        self.assertIn("此状态下不自动检索", unconfirmed)
+        mutated_unconfirmed = unconfirmed.replace(
+            "此状态下不自动检索",
+            "此状态下自动检索",
+            1,
+        )
+        chapters = {
+            "完全未提供": extract_markdown_h3_section(
+                missing_section,
+                "完全未提供标准",
+            ),
+            "已提供未确认": mutated_unconfirmed,
+            "已确认": extract_markdown_h3_section(
+                extract_markdown_h2_section(
+                    routing,
+                    "关键分流",
+                ),
+                "只有已确认标准，询问准备什么材料",
+            ),
+            "标准修改": extract_markdown_h2_section(
+                routing,
+                "标准修改",
+            ),
+        }
+
+        with self.assertRaisesRegex(
+            AssertionError,
+            "未确认|不自动检索",
+        ):
+            assert_standard_section(
+                self,
+                "运行时路由反例",
+                chapters,
+            )
+
+    def test_pause_contract_is_consistent_across_relevant_documents(
+        self,
+    ):
+        design = DESIGN_PATH.read_text(encoding="utf-8")
+        plan = PLAN_PATH.read_text(encoding="utf-8")
+        execution = read("references/continuous-execution.md")
+        usage = read("使用说明.md")
+        assert_cross_document_pause_contract(
+            self,
+            {
+                "设计稿": (
+                    extract_markdown_h2_section(
+                        design,
+                        "9. 暂停与重新规划",
+                    )
+                    + "\n"
+                    + extract_markdown_h2_section(
+                        design,
+                        "18. 澄清问题与工作计划分离",
+                    )
+                ),
+                "实施计划": extract_plan_task(plan, 4),
+                "运行时执行": (
+                    extract_markdown_h2_section(
+                        execution,
+                        "状态转移",
+                    )
+                    + "\n"
+                    + extract_markdown_h2_section(
+                        execution,
+                        "终止路径与状态收敛",
+                    )
+                    + "\n"
+                    + extract_markdown_h2_section(
+                        execution,
+                        "暂停、恢复与重新规划",
+                    )
+                ),
+                "使用说明": extract_markdown_h2_section(
+                    usage,
+                    "两种使用方式",
+                ),
+            },
+        )
+
+    def test_pause_contract_rejects_completing_an_internal_pause(
+        self,
+    ):
+        execution = read("references/continuous-execution.md")
+        execution_contract = (
+            extract_markdown_h2_section(
+                execution,
+                "状态转移",
+            )
+            + "\n"
+            + extract_markdown_h2_section(
+                execution,
+                "终止路径与状态收敛",
+            )
+            + "\n"
+            + extract_markdown_h2_section(
+                execution,
+                "暂停、恢复与重新规划",
+            )
+        )
+        self.assertIn(
+            "⏸️ → ⏳",
+            execution_contract,
+        )
+        mutated_execution = execution_contract.replace(
+            "⏸️ → ⏳",
+            "⏸️ → ✅",
+        )
+        self.assertNotEqual(execution_contract, mutated_execution)
+
+        with self.assertRaises(AssertionError):
+            assert_pause_section(
+                self,
+                "运行时执行反例",
+                mutated_execution,
+            )
+
+    def test_authorization_contract_is_consistent_across_relevant_documents(
+        self,
+    ):
+        design = DESIGN_PATH.read_text(encoding="utf-8")
+        plan = PLAN_PATH.read_text(encoding="utf-8")
+        execution = read("references/continuous-execution.md")
+        usage = read("使用说明.md")
+        task_four = extract_plan_task(plan, 4)
+        assert_cross_document_authorization_contract(
+            self,
+            {
+                "设计稿": extract_markdown_h2_section(
+                    design,
+                    "16. 省局内网授权前提",
+                ),
+                "实施计划": (
+                    task_four.split(
+                        "## 省局内网授权",
+                        maxsplit=1,
+                    )[1].split(
+                        "\n```",
+                        maxsplit=1,
+                    )[0]
+                ),
+                "运行时执行": extract_markdown_h2_section(
+                    execution,
+                    "省局内网授权",
+                ),
+                "使用说明": extract_markdown_h2_section(
+                    usage,
+                    "重要边界",
+                ),
+            },
+        )
+
+    def test_authorization_contract_rejects_external_and_unplanned_sending(
+        self,
+    ):
+        execution = read("references/continuous-execution.md")
+        authorization = extract_markdown_h2_section(
+            execution,
+            "省局内网授权",
+        )
+        self.assertIn(
+            "不覆盖其他外部服务或任何计划外发送",
+            authorization,
+        )
+        mutated_authorization = authorization.replace(
+            "不覆盖其他外部服务或任何计划外发送",
+            "可以覆盖其他外部服务和任何计划外发送",
+            1,
+        )
+
+        with self.assertRaises(AssertionError):
+            assert_authorization_section(
+                self,
+                "运行时执行反例",
+                mutated_authorization,
+            )
+
     def test_implementation_plan_task3_distinguishes_standard_states_and_order(
         self,
     ):
@@ -1474,7 +1811,7 @@ class WorkPlannerSkillTests(unittest.TestCase):
             maxsplit=1,
         )[1]
         change_positions = [
-            standard_change.index("提供现行标准"),
+            standard_change.index("提供并确认现行标准"),
             standard_change.index(
                 "确认拟修改内容、适用范围和业务原因或目标"
             ),
