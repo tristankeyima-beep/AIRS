@@ -131,11 +131,11 @@ class QueryAdpWorkflowTests(unittest.TestCase):
         self.assertEqual(headers["X-TC-Action"], "CreateWorkflowRun")
         self.assertIn(
             "Signature="
-            "eaa2cea1d23324a23952fbee240900a11186e571aa8f6d763e8fb0af1e837e08",
+            "bfbf0ed5100b0f135a48b11e7f44ada7c4e583b70479c2741c63b81bc96d3fd0",
             headers["Authorization"],
         )
         self.assertIn(
-            "SignedHeaders=content-type;host;x-tc-action",
+            "SignedHeaders=content-type;host",
             headers["Authorization"],
         )
 
