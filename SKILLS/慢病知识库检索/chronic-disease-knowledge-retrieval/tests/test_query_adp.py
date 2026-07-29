@@ -15,6 +15,7 @@ from unittest import mock
 
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "query_adp.py"
+TEMPLATE_PATH = Path(__file__).resolve().parents[1] / "config" / "adp-config.template.json"
 
 
 def load_query_adp():
@@ -28,6 +29,15 @@ class QueryAdpContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.query_adp = load_query_adp()
+
+    def test_config_template_uses_direct_credentials(self):
+        template = json.loads(TEMPLATE_PATH.read_text(encoding="utf-8"))
+
+        self.assertEqual(template["chat_url"], "")
+        self.assertEqual(template["app_key"], "")
+        self.assertEqual(template["secret_id"], "")
+        self.assertEqual(template["secret_key"], "")
+        self.assertNotIn("app_key_env", template)
 
     def test_load_config_reads_utf8_json_and_validates_required_fields(self):
         with tempfile.TemporaryDirectory() as directory:
