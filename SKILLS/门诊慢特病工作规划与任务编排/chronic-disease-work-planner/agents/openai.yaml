@@ -1,0 +1,4 @@
+interface:
+  display_name: "门诊慢特病工作规划与任务编排"
+  short_description: "引导复杂慢特病任务规划，支持只制定计划或确认后连续执行"
+  default_prompt: "使用 $chronic-disease-work-planner 帮我梳理目标和已有资料，说明可选成果，提出必要问题，并制定清晰的门诊慢特病工作计划。"
