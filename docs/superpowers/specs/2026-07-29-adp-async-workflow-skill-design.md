@@ -67,4 +67,4 @@
 - 新 Skill 只实现 `CreateWorkflowRun` 和 `DescribeWorkflowRun`。
 - 目标应用类型固定为 `knowledge_qa`；接口请求仍以 `AppBizId` 标识应用，不额外发送 `app_type`。
 - 本地自测覆盖配置、TC3 签名、创建运行、轮询成功、工作流失败和超时；真实内网连通性由部署后验证。
-- `knowledge_qa` 下仍可能存在标准、单工作流或 Multi-Agent 等模式。若内网目标模式不支持 `CreateWorkflowRun`，返回 ADP 的原始错误类别和 `RequestId`，不自动切换到 WebSocket 或 SSE。
+- `knowledge_qa` 下仍可能存在标准、单工作流或 Multi-Agent 等模式。腾讯 SDK 明确要求应用配置为“单工作流模式”后才能调用 `CreateWorkflowRun`。若内网目标模式不兼容，返回 ADP 的原始错误类别和 `RequestId`，不自动切换到 WebSocket 或 SSE。

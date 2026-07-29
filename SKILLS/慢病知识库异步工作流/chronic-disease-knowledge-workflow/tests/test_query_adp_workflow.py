@@ -82,6 +82,21 @@ class QueryAdpWorkflowTests(unittest.TestCase):
         self.assertEqual(config["service"], "lke")
         self.assertEqual(config["version"], "2023-11-30")
 
+    def test_skill_uses_safe_stdin_command_and_warns_about_app_mode(self):
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text(
+            encoding="utf-8",
+        )
+        deployment_path = (
+            SKILL_ROOT / "references" / "internal-deployment.md"
+        )
+        self.assertTrue(deployment_path.exists())
+        deployment_text = deployment_path.read_text(encoding="utf-8")
+        self.assertIn("scripts/query_adp_workflow.py", skill_text)
+        self.assertIn("--query-stdin", skill_text)
+        self.assertIn("外部不可信", skill_text)
+        self.assertIn("单工作流模式", deployment_text)
+        self.assertIn("knowledge_qa", deployment_text)
+
     def test_load_config_reads_direct_credentials(self):
         module = self.require_module()
         config = sample_config()
