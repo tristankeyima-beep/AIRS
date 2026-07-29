@@ -209,8 +209,10 @@ def assert_standard_section(test_case, label, chapters):
     )
     test_case.assertNotRegex(
         unconfirmed,
-        r"(?:已提供但未确认|已提供.*尚未确认|标准已提供.*未确认)"
-        r".{0,120}(?:立即|直接|默认|必须|应当)自动检索",
+        r"(?:已提供但未确认|已提供.*尚未确认|"
+        r"标准已提供.*未确认|此状态下|确认前|未确认时)"
+        r".{0,120}(?<!不)(?<!不应)(?<!不可)(?<!不会)"
+        r"(?<!不能)(?<!不得)自动检索",
         f"{label}: 未确认标准不得自动检索",
     )
 
@@ -310,6 +312,10 @@ def assert_pause_section(test_case, label, section):
         r"(?:直接进入下一步|可以提前进入下一步|"
         r"可提前进入下一步|会提前进入下一步|"
         r"将提前进入下一步)",
+        r"(?:执行中的能力|能力内部|内部暂停).{0,160}"
+        r"(?:用户回答|回答后).{0,60}"
+        r"(?:即可|可以|直接).{0,30}"
+        r"(?:标记|视为|算作)(?:已)?完成",
         r"(?:取消|部分交付|不可恢复失败).{0,160}"
         r"(?:继续执行|保持.*(?:⏳|⏸️|⬜))",
     ):
@@ -1579,10 +1585,9 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "已提供但未确认",
         )
         self.assertIn("此状态下不自动检索", unconfirmed)
-        mutated_unconfirmed = unconfirmed.replace(
-            "此状态下不自动检索",
-            "此状态下自动检索",
-            1,
+        mutated_unconfirmed = (
+            unconfirmed
+            + "\n此状态下自动检索。\n"
         )
         chapters = {
             "完全未提供": extract_markdown_h3_section(
@@ -1682,11 +1687,10 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "⏸️ → ⏳",
             execution_contract,
         )
-        mutated_execution = execution_contract.replace(
-            "⏸️ → ⏳",
-            "⏸️ → ✅",
+        mutated_execution = (
+            execution_contract
+            + "\n执行中的能力暂停后，用户回答即可直接标记完成。\n"
         )
-        self.assertNotEqual(execution_contract, mutated_execution)
 
         with self.assertRaises(AssertionError):
             assert_pause_section(
