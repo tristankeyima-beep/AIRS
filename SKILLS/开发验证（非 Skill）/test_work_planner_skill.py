@@ -143,6 +143,8 @@ def assert_trigger_section(test_case, label, section):
         r"明确要求.*(?:制定|拆解|安排).*(?:不触发|不使用规划助手)",
         r"(?:单一明确任务|指定能力).*即使.*明确要求.*"
         r"(?:不触发|直接办理)",
+        r"(?:两项及以上|两项以上|任意两项|两个或以上)"
+        r".{0,80}(?:不触发|不使用规划助手)",
     ):
         test_case.assertNotRegex(
             section,
@@ -528,7 +530,7 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "name: chronic-disease-work-planner",
             "只制定计划",
             "自动连续执行",
-            "一至三个",
+            "二至三个",
             "患者申请材料",
             "病种认定标准",
             "审核结果",
@@ -537,6 +539,62 @@ class WorkPlannerSkillTests(unittest.TestCase):
 
         for required_term in required_terms:
             self.assertIn(required_term, content, required_term)
+        self.assertNotIn("一至三个", content)
+
+    def test_runtime_guided_interaction_contract(self):
+        runtime_skill = read("SKILL.md")
+        intent_routing = read("references/intent-routing.md")
+        plan_template = read("references/markdown-plan-template.md")
+        usage = read("使用说明.md")
+        design = DESIGN_PATH.read_text(encoding="utf-8")
+        plan = PLAN_PATH.read_text(encoding="utf-8")
+
+        for label, content in {
+            "运行时 Skill": runtime_skill,
+            "意图路由": intent_routing,
+        }.items():
+            with self.subTest(label=label):
+                for required_term in (
+                    "意图不确定",
+                    "关键输入不足",
+                    "热情、友好、温暖",
+                    "推荐",
+                    "二至三个关键问题",
+                    "可选路径",
+                    "各自产物",
+                ):
+                    self.assertIn(required_term, content, required_term)
+
+        for required_term in (
+            "详细澄清问题",
+            "计划之外单独提问",
+            "问题摘要",
+            "⏸️ 正在确认",
+        ):
+            self.assertIn(required_term, plan_template, required_term)
+
+        for required_term in (
+            "热情、友好、温暖",
+            "推荐",
+            "二至三个关键问题",
+            "可选路径",
+            "各自产物",
+        ):
+            self.assertIn(required_term, usage, required_term)
+
+        for label, content in {
+            "运行时 Skill": runtime_skill,
+            "使用说明": usage,
+            "设计稿": design,
+            "实施计划": plan,
+        }.items():
+            with self.subTest(label=label):
+                self.assertNotIn("一至三个", content)
+
+        self.assertIn(
+            "单一明确任务或指定具体能力",
+            runtime_skill,
+        )
 
     def test_skill_narrows_trigger_boundary(self):
         content = read("SKILL.md")
@@ -1225,6 +1283,23 @@ class WorkPlannerSkillTests(unittest.TestCase):
             self.assertIn("⬜", row, row)
             self.assertNotIn("✅", row, row)
 
+        delivery_table = example.split(
+            "## 三、交付物汇总",
+            maxsplit=1,
+        )[1]
+        for deliverable in (
+            "认定标准 JSON 数据文件",
+            "认定标准离线页面",
+            "材料编目 JSON 数据文件",
+            "材料编目离线页面",
+            "材料预检 JSON 数据文件",
+            "材料预检离线页面",
+        ):
+            self.assertIn(deliverable, delivery_table, deliverable)
+        self.assertNotIn("| 结构化认定标准 |", delivery_table)
+        self.assertNotIn("| 材料预检与补件清单 |", delivery_table)
+        self.assertNotIn("](", delivery_table)
+
     def test_design_and_plan_keep_future_states_planned_while_waiting(self):
         design = DESIGN_PATH.read_text(encoding="utf-8")
         plan = PLAN_PATH.read_text(encoding="utf-8")
@@ -1386,17 +1461,21 @@ class WorkPlannerSkillTests(unittest.TestCase):
         self,
     ):
         plan = PLAN_PATH.read_text(encoding="utf-8")
+        design = DESIGN_PATH.read_text(encoding="utf-8")
         runtime_skill = read("SKILL.md")
-        task_two = plan.split(
-            "### Task 2:",
-            maxsplit=1,
-        )[1].split(
-            "### Task 3:",
-            maxsplit=1,
-        )[0]
+        usage = read("使用说明.md")
+        task_two = extract_plan_task(plan, 2)
         trigger_contracts = {
+            "设计稿": extract_markdown_h2_section(
+                design,
+                "5. 触发规则",
+            ),
             "实施计划": task_two,
             "运行时 Skill": runtime_skill,
+            "使用说明": extract_markdown_h2_section(
+                usage,
+                "适用场景",
+            ),
         }
         for label, content in trigger_contracts.items():
             with self.subTest(label=label):
@@ -1414,6 +1493,35 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "涉及知识检索与两个以上审核环节",
             task_two,
         )
+
+    def test_cross_document_trigger_contract_rejects_design_and_usage_drift(
+        self,
+    ):
+        design_section = extract_markdown_h2_section(
+            DESIGN_PATH.read_text(encoding="utf-8"),
+            "5. 触发规则",
+        )
+        usage_section = extract_markdown_h2_section(
+            read("使用说明.md"),
+            "适用场景",
+        )
+        mutated_sections = {
+            "设计稿反例": (
+                design_section
+                + "\n即使用户明确要求制定计划，也不触发规划助手。\n"
+            ),
+            "使用说明反例": (
+                usage_section
+                + "\n涉及六项能力中的任意两项时，也不触发规划助手。\n"
+            ),
+        }
+        for label, content in mutated_sections.items():
+            with self.subTest(label=label):
+                with self.assertRaisesRegex(
+                    AssertionError,
+                    "出现相反触发语义",
+                ):
+                    assert_trigger_section(self, label, content)
 
     def test_trigger_contract_rejects_missing_heavy_material_qualifier(
         self,
@@ -1746,10 +1854,9 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "不覆盖其他外部服务或任何计划外发送",
             authorization,
         )
-        mutated_authorization = authorization.replace(
-            "不覆盖其他外部服务或任何计划外发送",
-            "可以覆盖其他外部服务和任何计划外发送",
-            1,
+        mutated_authorization = (
+            authorization
+            + "\n该授权可以覆盖其他外部服务和任何计划外发送。\n"
         )
 
         with self.assertRaises(AssertionError):
