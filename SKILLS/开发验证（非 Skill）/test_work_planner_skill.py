@@ -89,6 +89,248 @@ def extract_markdown_h3_section(content, title):
     return content[section_start:next_section]
 
 
+TRIGGER_CAPABILITIES = (
+    "知识检索",
+    "标准生成",
+    "材料编目",
+    "材料预检",
+    "版本比对",
+    "审核质控",
+)
+
+
+def assert_regex_sequence(test_case, label, content, patterns):
+    cursor = 0
+    for pattern in patterns:
+        match = re.search(pattern, content[cursor:], flags=re.DOTALL)
+        test_case.assertIsNotNone(
+            match,
+            f"{label}: 顺序契约缺少 {pattern}",
+        )
+        cursor += match.end()
+
+
+def assert_trigger_section(test_case, label, section):
+    for capability in TRIGGER_CAPABILITIES:
+        test_case.assertIn(
+            capability,
+            section,
+            f"{label}: 缺少能力 {capability}",
+        )
+    test_case.assertRegex(
+        section,
+        r"明确要求.*制定(?:工作)?计划.*拆解任务.*安排步骤",
+        f"{label}: 明确规划请求未直接触发",
+    )
+    test_case.assertRegex(
+        section,
+        r"(?:两项及以上(?:（含两项）)?|两项以上|两个或以上)",
+        f"{label}: 未锁定任意两项即触发",
+    )
+    for contradiction in (
+        r"(?:资料较多|大量资料|大量内容)"
+        r"(?:即可|可以|应当|必须|一律|会|将|无条件)"
+        r"(?:无条件)?(?:触发|进入)",
+        r"明确要求.*(?:制定|拆解|安排).*(?:不触发|不使用规划助手)",
+        r"(?:单一明确任务|指定能力).*即使.*明确要求.*"
+        r"(?:不触发|直接办理)",
+    ):
+        test_case.assertNotRegex(
+            section,
+            contradiction,
+            f"{label}: 出现相反触发语义 {contradiction}",
+        )
+    heavy_material_lines = [
+        line
+        for line in section.splitlines()
+        if re.search(r"资料较多|大量资料|大量内容", line)
+    ]
+    test_case.assertTrue(
+        heavy_material_lines,
+        f"{label}: 缺少资料较多入口",
+    )
+    for line in heavy_material_lines:
+        test_case.assertRegex(
+            line,
+            r"未说明期望成果|未说明希望得到什么成果|"
+            r"没有说明希望得到什么成果",
+            f"{label}: 资料较多入口缺少未说明期望成果限定: {line}",
+        )
+    test_case.assertRegex(
+        section,
+        r"(?:无法判断|信息不足以判断|暂时无法判断|尚无法判断)"
+        r".*?(?:能力|Skill)",
+        f"{label}: 缺少无法判断具体能力入口",
+    )
+
+
+def assert_cross_document_trigger_contract(test_case, sections):
+    test_case.assertEqual(
+        set(sections),
+        {"设计稿", "实施计划", "运行时 Skill", "使用说明"},
+    )
+    for label, section in sections.items():
+        assert_trigger_section(test_case, label, section)
+
+
+def assert_standard_section(test_case, label, section):
+    for required_term in (
+        "完全未提供",
+        "已提供但未确认",
+        "不自动检索",
+        "已确认标准",
+        "通用准备清单",
+        "标准修改",
+    ):
+        test_case.assertIn(
+            required_term,
+            section,
+            f"{label}: {required_term}",
+        )
+    missing_position = section.index("完全未提供")
+    lookup_position = section.index("知识库检索", missing_position)
+    provided_position = section.index("已提供但未确认", lookup_position)
+    no_lookup_position = section.index("不自动检索", provided_position)
+    confirmed_position = section.index("已确认标准", no_lookup_position)
+    checklist_position = section.index(
+        "通用准备清单",
+        confirmed_position,
+    )
+    test_case.assertEqual(
+        [
+            missing_position,
+            lookup_position,
+            provided_position,
+            no_lookup_position,
+            confirmed_position,
+            checklist_position,
+        ],
+        sorted(
+            [
+                missing_position,
+                lookup_position,
+                provided_position,
+                no_lookup_position,
+                confirmed_position,
+                checklist_position,
+            ]
+        ),
+    )
+    standard_change = section.split("标准修改", maxsplit=1)[1]
+    assert_regex_sequence(
+        test_case,
+        f"{label}标准修改",
+        standard_change,
+        (
+            r"现行标准",
+            r"拟修改内容",
+            r"适用范围",
+            r"业务原因(?:或目标)?",
+            r"检索",
+            r"拟修订版",
+            r"确认",
+            r"(?:版本影响|版本比对|比较现行版)",
+            r"(?:可选|可邀请).*?患者材料",
+        ),
+    )
+    for contradiction in (
+        r"已提供但未确认.{0,40}(?:时|就|应当|必须)自动检索",
+        r"完全未提供.{0,40}不检索",
+        r"先检索.{0,80}再确认拟修改内容",
+        r"未确认标准.{0,40}通用准备清单",
+    ):
+        test_case.assertNotRegex(
+            section,
+            contradiction,
+            f"{label}: 出现相反标准状态语义 {contradiction}",
+        )
+
+
+def assert_cross_document_standard_contract(test_case, sections):
+    test_case.assertEqual(
+        set(sections),
+        {"设计稿", "实施计划", "运行时路由", "使用说明"},
+    )
+    for label, section in sections.items():
+        assert_standard_section(test_case, label, section)
+
+
+def assert_pause_section(test_case, label, section):
+    for pattern in (
+        r"独立确认步骤",
+        r"确认步骤.*⏸️ → ✅",
+        r"下一执行步骤.*⬜ → ⏳",
+        r"执行中的能力",
+        r"当前.*步骤.*⏸️ → ⏳",
+        r"(?:能力内部暂停点|下游能力内部暂停点|继续当前能力)",
+        r"正式成果.*⏳ → ✅",
+        r"取消",
+        r"(?:接受)?部分交付",
+        r"不可恢复失败",
+        r"(?:最终状态收敛|终止并收敛|不得留下|不得遗留)",
+    ):
+        test_case.assertRegex(
+            section,
+            pattern,
+            f"{label}: {pattern}",
+        )
+    for contradiction in (
+        r"所有用户回答后.*(?:直接进入下一步|确认步骤.*✅)",
+        r"用户回答后.*当前.*步骤.*(?:⏸️ → ✅|直接.*✅)",
+        r"确认后.*提前进入下一步",
+    ):
+        test_case.assertNotRegex(
+            section,
+            contradiction,
+            f"{label}: 出现相反暂停语义 {contradiction}",
+        )
+
+
+def assert_cross_document_pause_contract(test_case, sections):
+    test_case.assertEqual(
+        set(sections),
+        {"设计稿", "实施计划", "运行时执行", "使用说明"},
+    )
+    for label, section in sections.items():
+        assert_pause_section(test_case, label, section)
+
+
+def assert_authorization_section(test_case, label, section):
+    for pattern in (
+        r"已确认计划范围内",
+        r"省局内部应用",
+        r"不覆盖其他外部服务",
+        r"计划外发送",
+        r"(?:不绕过|不能覆盖或绕过).*敏感凭据",
+        r"业务确认门.*(?:仍保留|仍必须|不能绕过)",
+    ):
+        test_case.assertRegex(
+            section,
+            pattern,
+            f"{label}: {pattern}",
+        )
+    for contradiction in (
+        r"(?:可以|可).*覆盖其他外部服务",
+        r"(?:可以|可).*计划外发送",
+        r"授权.*(?:可以|可|能够|会|将)(?:覆盖|绕过).*敏感凭据停止门",
+        r"业务确认门.*(?:不再保留|可以绕过)",
+    ):
+        test_case.assertNotRegex(
+            section,
+            contradiction,
+            f"{label}: 出现相反授权语义 {contradiction}",
+        )
+
+
+def assert_cross_document_authorization_contract(test_case, sections):
+    test_case.assertEqual(
+        set(sections),
+        {"设计稿", "实施计划", "运行时执行", "使用说明"},
+    )
+    for label, section in sections.items():
+        assert_authorization_section(test_case, label, section)
+
+
 def assert_sensitive_credential_contract(test_case, content, relative_path):
     for invariant_name, invariant_sentence in SAFEGUARD_INVARIANT_SENTENCES:
         test_case.assertIn(
@@ -1100,6 +1342,7 @@ class WorkPlannerSkillTests(unittest.TestCase):
         self,
     ):
         plan = PLAN_PATH.read_text(encoding="utf-8")
+        runtime_skill = read("SKILL.md")
         task_two = plan.split(
             "### Task 2:",
             maxsplit=1,
@@ -1107,14 +1350,14 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "### Task 3:",
             maxsplit=1,
         )[0]
-        for required_term in (
-            "门诊慢特病六项能力",
-            "两项及以上（含两项）",
-            "默认不自动触发单一明确任务或指定能力",
-            "用户明确要求制定计划、拆解任务或安排步骤时优先触发",
-            "非门诊慢特病任务仍然排除",
-        ):
-            self.assertIn(required_term, task_two, required_term)
+        trigger_contracts = {
+            "实施计划": task_two,
+            "运行时 Skill": runtime_skill,
+        }
+        for label, content in trigger_contracts.items():
+            with self.subTest(label=label):
+                assert_trigger_section(self, label, content)
+
         default_direct = task_two.index(
             "默认不自动触发单一明确任务或指定能力"
         )
@@ -1127,6 +1370,53 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "涉及知识检索与两个以上审核环节",
             task_two,
         )
+
+    def test_trigger_contract_rejects_missing_heavy_material_qualifier(
+        self,
+    ):
+        runtime_skill = read("SKILL.md")
+        self.assertIn("资料较多且未说明期望成果", runtime_skill)
+        mutated_runtime_skill = runtime_skill.replace(
+            "资料较多且未说明期望成果",
+            "资料较多",
+            1,
+        )
+
+        with self.assertRaisesRegex(
+            AssertionError,
+            "资料较多入口缺少未说明期望成果限定",
+        ):
+            assert_trigger_section(
+                self,
+                "运行时 Skill 反例",
+                mutated_runtime_skill,
+            )
+
+    def test_trigger_contract_rejects_unconditional_heavy_material_trigger(
+        self,
+    ):
+        plan = PLAN_PATH.read_text(encoding="utf-8")
+        task_two = plan.split(
+            "### Task 2:",
+            maxsplit=1,
+        )[1].split(
+            "### Task 3:",
+            maxsplit=1,
+        )[0]
+        mutated_task_two = (
+            task_two
+            + "\n资料较多即可无条件触发规划助手。\n"
+        )
+
+        with self.assertRaisesRegex(
+            AssertionError,
+            "出现相反触发语义",
+        ):
+            assert_trigger_section(
+                self,
+                "实施计划反例",
+                mutated_task_two,
+            )
 
     def test_implementation_plan_task3_distinguishes_standard_states_and_order(
         self,
