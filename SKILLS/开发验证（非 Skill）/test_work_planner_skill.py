@@ -596,6 +596,140 @@ class WorkPlannerSkillTests(unittest.TestCase):
             runtime_skill,
         )
 
+    def test_runtime_prioritizes_decision_cards_at_interaction_gates(self):
+        runtime_skill = read("SKILL.md")
+        intent_routing = read("references/intent-routing.md")
+        continuous_execution = read("references/continuous-execution.md")
+        usage = read("使用说明.md")
+
+        for label, content in {
+            "运行时 Skill": runtime_skill,
+            "意图路由": intent_routing,
+            "使用说明": usage,
+        }.items():
+            with self.subTest(label=label):
+                self.assertIn("主动弹出", content)
+                self.assertIn("决策卡", content)
+
+        combined_contract = "\n".join(
+            (
+                intent_routing,
+                continuous_execution,
+                usage,
+            )
+        )
+        for required_scenario in (
+            "处理方向",
+            "只制定计划",
+            "自动连续执行",
+            "按当前计划开始",
+            "候选认定标准",
+            "规则解释",
+            "材料完整",
+            "版本顺序",
+            "真实患者材料",
+            "重试",
+            "部分交付",
+            "重大重新规划",
+        ):
+            self.assertIn(
+                required_scenario,
+                combined_contract,
+                required_scenario,
+            )
+
+        for required_rule in (
+            "二至四个",
+            "最多五个",
+            "推荐选项",
+            "不替用户默认选择",
+            "每轮不超过三张",
+            "自由填写",
+            "上传文件",
+            "敏感凭据停止门",
+            "不额外弹卡打断执行",
+        ):
+            self.assertIn(required_rule, combined_contract, required_rule)
+
+    def test_user_visible_plan_never_exposes_internal_task_json(self):
+        runtime_skill = read("SKILL.md")
+        plan_template = read("references/markdown-plan-template.md")
+        usage = read("使用说明.md")
+
+        self.assertIn("用户可见工作计划", runtime_skill)
+        self.assertIn("不得使用 JSON", runtime_skill)
+        for required_term in (
+            "JSON",
+            "YAML",
+            "代码块",
+            "`todos`",
+            "`content`",
+            "`priority`",
+            "内部任务对象",
+            "Markdown 表格",
+            "✅ 已完成",
+            "❌ 未完成",
+            "⏳ 执行中",
+            "⏸️ 正在确认",
+            "⬜ 尚未开始",
+        ):
+            self.assertIn(required_term, plan_template, required_term)
+        self.assertIn(
+            "不会把平台内部任务 JSON 作为工作计划展示",
+            usage,
+        )
+
+    def test_each_completed_stage_delivers_artifact_cards_immediately(self):
+        runtime_skill = read("SKILL.md")
+        continuous_execution = read("references/continuous-execution.md")
+        usage = read("使用说明.md")
+
+        for label, content in {
+            "运行时 Skill": runtime_skill,
+            "连续执行": continuous_execution,
+            "使用说明": usage,
+        }.items():
+            with self.subTest(label=label):
+                for required_term in (
+                    "每个",
+                    "完成后",
+                    "立即",
+                    "本轮新增成果",
+                    "成果物卡片",
+                ):
+                    self.assertIn(required_term, content, required_term)
+
+        for required_term in (
+            "JSON 和 HTML",
+            "两个独立成果物卡片",
+            "不能只写“文件已生成”",
+            "最终汇总不能替代",
+        ):
+            self.assertIn(
+                required_term,
+                continuous_execution,
+                required_term,
+            )
+
+    def test_vm_paths_are_not_presented_as_clickable_deliverables(self):
+        runtime_skill = read("SKILL.md")
+        continuous_execution = read("references/continuous-execution.md")
+        usage = read("使用说明.md")
+        combined_contract = "\n".join(
+            (runtime_skill, continuous_execution, usage)
+        )
+
+        for required_term in (
+            "/home/bml/",
+            "/workspace/",
+            "虚拟机绝对路径",
+            "不得仅输出本地路径",
+            "不得将其包装成 Markdown 超链接",
+            "平台尚未挂载为可下载成果",
+            "不得伪造下载地址",
+        ):
+            self.assertIn(required_term, combined_contract, required_term)
+
     def test_skill_narrows_trigger_boundary(self):
         content = read("SKILL.md")
         required_terms = (
@@ -2331,7 +2465,10 @@ class WorkPlannerSkillTests(unittest.TestCase):
             "预检 JSON",
             "预检 HTML",
             "共 4 个",
+            "独立成果物卡片",
+            "本轮新增成果（2 项）",
             "实际链接",
+            "平台尚未挂载为可下载成果",
             "不得使用固定或伪造地址",
             "不输出正式资格结论",
         ):
