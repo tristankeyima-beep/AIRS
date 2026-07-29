@@ -6,15 +6,16 @@
 
 将 `<SKILL_ROOT>/config/adp-config.template.json` 复制为 `<SKILL_ROOT>/config/adp-config.json`，保持 UTF-8 编码。
 
-直接在 `adp-config.json` 中填写这四项：
+同一个 `adp-config.json` 包含 `chat_url`、`app_key`、`secret_id` 和 `secret_key` 四个字段。
+
+当前 SSE 对接只需填写：
 
 - `chat_url`：实际的 ADP SSE 地址。
 - `app_key`：当前 SSE 调用使用的 AppKey。
-- `secret_id` 和 `secret_key`：预留给后续 V3 签名。
+
+`secret_id` 和 `secret_key` 可以保持为空：当前客户端不会校验或发送它们。以后内网若切换到 V3 签名接口，再直接在这个配置文件的现有字段中填写 SecretId 和 SecretKey，并按已文档化的方式增加签名适配器。
 
 真实配置文件只能保留在内网主机；不要提交到 Git，也不要发送到聊天、日志或其他外部位置。
-
-当前 SSE 请求只发送 `app_key`。`secret_id` 和 `secret_key` 现在可以留空，不会阻止当前 SSE 调用。
 
 ## 2. 运行自检
 
