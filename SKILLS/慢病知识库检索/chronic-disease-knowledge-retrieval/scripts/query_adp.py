@@ -5,7 +5,6 @@ import argparse
 import http.client
 import json
 import math
-import os
 import queue
 import socket
 import sys
@@ -58,7 +57,7 @@ def load_config(path):
 
     if not isinstance(config, dict):
         raise ConfigError("配置文件必须是 JSON 对象")
-    for name in ("chat_url", "app_key_env"):
+    for name in ("chat_url", "app_key"):
         if not isinstance(config.get(name), str) or not config[name].strip():
             raise ConfigError("配置缺少有效字段: " + name)
 
@@ -98,13 +97,10 @@ def build_request(config, query):
         raise ConfigError("查询内容不能为空")
     query = query.strip()
 
-    env_name = config.get("app_key_env", "ADP_APP_KEY")
-    if not isinstance(env_name, str) or not env_name.strip():
-        raise ConfigError("配置缺少有效字段: app_key_env")
-    env_name = env_name.strip()
-    app_key = os.environ.get(env_name, "").strip()
-    if not app_key:
-        raise ConfigError("请设置环境变量: " + env_name)
+    app_key = config.get("app_key")
+    if not isinstance(app_key, str) or not app_key.strip():
+        raise ConfigError("配置缺少有效字段: app_key")
+    app_key = app_key.strip()
 
     session_id = str(uuid.uuid4())
     return {
