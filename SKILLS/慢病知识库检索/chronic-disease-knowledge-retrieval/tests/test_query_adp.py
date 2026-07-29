@@ -158,6 +158,7 @@ class QueryAdpContractTests(unittest.TestCase):
                             {
                                 "chat_url": chat_url,
                                 "app_key_env": "TEST_ADP_KEY",
+                                "app_key": "test-only-app-key",
                             }
                         ),
                         encoding="utf-8",
@@ -186,6 +187,7 @@ class QueryAdpContractTests(unittest.TestCase):
                     config = {
                         "chat_url": "https://example.test/chat/sse",
                         "app_key_env": "TEST_ADP_KEY",
+                        "app_key": "test-only-app-key",
                         field: value,
                     }
                     path.write_text(
@@ -208,6 +210,7 @@ class QueryAdpContractTests(unittest.TestCase):
                         (
                             '{"chat_url":"https://example.test/chat/sse",'
                             '"app_key_env":"TEST_ADP_KEY",'
+                            '"app_key":"test-only-app-key",'
                             f'"timeout_seconds":{timeout}}}'
                         ),
                         encoding="utf-8",
@@ -226,6 +229,7 @@ class QueryAdpContractTests(unittest.TestCase):
                     {
                         "chat_url": "not-a-url",
                         "app_key_env": "TEST_ADP_KEY",
+                        "app_key": "test-only-app-key",
                         "timeout_seconds": 0,
                     }
                 ),
@@ -1116,6 +1120,7 @@ class QueryAdpContractTests(unittest.TestCase):
         config = {
             "chat_url": "https://example.test/chat/sse",
             "app_key_env": "TEST_ADP_KEY",
+            "app_key": "test-only-app-key",
             "timeout_seconds": 30,
         }
         with mock.patch.dict(
@@ -1144,6 +1149,7 @@ class QueryAdpContractTests(unittest.TestCase):
         config = {
             "chat_url": "https://example.test/chat/sse",
             "app_key_env": "TEST_ADP_KEY",
+            "app_key": "test-only-app-key",
             "timeout_seconds": 1,
         }
         with mock.patch.dict(
@@ -1181,6 +1187,7 @@ class QueryAdpContractTests(unittest.TestCase):
         config = {
             "chat_url": "https://example.test/chat/sse",
             "app_key_env": "TEST_ADP_KEY",
+            "app_key": "test-only-app-key",
             "timeout_seconds": 0.05,
         }
         started = time.monotonic()
@@ -1221,6 +1228,7 @@ class QueryAdpContractTests(unittest.TestCase):
         config = {
             "chat_url": "https://example.test/chat/sse",
             "app_key_env": "TEST_ADP_KEY",
+            "app_key": "test-only-app-key",
             "timeout_seconds": 0.05,
         }
 
@@ -1302,6 +1310,7 @@ class QueryAdpContractTests(unittest.TestCase):
         config = {
             "chat_url": "https://secret.example/login",
             "app_key_env": "TEST_ADP_KEY",
+            "app_key": "test-only-app-key",
             "timeout_seconds": 30,
         }
         for content_type, response_body in cases:
@@ -1337,6 +1346,7 @@ class QueryAdpContractTests(unittest.TestCase):
         config = {
             "chat_url": "https://example.test/chat/sse",
             "app_key_env": "TEST_ADP_KEY",
+            "app_key": "test-only-app-key",
         }
         real_dumps = json.dumps
         dump_options = []
@@ -1413,6 +1423,7 @@ class QueryAdpContractTests(unittest.TestCase):
         config = {
             "chat_url": "https://example.test/chat/sse",
             "app_key_env": "TEST_ADP_KEY",
+            "app_key": "test-only-app-key",
         }
         with mock.patch.dict(
             os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
@@ -1446,6 +1457,7 @@ class QueryAdpContractTests(unittest.TestCase):
         config = {
             "chat_url": "https://example.test/chat/sse",
             "app_key_env": "TEST_ADP_KEY",
+            "app_key": "test-only-app-key",
         }
         with mock.patch.dict(
             os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
@@ -1498,6 +1510,7 @@ class QueryAdpContractTests(unittest.TestCase):
         config = {
             "chat_url": "https://example.test/chat/sse",
             "app_key_env": "TEST_ADP_KEY",
+            "app_key": "test-only-app-key",
         }
         with mock.patch.dict(
             os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
@@ -1531,6 +1544,7 @@ class QueryAdpContractTests(unittest.TestCase):
         config = {
             "chat_url": "https://example.test/chat/sse",
             "app_key_env": "TEST_ADP_KEY",
+            "app_key": "test-only-app-key",
         }
         with mock.patch.dict(
             os.environ, {"TEST_ADP_KEY": "test-only-key"}, clear=True
@@ -1575,6 +1589,7 @@ class QueryAdpContractTests(unittest.TestCase):
                     {
                         "chat_url": "https://example.test/chat/sse",
                         "app_key_env": "TEST_ADP_KEY",
+                        "app_key": "test-only-app-key",
                     }
                 ),
                 encoding="utf-8",
@@ -1630,6 +1645,7 @@ class QueryAdpContractTests(unittest.TestCase):
                     return_value={
                         "chat_url": "https://example.test/chat/sse",
                         "app_key_env": "TEST_ADP_KEY",
+                        "app_key": "test-only-app-key",
                     },
                 ):
                     with mock.patch.object(
@@ -1710,6 +1726,7 @@ class QueryAdpContractTests(unittest.TestCase):
             return_value={
                 "chat_url": "https://secret.example/path?token=secret",
                 "app_key_env": "TEST_ADP_KEY",
+                "app_key": "test-only-app-key",
             },
         ):
             with mock.patch.object(
