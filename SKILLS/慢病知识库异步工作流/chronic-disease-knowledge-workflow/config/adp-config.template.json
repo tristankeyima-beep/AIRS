@@ -1,0 +1,12 @@
+{
+  "api_host": "",
+  "app_id": "",
+  "secret_id": "",
+  "secret_key": "",
+  "run_env": 1,
+  "region": "1",
+  "service": "lke",
+  "version": "2023-11-30",
+  "poll_interval_seconds": 1,
+  "timeout_seconds": 120
+}
