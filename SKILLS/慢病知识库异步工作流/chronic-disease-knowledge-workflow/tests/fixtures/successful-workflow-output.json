@@ -1,0 +1,11 @@
+{
+  "advice": "合成测试建议：请核对材料完整性",
+  "auditId": "audit-test-001",
+  "ruleResults": [
+    {
+      "ruleName": "合成测试规则",
+      "result": "pass"
+    }
+  ],
+  "finalResult": "manual_review"
+}
