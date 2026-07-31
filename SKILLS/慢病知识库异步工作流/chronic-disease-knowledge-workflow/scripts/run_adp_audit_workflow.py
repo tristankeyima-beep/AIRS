@@ -27,6 +27,7 @@ MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 MAX_INPUT_BYTES = 20 * 1024 * 1024
 FAILED_STATES = {3, 4, 5}
 ALLOWED_ACTIONS = frozenset({"CreateWorkflowRun", "DescribeWorkflowRun"})
+ALLOWED_PROFILES = frozenset({"cloud", "provincial_intranet"})
 DEFAULT_SUSPICION_TYPE_OPTIONS = (
     "指标异常;信息缺失;资质不符;临床表现不足;材料不全"
 )
@@ -96,6 +97,8 @@ def load_config(path):
     profiles = root.get("profiles")
     if not _nonempty_string(profile_name) or not isinstance(profiles, dict):
         raise _config_error("配置缺少有效的 active_profile 或 profiles")
+    if profile_name not in ALLOWED_PROFILES:
+        raise _config_error("active_profile 不在允许列表中")
     profile = profiles.get(profile_name)
     if not isinstance(profile, dict):
         raise _config_error("找不到 active_profile 对应的配置")
@@ -220,7 +223,7 @@ def normalize_audit_input(value, uuid_factory=uuid.uuid4):
     result["certification_list"] = certification
 
     audit_id = result.get("auditId")
-    if audit_id is None:
+    if audit_id is None or audit_id == "":
         audit_id = _new_id(uuid_factory)
     result["auditId"] = _validate_audit_id(audit_id)
 
@@ -236,13 +239,13 @@ def normalize_audit_input(value, uuid_factory=uuid.uuid4):
                     "material_list[" + str(index) + "] 缺少有效字段: " + name
                 )
             material[name] = material[name].strip()
-        if material.get("materialId") is None:
+        if material.get("materialId") is None or material.get("materialId") == "":
             material["materialId"] = _new_id(uuid_factory)
         elif not _nonempty_string(material.get("materialId")):
             raise _input_error("materialId 必须是非空字符串")
 
     suspicions = result.get("suspicion_type_options")
-    if suspicions is None:
+    if suspicions is None or suspicions == "":
         suspicions = DEFAULT_SUSPICION_TYPE_OPTIONS
     if not _nonempty_string(suspicions):
         raise _input_error("suspicion_type_options 必须是非空字符串")

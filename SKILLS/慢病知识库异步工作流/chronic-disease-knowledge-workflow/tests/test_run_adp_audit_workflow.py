@@ -211,6 +211,19 @@ class CoreContractTests(unittest.TestCase):
         self.assertEqual(loaded["run_env"], 0)
         self.assertEqual(loaded["api_host"], "http://192.0.2.10")
 
+    def test_load_config_rejects_unapproved_active_profile(self):
+        module = self.require_module()
+        config = profile_config()
+        config["active_profile"] = "unapproved_destination"
+        config["profiles"]["unapproved_destination"] = dict(
+            config["profiles"]["cloud"]
+        )
+
+        with self.assertRaises(module.AuditClientError) as raised:
+            module.load_config(self.write_config(config))
+
+        self.assertEqual(raised.exception.error_type, "config")
+
     def test_load_config_rejects_missing_app_key_without_leaking_secret(self):
         module = self.require_module()
         config = profile_config()
@@ -333,6 +346,64 @@ class CoreContractTests(unittest.TestCase):
             normalized["suspicion_type_options"],
             DEFAULT_SUSPICIONS,
         )
+
+    def test_normalize_generates_audit_id_for_empty_string(self):
+        module = self.require_module()
+        value = canonical_input()
+        value["auditId"] = ""
+
+        normalized = module.normalize_audit_input(
+            value,
+            uuid_factory=lambda: "audit-generated",
+        )
+
+        self.assertEqual(normalized["auditId"], "audit-generated")
+
+    def test_normalize_generates_material_id_for_empty_string(self):
+        module = self.require_module()
+        value = canonical_input()
+        value["material_list"][0]["materialId"] = ""
+
+        normalized = module.normalize_audit_input(
+            value,
+            uuid_factory=lambda: "material-generated",
+        )
+
+        self.assertEqual(
+            normalized["material_list"][0]["materialId"],
+            "material-generated",
+        )
+
+    def test_normalize_uses_default_suspicions_for_empty_string(self):
+        module = self.require_module()
+        value = canonical_input()
+        value["suspicion_type_options"] = ""
+
+        normalized = module.normalize_audit_input(value)
+
+        self.assertEqual(
+            normalized["suspicion_type_options"],
+            DEFAULT_SUSPICIONS,
+        )
+
+    def test_normalize_rejects_whitespace_only_optional_values(self):
+        module = self.require_module()
+        for field_path in (
+            ("auditId",),
+            ("material_list", 0, "materialId"),
+            ("suspicion_type_options",),
+        ):
+            with self.subTest(field_path=field_path):
+                value = canonical_input()
+                target = value
+                for component in field_path[:-1]:
+                    target = target[component]
+                target[field_path[-1]] = "  "
+
+                with self.assertRaises(module.AuditClientError) as raised:
+                    module.normalize_audit_input(value)
+
+                self.assertEqual(raised.exception.error_type, "input")
 
     def test_normalize_preserves_existing_ids(self):
         module = self.require_module()
