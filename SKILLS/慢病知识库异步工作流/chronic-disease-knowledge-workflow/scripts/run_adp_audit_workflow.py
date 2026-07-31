@@ -657,8 +657,8 @@ def _build_result(config, normalized, output, run_id, request_id, now_factory):
             "auditId": normalized["auditId"],
             "diseaseName": meta["chronicDiseaseName"],
             "diseaseCode": meta["chronicDiseaseCode"],
-            "finalResult": output["finalResult"].strip(),
-            "advice": output["advice"].strip(),
+            "finalResult": output["finalResult"],
+            "advice": output["advice"],
             "materialCount": len(normalized["material_list"]),
         },
         "ruleResults": rules,
@@ -900,11 +900,11 @@ def main(argv=None, stdin=sys.stdin, stdout=sys.stdout):
         config = load_config(args.config)
         audit_input = parse_jsonish(_read_input_text(args, stdin))
         result = run_audit_workflow(config, audit_input)
-        output_path = write_result_atomic(result, args.output_dir)
+        result_path = write_result_atomic(result, args.output_dir).resolve()
         success = {
             "ok": True,
             "auditId": result["audit"]["auditId"],
-            "outputPath": str(output_path),
+            "resultPath": str(result_path),
         }
         print(_compact_json(success), file=stdout)
         return 0

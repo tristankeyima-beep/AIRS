@@ -1,9 +1,12 @@
 import importlib.util
+import io
 import json
+import os
 import pathlib
 import re
 import tempfile
 import unittest
+from unittest import mock
 
 
 SKILL_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -111,6 +114,71 @@ class OfflineIntegrationTests(unittest.TestCase):
             delivered_text = json_path.read_text(encoding="utf-8") + html
             self.assertNotIn("SECRET_KEY_TEST_ONLY", delivered_text)
             self.assertNotIn("materialContent", delivered_text)
+
+    def test_cli_result_path_is_absolute_and_accepted_by_renderer_cli(self):
+        client = load_module(
+            "adp_audit_client_cli",
+            SKILL_ROOT / "scripts" / "run_adp_audit_workflow.py",
+        )
+        renderer = load_module(
+            "adp_audit_renderer_cli",
+            SKILL_ROOT / "scripts" / "render_audit_result.py",
+        )
+        result = json.loads(
+            (FIXTURES / "valid-audit-result.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            previous_directory = pathlib.Path.cwd()
+            os.chdir(directory)
+            try:
+                client_stdout = io.StringIO()
+                with mock.patch.object(client, "load_config", return_value={}):
+                    with mock.patch.object(
+                        client,
+                        "run_audit_workflow",
+                        return_value=result,
+                    ):
+                        exit_code = client.main(
+                            [
+                                "--config",
+                                "unused.json",
+                                "--input-file",
+                                str(
+                                    FIXTURES
+                                    / "canonical-audit-input.json"
+                                ),
+                                "--output-dir",
+                                "results",
+                            ],
+                            stdout=client_stdout,
+                        )
+                self.assertEqual(exit_code, 0)
+                envelope = json.loads(client_stdout.getvalue())
+                self.assertEqual(set(envelope), {"ok", "auditId", "resultPath"})
+                result_path = pathlib.Path(envelope["resultPath"])
+                self.assertTrue(result_path.is_absolute())
+                self.assertTrue(result_path.is_file())
+
+                renderer_stdout = io.StringIO()
+                render_exit_code = renderer.main(
+                    [
+                        "--input-json",
+                        envelope["resultPath"],
+                        "--template",
+                        str(SKILL_ROOT / "assets" / "audit-result-template.html"),
+                        "--output-dir",
+                        "results",
+                    ],
+                    stdout=renderer_stdout,
+                )
+                self.assertEqual(render_exit_code, 0)
+                render_envelope = json.loads(renderer_stdout.getvalue())
+                self.assertTrue(pathlib.Path(render_envelope["htmlPath"]).is_file())
+            finally:
+                os.chdir(previous_directory)
 
 
 if __name__ == "__main__":

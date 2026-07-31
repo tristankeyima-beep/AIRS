@@ -671,6 +671,30 @@ class WorkflowContractTests(unittest.TestCase):
         )
         self.assertEqual(result["ruleResults"][0]["ruleCode"], "SYN-R-001")
 
+    def test_workflow_preserves_final_result_and_advice_whitespace(self):
+        module = self.require_module()
+        output = successful_output()
+        output["finalResult"] = "  manual_review  "
+        output["advice"] = "  合成测试建议：请核对材料完整性  "
+        responses = [
+            {"Response": {"WorkflowRunId": "wfr-test", "RequestId": "req-1"}},
+            {
+                "Response": {
+                    "WorkflowRun": {"State": 2, "Output": output},
+                    "RequestId": "req-2",
+                }
+            },
+        ]
+
+        result = module.run_audit_workflow(
+            loaded_profile(),
+            canonical_input(),
+            post=lambda config, action, payload: responses.pop(0),
+        )
+
+        self.assertEqual(result["audit"]["finalResult"], output["finalResult"])
+        self.assertEqual(result["audit"]["advice"], output["advice"])
+
     def test_workflow_accepts_rule_results_as_json_array_string(self):
         module = self.require_module()
         output = successful_output()
@@ -1027,14 +1051,17 @@ class CliContractTests(unittest.TestCase):
                 {
                     "ok": True,
                     "auditId": "audit-test-001",
-                    "outputPath": str(
-                        output_dir / "audit-test-001-智能审核结果.json"
+                    "resultPath": str(
+                        (
+                            output_dir
+                            / "audit-test-001-智能审核结果.json"
+                        ).resolve()
                     ),
                 },
             )
             self.assertNotIn("仅用于自动化测试的虚构内容", stdout.getvalue())
             self.assertEqual(run.call_args.args[1]["auditId"], "audit-test-001")
-            self.assertTrue(pathlib.Path(envelope["outputPath"]).exists())
+            self.assertTrue(pathlib.Path(envelope["resultPath"]).exists())
 
     def test_cli_reads_jsonish_from_stdin(self):
         module = self.require_module()
