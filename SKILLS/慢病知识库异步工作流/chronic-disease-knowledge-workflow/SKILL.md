@@ -1,6 +1,6 @@
 ---
 name: chronic-disease-knowledge-workflow
-description: 面向普通业务人员执行慢病智能审核。收集认定标准与申请材料，支持自然语言、JSON、JSON 文件和疑似 JSON 文本，整理为 ADP 工作流结构化入参，等待工作流完成，并生成固定版本的 JSON 与离线 HTML 可视化结果。
+description: 当业务人员提供认定标准或申请材料并希望执行慢病智能审核时使用。支持自然语言、JSON、JSON 文件和疑似 JSON 文本，整理为 ADP 工作流结构化入参，等待工作流完成，并生成固定版本的 JSON 与离线 HTML 可视化结果。
 ---
 
 # 慢病智能审核异步工作流
@@ -49,22 +49,29 @@ description: 面向普通业务人员执行慢病智能审核。收集认定标�
 
 ## 安全调用
 
-先将统一对象写入临时输入文件，再从任意工作目录使用解析后的绝对路径调用：
+含患者材料时优先使用 `--input-stdin`，通过执行工具独立的标准输入通道发送完整 JSON：
 
 ```bash
 python3 '<SKILL_ROOT>/scripts/run_adp_audit_workflow.py' \
   --config '<SKILL_ROOT>/config/adp-config.json' \
-  --input-file '/absolute/path/audit-input.json' \
+  --input-stdin \
   --output-dir '/absolute/path/output'
 ```
 
-也可使用 `--input-stdin`，通过执行工具独立的标准输入通道发送完整 JSON。若没有安全的标准输入通道，使用 `--input-file`；不要把业务正文改放到其他命令参数。
+只有无法使用安全标准输入通道时才使用 `--input-file`。输入文件只允许放在用户指定的私有目录或系统私有临时目录，创建时即将权限设置为 `0600`；调用完成后立即删除输入临时文件，失败时也必须清理。不得写入 Skill 安装目录，不得使用共享 `/tmp` 固定路径，也不得把业务正文改放到其他命令参数。
 
-客户端成功后，用客户端返回的 JSON 绝对路径调用：
+```bash
+python3 '<SKILL_ROOT>/scripts/run_adp_audit_workflow.py' \
+  --config '<SKILL_ROOT>/config/adp-config.json' \
+  --input-file '<用户指定或系统私有临时目录>/audit-input.json' \
+  --output-dir '/absolute/path/output'
+```
+
+客户端成功后读取成功 envelope 的 `resultPath`，把该绝对路径原样传给渲染器；不得写死结果路径、猜测文件名或改写路径：
 
 ```bash
 python3 '<SKILL_ROOT>/scripts/render_audit_result.py' \
-  --input-json '/absolute/path/output/result.json' \
+  --input-json '<客户端返回的 resultPath>' \
   --template '<SKILL_ROOT>/assets/audit-result-template.html' \
   --output-dir '/absolute/path/output'
 ```

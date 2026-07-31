@@ -36,6 +36,13 @@ class SkillContractTests(unittest.TestCase):
         ):
             self.assertIn(marker, frontmatter)
 
+    def test_frontmatter_directly_states_when_business_users_should_invoke(self):
+        frontmatter, _ = self.skill_parts()
+        self.assertIn(
+            "description: 当业务人员提供认定标准或申请材料并希望执行慢病智能审核时使用。",
+            frontmatter,
+        )
+
     def test_skill_uses_business_language_and_hides_internal_details_by_default(self):
         _, body = self.skill_parts()
         for marker in ("认定标准", "申请材料", "审核流水号", "审核结论", "疑点"):
@@ -156,6 +163,25 @@ class SkillContractTests(unittest.TestCase):
         ):
             self.assertIn(marker, text)
 
+    def test_result_contract_locks_nested_rule_evidence_and_suspicion_types(self):
+        text = self.read_required("references/result-contract.md")
+        for marker in (
+            "`ruleResults` 的每一项必须是 object",
+            "`ruleCode`、`ruleContent`、`ruleResult`、`reasoningContent` 必须是 string",
+            "`ruleKeywordGuide` 必须是 array<object>",
+            "每个 guide 的 `results` 必须是 array<object>",
+            "`materialId`、`materialName`、`materialSource`、`rawText`、`value` 必须是 string",
+            "来源缺失时允许空字符串，但禁止补造",
+            "`suspicionList` 若存在，必须是 array<object>",
+            "`suspicionType` 与 `detail` 必须是 string",
+            "`sources` 若存在，必须是 array",
+            "“原样保留”仅指字段值不改写",
+            "“类型规范化”仅允许解包 JSON 字符串",
+            "缺失的可选 `suspicionList` 视为空数组",
+            "不生成新事实",
+        ):
+            self.assertIn(marker, text)
+
     def test_deployment_documents_only_whitelisted_actions_and_secret_hygiene(self):
         text = self.read_required("references/internal-deployment.md")
         self.assertEqual(text.count("CreateWorkflowRun"), 1)
@@ -199,6 +225,27 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("--input-stdin", body)
         self.assertIn("不得把患者正文或密钥拼到命令参数", body)
         self.assertIn("两个成果文件", body)
+
+    def test_renderer_consumes_result_path_from_success_envelope(self):
+        _, body = self.skill_parts()
+        self.assertIn("成功 envelope", body)
+        self.assertIn("`resultPath`", body)
+        self.assertIn("--input-json '<客户端返回的 resultPath>'", body)
+        self.assertNotIn("output/result.json", body)
+
+    def test_patient_material_uses_private_ephemeral_input_channel(self):
+        _, body = self.skill_parts()
+        for marker in (
+            "含患者材料时优先使用 `--input-stdin`",
+            "用户指定的私有目录",
+            "系统私有临时目录",
+            "创建时即将权限设置为 `0600`",
+            "调用完成后立即删除输入临时文件",
+            "不得写入 Skill 安装目录",
+            "不得使用共享 `/tmp` 固定路径",
+        ):
+            self.assertIn(marker, body)
+        self.assertLess(body.index("--input-stdin"), body.index("--input-file"))
 
     def test_errors_have_stable_types_and_business_actions(self):
         _, body = self.skill_parts()

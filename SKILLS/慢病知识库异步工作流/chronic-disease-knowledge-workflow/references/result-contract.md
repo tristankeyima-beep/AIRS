@@ -24,7 +24,15 @@
 
 ## `ruleResults`
 
-`ruleResults` 必须是对象数组。每条规则原样保留工作流返回的 `ruleCode`、`ruleContent`、`ruleResult`、`reasoningContent`、`ruleKeywordGuide` 与 `suspicionList`；只做必要的字符串化数组解包和类型规范化，不改变规则结论、证据或建议。
+`ruleResults` 必须是对象数组，并遵守以下嵌套契约：
+
+- `ruleResults` 的每一项必须是 object。
+- `ruleCode`、`ruleContent`、`ruleResult`、`reasoningContent` 必须是 string。
+- `ruleKeywordGuide` 必须是 array<object>；每个 guide 的 `results` 必须是 array<object>。
+- 每条 evidence result 的 `materialId`、`materialName`、`materialSource`、`rawText`、`value` 必须是 string；来源缺失时允许空字符串，但禁止补造。
+- `suspicionList` 若存在，必须是 array<object>；每项的 `suspicionType` 与 `detail` 必须是 string，`sources` 若存在，必须是 array。
+
+“原样保留”仅指字段值不改写，不改变工作流给出的规则结论、证据或建议。“类型规范化”仅允许解包 JSON 字符串，以及把缺失的可选 `suspicionList` 视为空数组；不得强制转换其他字段或填充推测值，不生成新事实。
 
 正式结果不复制完整申请材料，只保留工作流已纳入逐条规则结果的必要证据片段，以减少敏感信息扩散。
 
