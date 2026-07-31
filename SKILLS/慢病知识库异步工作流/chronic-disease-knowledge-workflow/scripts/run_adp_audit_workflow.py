@@ -8,11 +8,16 @@ import hashlib
 import hmac
 import json
 import math
+import socket
 import time
+import urllib.error
 import urllib.parse
+import urllib.request
 import uuid
 
 
+MAX_RESPONSE_BYTES = 5 * 1024 * 1024
+FAILED_STATES = {3, 4, 5}
 DEFAULT_SUSPICION_TYPE_OPTIONS = (
     "指标异常;信息缺失;资质不符;临床表现不足;材料不全"
 )
@@ -270,3 +275,328 @@ def build_signed_headers(config, action, body, timestamp=None):
         "X-TC-Timestamp": str(timestamp),
         "X-TC-Region": config["region"],
     }
+
+
+def _compact_json(value, error_type="response"):
+    try:
+        return json.dumps(
+            value,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+    except (TypeError, ValueError) as error:
+        raise AuditClientError(
+            "数据无法转换为有效 JSON",
+            error_type=error_type,
+        ) from error
+
+
+def build_create_payload(config, normalized, visitor_id):
+    """Build the exact CreateWorkflowRun request contract."""
+    if not _nonempty_string(visitor_id):
+        raise _input_error("VisitorId 必须是非空字符串")
+    variables = [
+        {
+            "Name": "certification_list",
+            "Value": _compact_json(
+                normalized["certification_list"],
+                error_type="input",
+            ),
+        },
+        {
+            "Name": "material_list",
+            "Value": _compact_json(
+                normalized["material_list"],
+                error_type="input",
+            ),
+        },
+        {"Name": "auditId", "Value": normalized["auditId"]},
+        {
+            "Name": "suspicion_type_options",
+            "Value": normalized["suspicion_type_options"],
+        },
+    ]
+    return {
+        "AppBizId": config["app_id"],
+        "RunEnv": config["run_env"],
+        "Query": "执行智能审核",
+        "CustomVariables": variables,
+        "VisitorId": visitor_id.strip(),
+    }
+
+
+def _api_error_type(code):
+    if isinstance(code, str) and code.startswith(
+        ("AuthFailure", "Unauthorized", "Forbidden")
+    ):
+        return "auth"
+    return "response"
+
+
+def _unwrap_response(data):
+    if not isinstance(data, dict) or not isinstance(data.get("Response"), dict):
+        raise AuditClientError("ADP 响应格式无效", error_type="response")
+    response = data["Response"]
+    request_id = response.get("RequestId")
+    if not _nonempty_string(request_id):
+        request_id = None
+    error = response.get("Error")
+    if isinstance(error, dict):
+        code = error.get("Code")
+        if not _nonempty_string(code):
+            code = "UnknownError"
+        raise AuditClientError(
+            "ADP 返回错误: " + code,
+            error_type=_api_error_type(code),
+            code=code,
+            request_id=request_id,
+        )
+    return response, request_id
+
+
+def post_action(config, action, payload):
+    """POST one signed ADP action with bounded response handling."""
+    body = _compact_json(payload).encode("utf-8")
+    headers = build_signed_headers(config, action, body)
+    request = urllib.request.Request(
+        config["api_host"] + "/",
+        data=body,
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(
+            request,
+            timeout=float(config["timeout_seconds"]),
+        ) as response:
+            raw = response.read(MAX_RESPONSE_BYTES + 1)
+    except urllib.error.HTTPError as error:
+        request_id = error.headers.get("X-TC-RequestId")
+        try:
+            raw_error = error.read(MAX_RESPONSE_BYTES + 1)
+            error_data = json.loads(raw_error.decode("utf-8"))
+            _unwrap_response(error_data)
+        except AuditClientError:
+            raise
+        except Exception:
+            pass
+        error_type = "auth" if error.code in (401, 403) else "http"
+        raise AuditClientError(
+            "ADP HTTP 请求失败: " + str(error.code),
+            error_type=error_type,
+            request_id=request_id,
+        ) from None
+    except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
+        reason = getattr(error, "reason", None)
+        is_timeout = isinstance(error, (socket.timeout, TimeoutError)) or isinstance(
+            reason,
+            (socket.timeout, TimeoutError),
+        )
+        raise AuditClientError(
+            "ADP 请求超时" if is_timeout else "ADP 服务不可访问",
+            error_type="timeout" if is_timeout else "http",
+        ) from None
+    except OSError:
+        raise AuditClientError("ADP 服务不可访问", error_type="http") from None
+
+    if len(raw) > MAX_RESPONSE_BYTES:
+        raise AuditClientError("ADP 响应超过大小限制", error_type="response")
+    try:
+        data = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise AuditClientError("ADP 响应不是有效 JSON", error_type="response") from error
+    if not isinstance(data, dict):
+        raise AuditClientError("ADP 响应格式无效", error_type="response")
+    return data
+
+
+def _parse_workflow_output(value, request_id):
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError as error:
+            raise AuditClientError(
+                "WorkflowRun.Output 不是有效 JSON 对象",
+                error_type="response",
+                request_id=request_id,
+            ) from error
+        if isinstance(parsed, dict):
+            return parsed
+    raise AuditClientError(
+        "WorkflowRun.Output 格式无效",
+        error_type="response",
+        request_id=request_id,
+    )
+
+
+def _normalize_rule_results(value, request_id):
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError as error:
+            raise AuditClientError(
+                "ruleResults 格式无效",
+                error_type="response",
+                request_id=request_id,
+            ) from error
+    if not isinstance(value, list):
+        raise AuditClientError(
+            "ruleResults 必须是数组",
+            error_type="response",
+            request_id=request_id,
+        )
+    result = []
+    for item in value:
+        if isinstance(item, str):
+            try:
+                parsed = json.loads(item)
+            except json.JSONDecodeError:
+                parsed = item
+            if isinstance(parsed, (dict, str)):
+                item = parsed
+        if not isinstance(item, (dict, str)):
+            raise AuditClientError(
+                "ruleResults 包含无效项",
+                error_type="response",
+                request_id=request_id,
+            )
+        result.append(item)
+    return result
+
+
+def _default_now():
+    return (
+        datetime.datetime.now(datetime.timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+
+
+def _build_result(config, normalized, output, run_id, request_id, now_factory):
+    for name in ("advice", "auditId", "ruleResults", "finalResult"):
+        if name not in output:
+            raise AuditClientError(
+                "工作流结果缺少必需字段: " + name,
+                error_type="response",
+                request_id=request_id,
+            )
+    for name in ("advice", "auditId", "finalResult"):
+        if not _nonempty_string(output[name]):
+            raise AuditClientError(
+                "工作流结果字段无效: " + name,
+                error_type="response",
+                request_id=request_id,
+            )
+    if output["auditId"] != normalized["auditId"]:
+        raise AuditClientError(
+            "工作流结果 auditId 与请求不一致",
+            error_type="response",
+            request_id=request_id,
+        )
+    rules = _normalize_rule_results(output["ruleResults"], request_id)
+    meta = normalized["certification_list"]["meta"]
+    return {
+        "schemaVersion": "adp-audit-result-1.0",
+        "templateVersion": "audit-result-template-1.0",
+        "generatedAt": now_factory(),
+        "audit": {
+            "auditId": normalized["auditId"],
+            "diseaseName": meta["chronicDiseaseName"],
+            "diseaseCode": meta["chronicDiseaseCode"],
+            "finalResult": output["finalResult"].strip(),
+            "advice": output["advice"].strip(),
+            "materialCount": len(normalized["material_list"]),
+        },
+        "ruleResults": rules,
+        "execution": {
+            "profile": config["profile"],
+            "runEnv": config["run_env"],
+            "workflowRunId": run_id,
+            "requestId": request_id,
+        },
+    }
+
+
+def run_audit_workflow(
+    config,
+    audit_input,
+    post=None,
+    sleep=time.sleep,
+    monotonic=time.monotonic,
+    uuid_factory=uuid.uuid4,
+    now_factory=_default_now,
+):
+    """Create, poll, validate, and return one stable audit result."""
+    if post is None:
+        post = post_action
+    normalized = normalize_audit_input(audit_input, uuid_factory=uuid_factory)
+    visitor_id = str(uuid_factory())
+    create_payload = build_create_payload(config, normalized, visitor_id)
+    started = monotonic()
+    create_data = post(config, "CreateWorkflowRun", create_payload)
+    create_response, create_request_id = _unwrap_response(create_data)
+    run_id = create_response.get("WorkflowRunId")
+    if not _nonempty_string(run_id):
+        raise AuditClientError(
+            "创建工作流后未返回 WorkflowRunId",
+            error_type="response",
+            request_id=create_request_id,
+        )
+
+    timeout = float(config["timeout_seconds"])
+    interval = float(config["poll_interval_seconds"])
+    while True:
+        if monotonic() - started >= timeout:
+            raise AuditClientError(
+                "等待 ADP 工作流结果超时",
+                error_type="timeout",
+                request_id=create_request_id,
+            )
+        describe_data = post(
+            config,
+            "DescribeWorkflowRun",
+            {"AppBizId": config["app_id"], "WorkflowRunId": run_id},
+        )
+        response, request_id = _unwrap_response(describe_data)
+        workflow = response.get("WorkflowRun")
+        if not isinstance(workflow, dict):
+            raise AuditClientError(
+                "查询工作流后未返回 WorkflowRun",
+                error_type="response",
+                request_id=request_id,
+            )
+        state = workflow.get("State")
+        if isinstance(state, bool) or not isinstance(state, int):
+            raise AuditClientError(
+                "工作流状态格式无效",
+                error_type="response",
+                request_id=request_id,
+            )
+        if state == 2:
+            output = _parse_workflow_output(workflow.get("Output"), request_id)
+            return _build_result(
+                config,
+                normalized,
+                output,
+                run_id,
+                request_id,
+                now_factory,
+            )
+        if state in FAILED_STATES:
+            raise AuditClientError(
+                "ADP 工作流执行失败",
+                error_type="workflow",
+                request_id=request_id,
+            )
+        remaining = timeout - (monotonic() - started)
+        if remaining <= 0:
+            raise AuditClientError(
+                "等待 ADP 工作流结果超时",
+                error_type="timeout",
+                request_id=request_id,
+            )
+        sleep(min(interval, remaining))
