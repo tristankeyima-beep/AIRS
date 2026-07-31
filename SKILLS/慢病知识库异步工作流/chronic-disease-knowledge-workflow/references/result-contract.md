@@ -2,6 +2,8 @@
 
 正式结果顶层必须是对象，并严格使用以下稳定版本与字段。
 
+除本文件明确列出的字段外，顶层及所有嵌套 object 均不得包含未知字段。发现未知字段时，结果 JSON 与 HTML 都不得交付，避免把未审计的敏感数据带入可视化文件。
+
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `schemaVersion` | string | 固定为 `adp-audit-result-1.0` |
@@ -22,15 +24,19 @@
 - `advice`：审核建议；
 - `materialCount`：申请材料数量，类型为整数。
 
+不得包含其他字段。
+
 ## `ruleResults`
 
 `ruleResults` 必须是对象数组，并遵守以下嵌套契约：
 
 - `ruleResults` 的每一项必须是 object。
 - `ruleCode`、`ruleContent`、`ruleResult`、`reasoningContent` 必须是 string。
-- `ruleKeywordGuide` 必须是 array<object>；每个 guide 的 `keyword` 必须是 string；每个 guide 的 `results` 必须是 array<object>。
+- `ruleKeywordGuide` 必须是 array<object>；每个 guide 只能包含 `keyword`、可选的 `found`、`results`。每个 guide 的 `keyword` 必须是 string；`found` 存在时必须是 boolean；每个 guide 的 `results` 必须是 array<object>。
 - 每条 evidence result 的 `materialId`、`materialName`、`materialSource`、`rawText`、`value` 必须是 string；来源缺失时允许空字符串，但禁止补造。
-- `suspicionList` 若存在，必须是 array<object>；每项的 `suspicionType` 与 `detail` 必须是 string，`sources` 若存在，必须是 array。`sources` 的每个元素只能是 string 或 object；object 至少包含 `materialId` 或 `materialName` 之一，且 object 中存在的字段值均必须是 string。除上述受约束 object 外，禁止数字、布尔值和任意对象。
+- `suspicionList` 若存在，必须是 array<object>；每项只能包含 `suspicionType`、`detail`、可选的 `sources`。`suspicionType` 与 `detail` 必须是 string，`sources` 若存在，必须是 array。`sources` 的每个元素只能是 string 或 object；object 至少包含 `materialId` 或 `materialName` 之一，且只能包含这两个字段；object 中存在的字段值均必须是 string。除上述受约束 object 外，禁止数字、布尔值和任意对象。
+
+每条规则只能包含 `ruleCode`、`ruleContent`、`ruleResult`、`reasoningContent`、`ruleKeywordGuide`、`suspicionList`。每条 evidence result 只能包含 `materialId`、`materialName`、`materialSource`、`rawText`、`value`。
 
 “原样保留”仅指字段值不改写，不改变工作流给出的规则结论、证据或建议。“类型规范化”仅允许解包 JSON 字符串，以及把缺失的可选 `suspicionList` 视为空数组；不得强制转换其他字段或填充推测值，不生成新事实。
 
@@ -45,7 +51,7 @@
 - `workflowRunId`：工作流运行实例 ID；
 - `requestId`：服务端请求 ID。
 
-不得加入密钥、签名、完整请求体、节点日志或原始 API 响应。
+`profile` 只能是 `cloud` 或 `provincial_intranet`。不得加入其他字段、密钥、签名、完整请求体、节点日志或原始 API 响应。
 
 ## JSON 与 HTML 一致性
 

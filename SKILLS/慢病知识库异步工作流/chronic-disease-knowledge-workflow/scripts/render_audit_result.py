@@ -14,6 +14,7 @@ from html.parser import HTMLParser
 
 SCHEMA_VERSION = "adp-audit-result-1.0"
 TEMPLATE_VERSION = "audit-result-template-1.0"
+ALLOWED_PROFILES = frozenset(("cloud", "provincial_intranet"))
 PLACEHOLDER = "__AUDIT_DATA_JSON__"
 SLOT = (
     '<script id="audit-data" type="application/json">'
@@ -86,6 +87,12 @@ def _require_integer(value, field):
         raise RenderError("审核结果字段无效: " + field)
 
 
+def _reject_unknown_keys(container, allowed_keys, field):
+    unknown_keys = set(container).difference(allowed_keys)
+    if unknown_keys:
+        raise RenderError("审核结果字段无效: " + field)
+
+
 def _validate_audit_id(value):
     _require_text(value, "audit.auditId")
     if (
@@ -105,6 +112,18 @@ def _validate_rules(rules):
         prefix = "ruleResults[" + str(index) + "]"
         if not isinstance(rule, dict):
             raise RenderError("审核结果字段无效: " + prefix)
+        _reject_unknown_keys(
+            rule,
+            {
+                "ruleCode",
+                "ruleContent",
+                "ruleResult",
+                "reasoningContent",
+                "ruleKeywordGuide",
+                "suspicionList",
+            },
+            prefix,
+        )
         for name in (
             "ruleCode",
             "ruleContent",
@@ -131,7 +150,14 @@ def _validate_guides(guides, rule_prefix):
         )
         if not isinstance(guide, dict):
             raise RenderError("审核结果字段无效: " + prefix)
+        _reject_unknown_keys(
+            guide,
+            {"keyword", "found", "results"},
+            prefix,
+        )
         _require_text(guide.get("keyword"), prefix + ".keyword")
+        if "found" in guide and not isinstance(guide["found"], bool):
+            raise RenderError("审核结果字段无效: " + prefix + ".found")
         results = guide.get("results")
         if not isinstance(results, list):
             raise RenderError("审核结果字段无效: " + prefix + ".results")
@@ -141,6 +167,17 @@ def _validate_guides(guides, rule_prefix):
             )
             if not isinstance(evidence, dict):
                 raise RenderError("审核结果字段无效: " + evidence_prefix)
+            _reject_unknown_keys(
+                evidence,
+                {
+                    "materialName",
+                    "materialId",
+                    "materialSource",
+                    "rawText",
+                    "value",
+                },
+                evidence_prefix,
+            )
             for name in (
                 "materialName",
                 "materialId",
@@ -164,6 +201,11 @@ def _validate_suspicions(suspicions, rule_prefix):
         )
         if not isinstance(suspicion, dict):
             raise RenderError("审核结果字段无效: " + prefix)
+        _reject_unknown_keys(
+            suspicion,
+            {"suspicionType", "detail", "sources"},
+            prefix,
+        )
         for name in ("suspicionType", "detail"):
             _require_text(suspicion.get(name), prefix + "." + name)
         sources = suspicion.get("sources", [])
@@ -178,6 +220,7 @@ def _validate_suspicions(suspicions, rule_prefix):
             if not isinstance(source, dict):
                 raise RenderError("审核结果字段无效: " + source_prefix)
             names = ("materialName", "materialId")
+            _reject_unknown_keys(source, names, source_prefix)
             if not any(name in source for name in names):
                 raise RenderError("审核结果字段无效: " + source_prefix)
             for name, value in source.items():
@@ -187,6 +230,18 @@ def _validate_suspicions(suspicions, rule_prefix):
 def validate_result(result):
     if not isinstance(result, dict):
         raise RenderError("审核结果必须是对象")
+    _reject_unknown_keys(
+        result,
+        {
+            "schemaVersion",
+            "templateVersion",
+            "generatedAt",
+            "audit",
+            "ruleResults",
+            "execution",
+        },
+        "审核结果",
+    )
     if result.get("schemaVersion") != SCHEMA_VERSION:
         raise RenderError("审核结果 Schema 版本不受支持")
     if result.get("templateVersion") != TEMPLATE_VERSION:
@@ -198,6 +253,23 @@ def validate_result(result):
     execution = result.get("execution")
     if not isinstance(audit, dict) or not isinstance(execution, dict):
         raise RenderError("审核结果结构不完整")
+    _reject_unknown_keys(
+        audit,
+        {
+            "auditId",
+            "diseaseName",
+            "diseaseCode",
+            "finalResult",
+            "advice",
+            "materialCount",
+        },
+        "audit",
+    )
+    _reject_unknown_keys(
+        execution,
+        {"profile", "runEnv", "workflowRunId", "requestId"},
+        "execution",
+    )
 
     _validate_audit_id(audit.get("auditId"))
     for name in (
@@ -213,6 +285,8 @@ def validate_result(result):
 
     for name in ("profile", "workflowRunId", "requestId"):
         _require_text(execution.get(name), "execution." + name)
+    if execution["profile"] not in ALLOWED_PROFILES:
+        raise RenderError("审核结果字段无效: execution.profile")
     _require_integer(execution.get("runEnv"), "execution.runEnv")
 
 

@@ -88,7 +88,7 @@ def sample_result():
             },
         ],
         "execution": {
-            "profile": "synthetic-profile",
+            "profile": "cloud",
             "runEnv": 1,
             "workflowRunId": "wfr-synthetic-001",
             "requestId": "req-synthetic-001",
@@ -322,15 +322,6 @@ class RenderAuditResultTests(unittest.TestCase):
         ]
         module.render_result(only_material_name, TEMPLATE_PATH)
 
-        string_extension = sample_result()
-        string_extension["ruleResults"][0]["suspicionList"][0]["sources"] = [
-            {
-                "materialId": "MAT-001",
-                "extension": "允许保留的字符串扩展字段",
-            }
-        ]
-        module.render_result(string_extension, TEMPLATE_PATH)
-
     def test_suspicion_source_objects_require_one_typed_identifier(self):
         module = self.require_module()
         invalid_sources = (
@@ -338,6 +329,7 @@ class RenderAuditResultTests(unittest.TestCase):
             [{"materialId": 1}],
             [{"materialName": None}],
             [{"materialId": "MAT-001", "materialName": 2}],
+            [{"materialId": "MAT-001", "unexpected": "敏感扩展字段"}],
             [{"materialId": "MAT-001", "unexpected": 1}],
             [{"materialId": "MAT-001", "unexpected": True}],
             [{"materialId": "MAT-001", "unexpected": {"nested": "object"}}],
@@ -346,6 +338,44 @@ class RenderAuditResultTests(unittest.TestCase):
             result = sample_result()
             result["ruleResults"][0]["suspicionList"][0]["sources"] = sources
             with self.subTest(sources=sources):
+                with self.assertRaises(module.RenderError):
+                    module.render_result(result, TEMPLATE_PATH)
+
+    def test_unknown_contract_fields_are_rejected_at_every_object_level(self):
+        module = self.require_module()
+        mutations = (
+            lambda value: value.update({"sensitiveTopLevel": "禁止注入"}),
+            lambda value: value["audit"].update({"sensitiveAudit": "禁止注入"}),
+            lambda value: value["ruleResults"][0].update({"sensitiveRule": "禁止注入"}),
+            lambda value: value["ruleResults"][0]["ruleKeywordGuide"][0].update(
+                {"sensitiveGuide": "禁止注入"}
+            ),
+            lambda value: value["ruleResults"][0]["ruleKeywordGuide"][0][
+                "results"
+            ][0].update({"sensitiveEvidence": "禁止注入"}),
+            lambda value: value["ruleResults"][0]["suspicionList"][0].update(
+                {"sensitiveSuspicion": "禁止注入"}
+            ),
+            lambda value: value["ruleResults"][0]["suspicionList"][0][
+                "sources"
+            ][0].update({"sensitiveSource": "禁止注入"}),
+            lambda value: value["execution"].update(
+                {"sensitiveExecution": "禁止注入"}
+            ),
+        )
+        for mutate in mutations:
+            with self.subTest(mutate=mutate):
+                result = sample_result()
+                mutate(result)
+                with self.assertRaises(module.RenderError):
+                    module.render_result(result, TEMPLATE_PATH)
+
+    def test_execution_profile_must_be_an_approved_destination(self):
+        module = self.require_module()
+        for profile in ("synthetic-profile", "other", "cloud ", ""):
+            with self.subTest(profile=profile):
+                result = sample_result()
+                result["execution"]["profile"] = profile
                 with self.assertRaises(module.RenderError):
                     module.render_result(result, TEMPLATE_PATH)
 
