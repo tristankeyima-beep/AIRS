@@ -185,44 +185,47 @@ class OfflineIntegrationTests(unittest.TestCase):
             "adp_audit_client_control_character",
             SKILL_ROOT / "scripts" / "run_adp_audit_workflow.py",
         )
-        invalid_input = json.loads(
-            (FIXTURES / "canonical-audit-input.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        invalid_input["auditId"] = "audit\nlinebreak"
-
         with tempfile.TemporaryDirectory() as directory:
-            input_path = pathlib.Path(directory) / "input.json"
-            output_dir = pathlib.Path(directory) / "results"
-            input_path.write_text(
-                json.dumps(invalid_input, ensure_ascii=False),
-                encoding="utf-8",
-            )
-            stdout = io.StringIO()
-            with mock.patch.object(client, "load_config", return_value={}):
-                with mock.patch.object(
-                    client,
-                    "post_action",
-                    side_effect=AssertionError("invalid input reached network"),
-                ):
-                    exit_code = client.main(
-                        [
-                            "--config",
-                            "unused.json",
-                            "--input-file",
-                            str(input_path),
-                            "--output-dir",
-                            str(output_dir),
-                        ],
-                        stdout=stdout,
+            for index, audit_id in enumerate(
+                ("audit\nlinebreak", "\naudit", "audit\n", "\taudit\t")
+            ):
+                with self.subTest(audit_id=repr(audit_id)):
+                    invalid_input = json.loads(
+                        (FIXTURES / "canonical-audit-input.json").read_text(
+                            encoding="utf-8"
+                        )
                     )
-            self.assertEqual(exit_code, 1)
-            envelope = json.loads(stdout.getvalue())
-            self.assertFalse(envelope["ok"])
-            self.assertEqual(envelope["error"]["type"], "input")
-            self.assertNotIn("resultPath", envelope)
-            self.assertFalse(output_dir.exists())
+                    invalid_input["auditId"] = audit_id
+                    input_path = pathlib.Path(directory) / ("input-" + str(index) + ".json")
+                    output_dir = pathlib.Path(directory) / ("results-" + str(index))
+                    input_path.write_text(
+                        json.dumps(invalid_input, ensure_ascii=False),
+                        encoding="utf-8",
+                    )
+                    stdout = io.StringIO()
+                    with mock.patch.object(client, "load_config", return_value={}):
+                        with mock.patch.object(
+                            client,
+                            "post_action",
+                            side_effect=AssertionError("invalid input reached network"),
+                        ):
+                            exit_code = client.main(
+                                [
+                                    "--config",
+                                    "unused.json",
+                                    "--input-file",
+                                    str(input_path),
+                                    "--output-dir",
+                                    str(output_dir),
+                                ],
+                                stdout=stdout,
+                            )
+                    self.assertEqual(exit_code, 1)
+                    envelope = json.loads(stdout.getvalue())
+                    self.assertFalse(envelope["ok"])
+                    self.assertEqual(envelope["error"]["type"], "input")
+                    self.assertNotIn("resultPath", envelope)
+                    self.assertFalse(output_dir.exists())
 
     def test_invalid_source_object_neither_produces_nor_renders_result(self):
         client = load_module(

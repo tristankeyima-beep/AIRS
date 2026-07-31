@@ -361,9 +361,15 @@ class CoreContractTests(unittest.TestCase):
         traversal = canonical_input()
         traversal["auditId"] = "../../escape"
         bad_values.append(traversal)
-        control_character = canonical_input()
-        control_character["auditId"] = "audit\nlinebreak"
-        bad_values.append(control_character)
+        for audit_id in (
+            "audit\nlinebreak",
+            "\naudit",
+            "audit\n",
+            "\taudit\t",
+        ):
+            control_character = canonical_input()
+            control_character["auditId"] = audit_id
+            bad_values.append(control_character)
         for value in bad_values:
             with self.subTest(value=value):
                 with self.assertRaises(module.AuditClientError) as raised:

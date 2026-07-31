@@ -184,7 +184,6 @@ def _new_id(uuid_factory):
 def _validate_audit_id(value):
     if not _nonempty_string(value):
         raise _input_error("auditId 必须是非空字符串")
-    value = value.strip()
     if (
         value in (".", "..")
         or any(char in value for char in ("/", "\\"))
