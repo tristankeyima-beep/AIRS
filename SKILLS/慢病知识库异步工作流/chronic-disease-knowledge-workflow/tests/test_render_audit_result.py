@@ -4,6 +4,8 @@ import io
 import json
 import pathlib
 import re
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -134,6 +136,34 @@ class RenderAuditResultTests(unittest.TestCase):
             template_file.flush()
             with self.assertRaises(module.RenderError):
                 module.render_result(sample_result(), template_file.name)
+
+    def test_template_rejects_duplicate_attribute_names(self):
+        module = self.require_module()
+        duplicate_elements = (
+            '<script id="audit-data" id="decoy" '
+            'type="application/json">{}</script>',
+            '<script ID="audit-data" id="decoy" '
+            'type="application/json">{}</script>',
+            '<div class="one" CLASS="two"></div>',
+        )
+        for duplicate_element in duplicate_elements:
+            with self.subTest(element=duplicate_element.split()[0]):
+                template = self.read_template().replace(
+                    "</body>",
+                    duplicate_element + "\n</body>",
+                )
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    encoding="utf-8",
+                    suffix=".html",
+                ) as template_file:
+                    template_file.write(template)
+                    template_file.flush()
+                    with self.assertRaises(module.RenderError):
+                        module.render_result(
+                            sample_result(),
+                            template_file.name,
+                        )
 
     def test_template_is_offline_and_uses_safe_dom_apis(self):
         template = self.read_template()
@@ -389,6 +419,85 @@ class RenderAuditResultTests(unittest.TestCase):
                     private_argument,
                     stdout.getvalue() + stderr.getvalue(),
                 )
+
+    def test_cli_deep_json_is_stable_render_error_without_traceback(self):
+        private_marker = "PRIVATE-DEEP-JSON"
+        expected = {
+            "ok": False,
+            "error": {
+                "type": "render",
+                "message": "无法生成智能审核结果 HTML",
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            input_path = root / (private_marker + ".json")
+            input_path.write_text(
+                "[" * 10000 + "0" + "]" * 10000,
+                encoding="utf-8",
+            )
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT_PATH),
+                    "--input-json",
+                    str(input_path),
+                    "--template",
+                    str(TEMPLATE_PATH),
+                    "--output-dir",
+                    str(root / "output"),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(completed.returncode, 1)
+            self.assertEqual(completed.stderr, "")
+            self.assertEqual(json.loads(completed.stdout), expected)
+            self.assertNotIn(
+                private_marker,
+                completed.stdout + completed.stderr,
+            )
+
+    def test_cli_memory_error_is_stable_render_error(self):
+        module = self.require_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            input_path = root / "memory-input.json"
+            input_path.write_text("{}", encoding="utf-8")
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            original_loads = module.json.loads
+
+            def raise_memory_error(value):
+                raise MemoryError
+
+            module.json.loads = raise_memory_error
+            try:
+                try:
+                    with contextlib.redirect_stderr(stderr):
+                        status = module.main(
+                            [
+                                "--input-json",
+                                str(input_path),
+                                "--template",
+                                str(TEMPLATE_PATH),
+                                "--output-dir",
+                                str(root / "output"),
+                            ],
+                            stdout=stdout,
+                        )
+                except MemoryError:
+                    status = None
+            finally:
+                module.json.loads = original_loads
+
+            self.assertEqual(status, 1)
+            self.assertEqual(stderr.getvalue(), "")
+            response = json.loads(stdout.getvalue())
+            self.assertEqual(response["ok"], False)
+            self.assertEqual(response["error"]["type"], "render")
 
     def test_cli_failure_is_render_error_without_traceback_or_user_text(self):
         module = self.require_module()

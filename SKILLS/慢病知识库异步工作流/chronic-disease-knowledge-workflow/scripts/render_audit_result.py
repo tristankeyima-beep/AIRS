@@ -46,9 +46,16 @@ class AuditDataSlotInspector(HTMLParser):
         super().__init__(convert_charrefs=False)
         self.elements = []
         self.active_script = None
+        self.has_duplicate_attributes = False
 
     def handle_starttag(self, tag, attrs):
-        attribute_map = dict(attrs)
+        attribute_map = {}
+        for name, value in attrs:
+            normalized_name = name.lower()
+            if normalized_name in attribute_map:
+                self.has_duplicate_attributes = True
+                continue
+            attribute_map[normalized_name] = value
         if attribute_map.get("id") != "audit-data":
             return
         element = {
@@ -230,7 +237,7 @@ def _validate_template_slot(template):
     inspector = AuditDataSlotInspector()
     inspector.feed(template)
     inspector.close()
-    if len(inspector.elements) != 1:
+    if inspector.has_duplicate_attributes or len(inspector.elements) != 1:
         raise RenderError("固定模板数据槽无效")
     element = inspector.elements[0]
     if (
@@ -334,7 +341,14 @@ def main(argv=None, stdout=sys.stdout):
             },
         }
         status = 1
-    except (OSError, UnicodeError, json.JSONDecodeError, RenderError):
+    except (
+        OSError,
+        UnicodeError,
+        json.JSONDecodeError,
+        RecursionError,
+        MemoryError,
+        RenderError,
+    ):
         response = {
             "ok": False,
             "error": {
