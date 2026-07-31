@@ -9,6 +9,7 @@ import re
 import sys
 import tempfile
 import unicodedata
+from html.parser import HTMLParser
 
 
 SCHEMA_VERSION = "adp-audit-result-1.0"
@@ -29,6 +30,43 @@ SLOT_PATTERN = re.compile(
 
 class RenderError(Exception):
     """A safe, user-facing audit rendering failure."""
+
+
+class ArgumentInputError(Exception):
+    """A command argument failure that does not retain raw argument text."""
+
+
+class StableArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        raise ArgumentInputError("命令参数无效")
+
+
+class AuditDataSlotInspector(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=False)
+        self.elements = []
+        self.active_script = None
+
+    def handle_starttag(self, tag, attrs):
+        attribute_map = dict(attrs)
+        if attribute_map.get("id") != "audit-data":
+            return
+        element = {
+            "tag": tag,
+            "type": attribute_map.get("type"),
+            "content": [],
+        }
+        self.elements.append(element)
+        if tag == "script":
+            self.active_script = element
+
+    def handle_data(self, data):
+        if self.active_script is not None:
+            self.active_script["content"].append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "script":
+            self.active_script = None
 
 
 def _require_text(value, field):
@@ -188,6 +226,21 @@ def _safe_embedded_json(result):
     )
 
 
+def _validate_template_slot(template):
+    inspector = AuditDataSlotInspector()
+    inspector.feed(template)
+    inspector.close()
+    if len(inspector.elements) != 1:
+        raise RenderError("固定模板数据槽无效")
+    element = inspector.elements[0]
+    if (
+        element["tag"] != "script"
+        or element["type"] != "application/json"
+        or "".join(element["content"]) != PLACEHOLDER
+    ):
+        raise RenderError("固定模板数据槽无效")
+
+
 def render_result(result, template_path):
     validate_result(result)
     try:
@@ -195,6 +248,7 @@ def render_result(result, template_path):
     except OSError as error:
         raise RenderError("无法读取固定审核结果模板") from error
 
+    _validate_template_slot(template)
     matches = list(SLOT_PATTERN.finditer(template))
     if (
         len(matches) != 1
@@ -253,14 +307,14 @@ def write_html(result, template_path, output_dir):
 
 
 def main(argv=None, stdout=sys.stdout):
-    parser = argparse.ArgumentParser(
+    parser = StableArgumentParser(
         description="从固定模板生成慢病智能审核 HTML"
     )
     parser.add_argument("--input-json", required=True)
     parser.add_argument("--template", required=True)
     parser.add_argument("--output-dir", required=True)
-    args = parser.parse_args(argv)
     try:
+        args = parser.parse_args(argv)
         result = json.loads(
             pathlib.Path(args.input_json).read_text(encoding="utf-8")
         )
@@ -271,6 +325,15 @@ def main(argv=None, stdout=sys.stdout):
         ).resolve()
         response = {"ok": True, "htmlPath": str(html_path)}
         status = 0
+    except ArgumentInputError:
+        response = {
+            "ok": False,
+            "error": {
+                "type": "render",
+                "message": "命令参数无效",
+            },
+        }
+        status = 1
     except (OSError, UnicodeError, json.JSONDecodeError, RenderError):
         response = {
             "ok": False,

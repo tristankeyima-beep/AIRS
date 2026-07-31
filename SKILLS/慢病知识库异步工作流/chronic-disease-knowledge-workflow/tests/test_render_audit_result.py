@@ -118,6 +118,23 @@ class RenderAuditResultTests(unittest.TestCase):
         self.assertEqual(template.count("__AUDIT_DATA_JSON__"), 1)
         self.assertEqual(template.count(slot), 1)
 
+    def test_semantic_duplicate_data_slot_is_rejected(self):
+        module = self.require_module()
+        template = self.read_template().replace(
+            "</body>",
+            "<script type = 'application/json' id = 'audit-data'>"
+            "{}</script>\n</body>",
+        )
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            suffix=".html",
+        ) as template_file:
+            template_file.write(template)
+            template_file.flush()
+            with self.assertRaises(module.RenderError):
+                module.render_result(sample_result(), template_file.name)
+
     def test_template_is_offline_and_uses_safe_dom_apis(self):
         template = self.read_template()
         self.assertNotRegex(template, r"https?://")
@@ -339,6 +356,39 @@ class RenderAuditResultTests(unittest.TestCase):
             self.assertEqual(response["ok"], True)
             self.assertTrue(pathlib.Path(response["htmlPath"]).is_absolute())
             self.assertTrue(pathlib.Path(response["htmlPath"]).is_file())
+
+    def test_cli_argument_errors_are_stable_json_without_stderr_or_echo(self):
+        module = self.require_module()
+        private_argument = "PRIVATE-UNKNOWN-ARGUMENT-VALUE"
+        cases = (
+            ["--unknown-option", private_argument],
+            ["--input-json", private_argument],
+        )
+        expected = {
+            "ok": False,
+            "error": {
+                "type": "render",
+                "message": "命令参数无效",
+            },
+        }
+
+        for argv in cases:
+            with self.subTest(argv=argv[:1]):
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                try:
+                    with contextlib.redirect_stderr(stderr):
+                        status = module.main(argv, stdout=stdout)
+                except SystemExit as error:
+                    status = error.code
+
+                self.assertEqual(status, 1)
+                self.assertEqual(json.loads(stdout.getvalue()), expected)
+                self.assertEqual(stderr.getvalue(), "")
+                self.assertNotIn(
+                    private_argument,
+                    stdout.getvalue() + stderr.getvalue(),
+                )
 
     def test_cli_failure_is_render_error_without_traceback_or_user_text(self):
         module = self.require_module()
