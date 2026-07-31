@@ -119,6 +119,26 @@ class FakeHttpResponse:
         return self.body[:size]
 
 
+class CloseTrackingBody(io.BytesIO):
+    def __init__(self, value):
+        super().__init__(value)
+        self.close_called = False
+
+    def close(self):
+        self.close_called = True
+        super().close()
+
+
+class RecordingStdin:
+    def __init__(self, value):
+        self.value = value
+        self.read_size = None
+
+    def read(self, size=-1):
+        self.read_size = size
+        return self.value if size < 0 else self.value[:size]
+
+
 class CoreContractTests(unittest.TestCase):
     def require_module(self):
         self.assertIsNotNone(
@@ -201,6 +221,29 @@ class CoreContractTests(unittest.TestCase):
         self.assertEqual(raised.exception.error_type, "config")
         self.assertNotIn(secret, str(raised.exception))
 
+    def test_load_config_classifies_malformed_hosts_and_ports(self):
+        module = self.require_module()
+        invalid_hosts = (
+            "http://[::1",
+            "https://example.test:notaport",
+            "https://example.test:70000",
+        )
+        for api_host in invalid_hosts:
+            config = profile_config()
+            config["profiles"]["cloud"]["api_host"] = api_host
+            with self.subTest(api_host=api_host):
+                try:
+                    module.load_config(self.write_config(config))
+                except module.AuditClientError as error:
+                    self.assertEqual(error.error_type, "config")
+                    self.assertEqual(error.code, "invalid_api_host")
+                except Exception as error:
+                    self.fail(
+                        "malformed api_host leaked " + type(error).__name__
+                    )
+                else:
+                    self.fail("malformed api_host was accepted")
+
     def test_parse_jsonish_accepts_json_bom_fence_and_python_literals(self):
         module = self.require_module()
         self.assertEqual(module.parse_jsonish('{"a":1}'), {"a": 1})
@@ -222,6 +265,22 @@ class CoreContractTests(unittest.TestCase):
             module.parse_jsonish(payload)
         self.assertEqual(raised.exception.error_type, "input")
         self.assertFalse(marker.exists())
+
+    def test_parse_jsonish_enforces_utf8_byte_boundary(self):
+        module = self.require_module()
+        self.assertTrue(
+            hasattr(module, "MAX_INPUT_BYTES"),
+            "client should define MAX_INPUT_BYTES",
+        )
+        with mock.patch.object(module, "MAX_INPUT_BYTES", 16):
+            exact = '"' + ("a" * 14) + '"'
+            self.assertEqual(module.parse_jsonish(exact), "a" * 14)
+            over = '"' + ("a" * 15) + '"'
+            with self.assertRaises(module.AuditClientError) as raised:
+                module.parse_jsonish(over)
+        self.assertEqual(raised.exception.error_type, "input")
+        self.assertEqual(raised.exception.code, "input_too_large")
+        self.assertNotIn("aaa", str(raised.exception))
 
     def test_normalize_unwraps_one_certification_candidate(self):
         module = self.require_module()
@@ -457,6 +516,34 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(raised.exception.error_type, "auth")
         self.assertEqual(raised.exception.request_id, "req-auth-http")
         self.assertNotIn("SECRET_TEST_ONLY", str(raised.exception))
+
+    def test_post_action_closes_http_errors_and_drops_response_context(self):
+        module = self.require_module()
+        cases = ((403, "auth"), (500, "http"))
+        for status, expected_type in cases:
+            body = CloseTrackingBody(b"synthetic server error")
+            http_error = urllib.error.HTTPError(
+                "https://example.test",
+                status,
+                "synthetic failure",
+                {"X-TC-RequestId": "req-http-close"},
+                body,
+            )
+            with self.subTest(status=status):
+                with mock.patch.object(
+                    module.urllib.request,
+                    "urlopen",
+                    side_effect=http_error,
+                ):
+                    with self.assertRaises(module.AuditClientError) as raised:
+                        module.post_action(
+                            loaded_profile(),
+                            "CreateWorkflowRun",
+                            {},
+                        )
+                self.assertEqual(raised.exception.error_type, expected_type)
+                self.assertTrue(body.close_called)
+                self.assertIsNone(raised.exception.__context__)
 
     def test_post_action_uses_explicit_remaining_timeout(self):
         module = self.require_module()
@@ -886,6 +973,62 @@ class CliContractTests(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             self.assertEqual(run.call_args.args[1]["auditId"], "audit-test-001")
             self.assertTrue(json.loads(stdout.getvalue())["ok"])
+
+    def test_input_reader_enforces_file_size_before_reading(self):
+        module = self.require_module()
+        self.assertTrue(
+            hasattr(module, "MAX_INPUT_BYTES"),
+            "client should define MAX_INPUT_BYTES",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "input.json"
+            with mock.patch.object(module, "MAX_INPUT_BYTES", 16):
+                exact = '"' + ("a" * 14) + '"'
+                path.write_text(exact, encoding="utf-8")
+                args = module.argparse.Namespace(
+                    input_stdin=False,
+                    input_file=str(path),
+                )
+                self.assertEqual(module._read_input_text(args, None), exact)
+
+                path.write_text('"' + ("a" * 15) + '"', encoding="utf-8")
+                with mock.patch.object(
+                    module.pathlib.Path,
+                    "read_text",
+                    side_effect=AssertionError("oversize file was read"),
+                ) as read_text:
+                    try:
+                        module._read_input_text(args, None)
+                    except module.AuditClientError as error:
+                        self.assertEqual(error.error_type, "input")
+                        self.assertEqual(error.code, "input_too_large")
+                    except AssertionError as error:
+                        self.fail(str(error))
+                    else:
+                        self.fail("oversize file was accepted")
+                    read_text.assert_not_called()
+
+    def test_input_reader_bounds_stdin_read_and_rejects_oversize(self):
+        module = self.require_module()
+        self.assertTrue(
+            hasattr(module, "MAX_INPUT_BYTES"),
+            "client should define MAX_INPUT_BYTES",
+        )
+        args = module.argparse.Namespace(input_stdin=True, input_file=None)
+        with mock.patch.object(module, "MAX_INPUT_BYTES", 16):
+            exact_stdin = RecordingStdin('"' + ("a" * 14) + '"')
+            self.assertEqual(
+                module._read_input_text(args, exact_stdin),
+                exact_stdin.value,
+            )
+            self.assertEqual(exact_stdin.read_size, 17)
+
+            over_stdin = RecordingStdin('"' + ("a" * 15) + '"')
+            with self.assertRaises(module.AuditClientError) as raised:
+                module._read_input_text(args, over_stdin)
+            self.assertEqual(over_stdin.read_size, 17)
+        self.assertEqual(raised.exception.error_type, "input")
+        self.assertEqual(raised.exception.code, "input_too_large")
 
     def test_cli_rejects_missing_or_conflicting_input_mode_in_error_envelope(self):
         module = self.require_module()

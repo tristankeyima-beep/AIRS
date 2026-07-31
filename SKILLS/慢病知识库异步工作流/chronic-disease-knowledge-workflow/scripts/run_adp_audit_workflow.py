@@ -23,6 +23,7 @@ import uuid
 
 
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
+MAX_INPUT_BYTES = 20 * 1024 * 1024
 FAILED_STATES = {3, 4, 5}
 ALLOWED_ACTIONS = frozenset({"CreateWorkflowRun", "DescribeWorkflowRun"})
 DEFAULT_SUSPICION_TYPE_OPTIONS = (
@@ -50,6 +51,34 @@ def _input_error(message, code=None):
 
 def _nonempty_string(value):
     return isinstance(value, str) and bool(value.strip())
+
+
+def _validated_api_host(value):
+    try:
+        parsed = urllib.parse.urlparse(value)
+        hostname = parsed.hostname
+        parsed.port
+    except ValueError:
+        raise AuditClientError(
+            "配置字段无效: api_host",
+            error_type="config",
+            code="invalid_api_host",
+        ) from None
+    if (
+        parsed.scheme not in ("http", "https")
+        or not hostname
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or parsed.path not in ("", "/")
+    ):
+        raise AuditClientError(
+            "配置字段无效: api_host",
+            error_type="config",
+            code="invalid_api_host",
+        )
+    return parsed.scheme + "://" + parsed.netloc.rstrip("/")
 
 
 def load_config(path):
@@ -86,18 +115,7 @@ def load_config(path):
             raise _config_error("配置缺少有效字段: " + name)
         result[name] = value.strip()
 
-    parsed = urllib.parse.urlparse(result["api_host"])
-    if (
-        parsed.scheme not in ("http", "https")
-        or not parsed.hostname
-        or parsed.username
-        or parsed.password
-        or parsed.query
-        or parsed.fragment
-        or parsed.path not in ("", "/")
-    ):
-        raise _config_error("配置字段无效: api_host")
-    result["api_host"] = parsed.scheme + "://" + parsed.netloc.rstrip("/")
+    result["api_host"] = _validated_api_host(result["api_host"])
 
     run_env = profile.get("run_env")
     if isinstance(run_env, bool) or run_env not in (0, 1):
@@ -126,10 +144,24 @@ def _strip_single_fence(text):
     return stripped
 
 
+def _ensure_input_size(text):
+    try:
+        size = len(text.encode("utf-8"))
+    except UnicodeEncodeError as error:
+        raise _input_error("输入不是有效 UTF-8 文本") from error
+    if size > MAX_INPUT_BYTES:
+        raise AuditClientError(
+            "审核输入超过大小限制",
+            error_type="input",
+            code="input_too_large",
+        )
+
+
 def parse_jsonish(text):
     """Parse JSON-ish input without evaluating executable expressions."""
     if not isinstance(text, str):
         raise _input_error("输入必须是文本")
+    _ensure_input_size(text)
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -396,28 +428,34 @@ def post_action(config, action, payload, request_timeout_seconds=None):
         headers=headers,
         method="POST",
     )
+    http_failure = None
     try:
         with urllib.request.urlopen(
             request,
             timeout=float(request_timeout_seconds),
         ) as response:
             raw = response.read(MAX_RESPONSE_BYTES + 1)
-    except urllib.error.HTTPError as error:
-        request_id = error.headers.get("X-TC-RequestId")
+    except urllib.error.HTTPError as http_error:
+        request_id = None
         try:
-            raw_error = error.read(MAX_RESPONSE_BYTES + 1)
+            if http_error.headers is not None:
+                request_id = http_error.headers.get("X-TC-RequestId")
+            raw_error = http_error.read(MAX_RESPONSE_BYTES + 1)
             error_data = json.loads(raw_error.decode("utf-8"))
             _unwrap_response(error_data)
-        except AuditClientError:
-            raise
+        except AuditClientError as parsed_failure:
+            http_failure = parsed_failure
         except Exception:
             pass
-        error_type = "auth" if error.code in (401, 403) else "http"
-        raise AuditClientError(
-            "ADP HTTP 请求失败: " + str(error.code),
-            error_type=error_type,
-            request_id=request_id,
-        ) from None
+        finally:
+            http_error.close()
+        if http_failure is None:
+            error_type = "auth" if http_error.code in (401, 403) else "http"
+            http_failure = AuditClientError(
+                "ADP HTTP 请求失败: " + str(http_error.code),
+                error_type=error_type,
+                request_id=request_id,
+            )
     except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
         reason = getattr(error, "reason", None)
         is_timeout = isinstance(error, (socket.timeout, TimeoutError)) or isinstance(
@@ -430,6 +468,10 @@ def post_action(config, action, payload, request_timeout_seconds=None):
         ) from None
     except OSError:
         raise AuditClientError("ADP 服务不可访问", error_type="http") from None
+
+    if http_failure is not None:
+        http_failure.__context__ = None
+        raise http_failure from None
 
     if len(raw) > MAX_RESPONSE_BYTES:
         raise AuditClientError("ADP 响应超过大小限制", error_type="response")
@@ -694,14 +736,25 @@ def _argument_parser():
 
 def _read_input_text(args, stdin):
     if args.input_stdin:
-        return stdin.read()
+        text = stdin.read(MAX_INPUT_BYTES + 1)
+        _ensure_input_size(text)
+        return text
+    path = pathlib.Path(args.input_file)
     try:
-        return pathlib.Path(args.input_file).read_text(encoding="utf-8")
+        if path.stat().st_size > MAX_INPUT_BYTES:
+            raise AuditClientError(
+                "审核输入超过大小限制",
+                error_type="input",
+                code="input_too_large",
+            )
+        text = path.read_text(encoding="utf-8")
     except OSError as error:
         raise AuditClientError(
             "无法读取审核输入文件",
             error_type="input",
         ) from error
+    _ensure_input_size(text)
+    return text
 
 
 def write_result_atomic(result, output_dir):
