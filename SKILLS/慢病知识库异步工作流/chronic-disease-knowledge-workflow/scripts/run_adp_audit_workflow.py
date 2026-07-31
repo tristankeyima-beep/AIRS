@@ -7,6 +7,7 @@ import copy
 import datetime
 import hashlib
 import hmac
+import inspect
 import json
 import math
 import os
@@ -23,6 +24,7 @@ import uuid
 
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 FAILED_STATES = {3, 4, 5}
+ALLOWED_ACTIONS = frozenset({"CreateWorkflowRun", "DescribeWorkflowRun"})
 DEFAULT_SUSPICION_TYPE_OPTIONS = (
     "指标异常;信息缺失;资质不符;临床表现不足;材料不全"
 )
@@ -220,8 +222,18 @@ def _hmac_sha256(key, value):
     return hmac.new(key, value.encode("utf-8"), hashlib.sha256).digest()
 
 
+def _validate_action(action):
+    if action not in ALLOWED_ACTIONS:
+        raise AuditClientError(
+            "ADP action 不在允许列表中",
+            error_type="config",
+            code="unsupported_action",
+        )
+
+
 def build_signed_headers(config, action, body, timestamp=None):
     """Build TC3-HMAC-SHA256 headers for one ADP action."""
+    _validate_action(action)
     if timestamp is None:
         timestamp = int(time.time())
     timestamp = int(timestamp)
@@ -360,8 +372,22 @@ def _unwrap_response(data):
     return response, request_id
 
 
-def post_action(config, action, payload):
+def post_action(config, action, payload, request_timeout_seconds=None):
     """POST one signed ADP action with bounded response handling."""
+    _validate_action(action)
+    if request_timeout_seconds is None:
+        request_timeout_seconds = config["timeout_seconds"]
+    if (
+        isinstance(request_timeout_seconds, bool)
+        or not isinstance(request_timeout_seconds, (int, float))
+        or not math.isfinite(request_timeout_seconds)
+        or request_timeout_seconds <= 0
+    ):
+        raise AuditClientError(
+            "ADP 请求超时参数无效",
+            error_type="config",
+            code="invalid_request_timeout",
+        )
     body = _compact_json(payload).encode("utf-8")
     headers = build_signed_headers(config, action, body)
     request = urllib.request.Request(
@@ -373,7 +399,7 @@ def post_action(config, action, payload):
     try:
         with urllib.request.urlopen(
             request,
-            timeout=float(config["timeout_seconds"]),
+            timeout=float(request_timeout_seconds),
         ) as response:
             raw = response.read(MAX_RESPONSE_BYTES + 1)
     except urllib.error.HTTPError as error:
@@ -458,11 +484,14 @@ def _normalize_rule_results(value, request_id):
         if isinstance(item, str):
             try:
                 parsed = json.loads(item)
-            except json.JSONDecodeError:
-                parsed = item
-            if isinstance(parsed, (dict, str)):
-                item = parsed
-        if not isinstance(item, (dict, str)):
+            except json.JSONDecodeError as error:
+                raise AuditClientError(
+                    "ruleResults 包含非 JSON 字符串项",
+                    error_type="response",
+                    request_id=request_id,
+                ) from error
+            item = parsed
+        if not isinstance(item, dict):
             raise AuditClientError(
                 "ruleResults 包含无效项",
                 error_type="response",
@@ -526,6 +555,38 @@ def _build_result(config, normalized, output, run_id, request_id, now_factory):
     }
 
 
+def _call_post(post, config, action, payload, remaining):
+    """Pass a deadline budget when supported by the injected transport."""
+    try:
+        parameters = inspect.signature(post).parameters.values()
+    except (TypeError, ValueError):
+        parameters = ()
+    supports_timeout = any(
+        parameter.name == "request_timeout_seconds"
+        or parameter.kind == inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters
+    )
+    if supports_timeout:
+        return post(
+            config,
+            action,
+            payload,
+            request_timeout_seconds=remaining,
+        )
+    return post(config, action, payload)
+
+
+def _remaining_before_deadline(deadline, monotonic, request_id=None):
+    remaining = deadline - monotonic()
+    if remaining <= 0:
+        raise AuditClientError(
+            "等待 ADP 工作流结果超时",
+            error_type="timeout",
+            request_id=request_id,
+        )
+    return remaining
+
+
 def run_audit_workflow(
     config,
     audit_input,
@@ -542,7 +603,17 @@ def run_audit_workflow(
     visitor_id = str(uuid_factory())
     create_payload = build_create_payload(config, normalized, visitor_id)
     started = monotonic()
-    create_data = post(config, "CreateWorkflowRun", create_payload)
+    timeout = float(config["timeout_seconds"])
+    deadline = started + timeout
+    remaining = _remaining_before_deadline(deadline, monotonic)
+    create_data = _call_post(
+        post,
+        config,
+        "CreateWorkflowRun",
+        create_payload,
+        remaining,
+    )
+    _remaining_before_deadline(deadline, monotonic)
     create_response, create_request_id = _unwrap_response(create_data)
     run_id = create_response.get("WorkflowRunId")
     if not _nonempty_string(run_id):
@@ -552,20 +623,21 @@ def run_audit_workflow(
             request_id=create_request_id,
         )
 
-    timeout = float(config["timeout_seconds"])
     interval = float(config["poll_interval_seconds"])
     while True:
-        if monotonic() - started >= timeout:
-            raise AuditClientError(
-                "等待 ADP 工作流结果超时",
-                error_type="timeout",
-                request_id=create_request_id,
-            )
-        describe_data = post(
+        remaining = _remaining_before_deadline(
+            deadline,
+            monotonic,
+            create_request_id,
+        )
+        describe_data = _call_post(
+            post,
             config,
             "DescribeWorkflowRun",
             {"AppBizId": config["app_id"], "WorkflowRunId": run_id},
+            remaining,
         )
+        _remaining_before_deadline(deadline, monotonic, create_request_id)
         response, request_id = _unwrap_response(describe_data)
         workflow = response.get("WorkflowRun")
         if not isinstance(workflow, dict):
@@ -583,7 +655,7 @@ def run_audit_workflow(
             )
         if state == 2:
             output = _parse_workflow_output(workflow.get("Output"), request_id)
-            return _build_result(
+            result = _build_result(
                 config,
                 normalized,
                 output,
@@ -591,19 +663,15 @@ def run_audit_workflow(
                 request_id,
                 now_factory,
             )
+            _remaining_before_deadline(deadline, monotonic, request_id)
+            return result
         if state in FAILED_STATES:
             raise AuditClientError(
                 "ADP 工作流执行失败",
                 error_type="workflow",
                 request_id=request_id,
             )
-        remaining = timeout - (monotonic() - started)
-        if remaining <= 0:
-            raise AuditClientError(
-                "等待 ADP 工作流结果超时",
-                error_type="timeout",
-                request_id=request_id,
-            )
+        remaining = _remaining_before_deadline(deadline, monotonic, request_id)
         sleep(min(interval, remaining))
 
 

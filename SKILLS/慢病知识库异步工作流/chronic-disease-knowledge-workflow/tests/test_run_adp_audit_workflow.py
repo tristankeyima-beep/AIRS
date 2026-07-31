@@ -1,4 +1,5 @@
 import importlib.util
+import inspect
 import io
 import json
 import os
@@ -457,6 +458,49 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(raised.exception.request_id, "req-auth-http")
         self.assertNotIn("SECRET_TEST_ONLY", str(raised.exception))
 
+    def test_post_action_uses_explicit_remaining_timeout(self):
+        module = self.require_module()
+        self.assertIn(
+            "request_timeout_seconds",
+            inspect.signature(module.post_action).parameters,
+        )
+        response = FakeHttpResponse(b'{"Response":{"RequestId":"req-test"}}')
+        with mock.patch.object(
+            module.urllib.request,
+            "urlopen",
+            return_value=response,
+        ) as urlopen:
+            module.post_action(
+                loaded_profile(),
+                "DescribeWorkflowRun",
+                {"AppBizId": "app-test-001", "WorkflowRunId": "wfr-test"},
+                request_timeout_seconds=2.5,
+            )
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 2.5)
+
+    def test_actions_outside_workflow_allowlist_are_rejected_before_network(self):
+        module = self.require_module()
+        with self.assertRaises(module.AuditClientError) as signed:
+            module.build_signed_headers(
+                loaded_profile(),
+                "DeleteKnowledgeBase",
+                b"{}",
+                timestamp=1700000000,
+            )
+        self.assertEqual(signed.exception.error_type, "config")
+        self.assertEqual(signed.exception.code, "unsupported_action")
+
+        with mock.patch.object(module.urllib.request, "urlopen") as urlopen:
+            with self.assertRaises(module.AuditClientError) as posted:
+                module.post_action(
+                    loaded_profile(),
+                    "DeleteKnowledgeBase",
+                    {},
+                )
+        self.assertEqual(posted.exception.error_type, "config")
+        self.assertEqual(posted.exception.code, "unsupported_action")
+        urlopen.assert_not_called()
+
     def test_workflow_creates_polls_and_builds_stable_result(self):
         module = self.require_module()
         calls = []
@@ -518,7 +562,6 @@ class WorkflowContractTests(unittest.TestCase):
         output = successful_output()
         output["ruleResults"] = [
             json.dumps(output["ruleResults"][0], ensure_ascii=False),
-            "合成测试文本规则",
         ]
         responses = [
             {"Response": {"WorkflowRunId": "wfr-test", "RequestId": "req-1"}},
@@ -540,7 +583,6 @@ class WorkflowContractTests(unittest.TestCase):
             now_factory=lambda: "2026-01-02T03:04:05Z",
         )
         self.assertEqual(result["ruleResults"][0]["ruleName"], "合成测试规则")
-        self.assertEqual(result["ruleResults"][1], "合成测试文本规则")
 
     def test_workflow_accepts_rule_results_as_json_array_string(self):
         module = self.require_module()
@@ -565,6 +607,135 @@ class WorkflowContractTests(unittest.TestCase):
         )
         self.assertIsInstance(result["ruleResults"], list)
         self.assertEqual(result["ruleResults"][0]["result"], "pass")
+
+    def test_workflow_rejects_plain_or_single_object_rule_results_strings(self):
+        module = self.require_module()
+        bad_rule_results = [
+            "合成测试普通文本规则",
+            json.dumps(
+                {"ruleName": "合成测试规则", "result": "pass"},
+                ensure_ascii=False,
+            ),
+            ["合成测试普通文本规则"],
+        ]
+        for rule_results in bad_rule_results:
+            output = successful_output()
+            output["ruleResults"] = rule_results
+            responses = [
+                {"Response": {"WorkflowRunId": "wfr-test", "RequestId": "req-1"}},
+                {
+                    "Response": {
+                        "WorkflowRun": {"State": 2, "Output": output},
+                        "RequestId": "req-2",
+                    }
+                },
+            ]
+            with self.subTest(rule_results=rule_results):
+                with self.assertRaises(module.AuditClientError) as raised:
+                    module.run_audit_workflow(
+                        loaded_profile(),
+                        canonical_input(),
+                        post=lambda config, action, payload: responses.pop(0),
+                    )
+                self.assertEqual(raised.exception.error_type, "response")
+
+    def test_workflow_times_out_when_create_call_crosses_deadline(self):
+        module = self.require_module()
+        config = loaded_profile()
+        config["timeout_seconds"] = 5
+        clock = FakeClock()
+        observed_timeouts = []
+
+        def fake_post(
+            config,
+            action,
+            payload,
+            request_timeout_seconds=None,
+        ):
+            observed_timeouts.append(request_timeout_seconds)
+            clock.value += 10
+            return {"malformed": "must not be processed after deadline"}
+
+        with self.assertRaises(module.AuditClientError) as raised:
+            module.run_audit_workflow(
+                config,
+                canonical_input(),
+                post=fake_post,
+                monotonic=clock.monotonic,
+            )
+        self.assertEqual(raised.exception.error_type, "timeout")
+        self.assertEqual(observed_timeouts, [5])
+
+    def test_workflow_times_out_when_describe_call_crosses_deadline(self):
+        module = self.require_module()
+        config = loaded_profile()
+        config["timeout_seconds"] = 5
+        clock = FakeClock()
+        observed_timeouts = []
+
+        def fake_post(
+            config,
+            action,
+            payload,
+            request_timeout_seconds=None,
+        ):
+            observed_timeouts.append(request_timeout_seconds)
+            if action == "CreateWorkflowRun":
+                return {
+                    "Response": {
+                        "WorkflowRunId": "wfr-test",
+                        "RequestId": "req-create",
+                    }
+                }
+            clock.value += 10
+            return {
+                "Response": {
+                    "WorkflowRun": {"State": 2, "Output": successful_output()},
+                    "RequestId": "req-describe",
+                }
+            }
+
+        with self.assertRaises(module.AuditClientError) as raised:
+            module.run_audit_workflow(
+                config,
+                canonical_input(),
+                post=fake_post,
+                monotonic=clock.monotonic,
+            )
+        self.assertEqual(raised.exception.error_type, "timeout")
+        self.assertEqual(observed_timeouts, [5, 5])
+
+    def test_workflow_times_out_when_result_normalization_crosses_deadline(self):
+        module = self.require_module()
+        config = loaded_profile()
+        config["timeout_seconds"] = 5
+        clock = FakeClock()
+        responses = [
+            {"Response": {"WorkflowRunId": "wfr-test", "RequestId": "req-1"}},
+            {
+                "Response": {
+                    "WorkflowRun": {
+                        "State": 2,
+                        "Output": successful_output(),
+                    },
+                    "RequestId": "req-2",
+                }
+            },
+        ]
+
+        def slow_now():
+            clock.value += 10
+            return "2026-01-02T03:04:05Z"
+
+        with self.assertRaises(module.AuditClientError) as raised:
+            module.run_audit_workflow(
+                config,
+                canonical_input(),
+                post=lambda config, action, payload: responses.pop(0),
+                monotonic=clock.monotonic,
+                now_factory=slow_now,
+            )
+        self.assertEqual(raised.exception.error_type, "timeout")
 
     def test_workflow_rejects_missing_fields_and_mismatched_audit_id(self):
         module = self.require_module()
