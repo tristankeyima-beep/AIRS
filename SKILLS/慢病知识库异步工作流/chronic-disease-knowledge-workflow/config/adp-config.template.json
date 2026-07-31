@@ -1,12 +1,29 @@
 {
-  "api_host": "",
-  "app_id": "",
-  "secret_id": "",
-  "secret_key": "",
-  "run_env": 1,
-  "region": "1",
-  "service": "lke",
-  "version": "2023-11-30",
+  "active_profile": "cloud",
+  "profiles": {
+    "cloud": {
+      "api_host": "",
+      "app_id": "",
+      "app_key": "",
+      "secret_id": "",
+      "secret_key": "",
+      "run_env": 1,
+      "region": "ap-guangzhou",
+      "service": "lke",
+      "version": "2023-11-30"
+    },
+    "provincial_intranet": {
+      "api_host": "",
+      "app_id": "",
+      "app_key": "",
+      "secret_id": "",
+      "secret_key": "",
+      "run_env": 1,
+      "region": "1",
+      "service": "lke",
+      "version": "2023-11-30"
+    }
+  },
   "poll_interval_seconds": 1,
   "timeout_seconds": 120
 }

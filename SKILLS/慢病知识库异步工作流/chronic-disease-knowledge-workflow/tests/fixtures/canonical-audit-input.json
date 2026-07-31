@@ -1,0 +1,23 @@
+{
+  "certification_list": {
+    "meta": {
+      "chronicDiseaseName": "合成测试病种",
+      "chronicDiseaseCode": "TEST-CD-001"
+    },
+    "certifications": [
+      {
+        "hospitalName": "测试医院",
+        "diagnosis": "合成测试诊断"
+      }
+    ]
+  },
+  "material_list": [
+    {
+      "materialId": "material-test-001",
+      "materialName": "合成测试材料",
+      "materialContent": "仅用于自动化测试的虚构内容"
+    }
+  ],
+  "auditId": "audit-test-001",
+  "suspicion_type_options": "指标异常;信息缺失;资质不符;临床表现不足;材料不全"
+}
