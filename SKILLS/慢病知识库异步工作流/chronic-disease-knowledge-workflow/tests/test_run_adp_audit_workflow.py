@@ -669,7 +669,7 @@ class WorkflowContractTests(unittest.TestCase):
             uuid_factory=lambda: "visitor-test",
             now_factory=lambda: "2026-01-02T03:04:05Z",
         )
-        self.assertEqual(result["ruleResults"][0]["ruleName"], "合成测试规则")
+        self.assertEqual(result["ruleResults"][0]["ruleCode"], "SYN-R-001")
 
     def test_workflow_accepts_rule_results_as_json_array_string(self):
         module = self.require_module()
@@ -693,14 +693,105 @@ class WorkflowContractTests(unittest.TestCase):
             post=lambda config, action, payload: responses.pop(0),
         )
         self.assertIsInstance(result["ruleResults"], list)
-        self.assertEqual(result["ruleResults"][0]["result"], "pass")
+        self.assertEqual(result["ruleResults"][0]["ruleResult"], "通过")
+
+    def test_workflow_normalizes_missing_suspicion_list_to_empty_array(self):
+        module = self.require_module()
+        rules = module._normalize_rule_results(
+            successful_output()["ruleResults"],
+            "req-normalize",
+        )
+        self.assertEqual(rules[0]["suspicionList"], [])
+
+    def test_workflow_rejects_missing_or_wrongly_typed_rule_contract_fields(self):
+        module = self.require_module()
+        invalid_rules = []
+
+        missing_rule_code = successful_output()["ruleResults"]
+        missing_rule_code[0].pop("ruleCode")
+        invalid_rules.append(missing_rule_code)
+
+        wrong_guide_list = successful_output()["ruleResults"]
+        wrong_guide_list[0]["ruleKeywordGuide"] = {}
+        invalid_rules.append(wrong_guide_list)
+
+        wrong_keyword = successful_output()["ruleResults"]
+        wrong_keyword[0]["ruleKeywordGuide"][0]["keyword"] = 123
+        invalid_rules.append(wrong_keyword)
+
+        missing_evidence_field = successful_output()["ruleResults"]
+        missing_evidence_field[0]["ruleKeywordGuide"][0]["results"][0].pop(
+            "rawText"
+        )
+        invalid_rules.append(missing_evidence_field)
+
+        wrong_evidence_value = successful_output()["ruleResults"]
+        wrong_evidence_value[0]["ruleKeywordGuide"][0]["results"][0][
+            "value"
+        ] = 7
+        invalid_rules.append(wrong_evidence_value)
+
+        secret = "PRIVATE-WORKFLOW-VALUE-MUST-NOT-LEAK"
+        for rules in invalid_rules:
+            rules[0]["privateUnexpectedValue"] = secret
+            with self.subTest(rules=rules):
+                with self.assertRaises(module.AuditClientError) as raised:
+                    module._normalize_rule_results(rules, "req-contract")
+                self.assertEqual(raised.exception.error_type, "response")
+                self.assertEqual(raised.exception.request_id, "req-contract")
+                self.assertNotIn(secret, str(raised.exception))
+
+    def test_workflow_validates_suspicion_and_source_union_without_coercion(self):
+        module = self.require_module()
+        base = successful_output()["ruleResults"][0]
+
+        valid_string_source = json.loads(json.dumps(base))
+        valid_string_source["suspicionList"] = [
+            {
+                "suspicionType": "合成疑点",
+                "detail": "合成疑点详情",
+                "sources": ["material-test-001"],
+            }
+        ]
+        normalized = module._normalize_rule_results(
+            [valid_string_source],
+            "req-source",
+        )
+        self.assertEqual(
+            normalized[0]["suspicionList"][0]["sources"],
+            ["material-test-001"],
+        )
+
+        valid_partial_object = json.loads(json.dumps(base))
+        valid_partial_object["suspicionList"] = [
+            {
+                "suspicionType": "合成疑点",
+                "detail": "合成疑点详情",
+                "sources": [{"materialId": "material-test-001"}],
+            }
+        ]
+        module._normalize_rule_results([valid_partial_object], "req-source")
+
+        invalid_suspicions = (
+            [None],
+            [{"suspicionType": 1, "detail": "合成疑点详情"}],
+            [{"suspicionType": "合成疑点", "detail": "合成疑点详情", "sources": {}}],
+            [{"suspicionType": "合成疑点", "detail": "合成疑点详情", "sources": [{}]}],
+            [{"suspicionType": "合成疑点", "detail": "合成疑点详情", "sources": [{"materialName": 3}]}],
+        )
+        for suspicion_list in invalid_suspicions:
+            rule = json.loads(json.dumps(base))
+            rule["suspicionList"] = suspicion_list
+            with self.subTest(suspicion_list=suspicion_list):
+                with self.assertRaises(module.AuditClientError):
+                    module._normalize_rule_results([rule], "req-source")
 
     def test_workflow_rejects_plain_or_single_object_rule_results_strings(self):
         module = self.require_module()
         bad_rule_results = [
             "合成测试普通文本规则",
             json.dumps(
-                {"ruleName": "合成测试规则", "result": "pass"},
+                {"ruleCode": "SYN-R-001", "ruleResult": "通过"},
                 ensure_ascii=False,
             ),
             ["合成测试普通文本规则"],

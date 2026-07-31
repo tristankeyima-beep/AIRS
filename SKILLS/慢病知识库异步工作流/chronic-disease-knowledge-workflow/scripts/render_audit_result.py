@@ -166,7 +166,7 @@ def _validate_suspicions(suspicions, rule_prefix):
             raise RenderError("审核结果字段无效: " + prefix)
         for name in ("suspicionType", "detail"):
             _require_text(suspicion.get(name), prefix + "." + name)
-        sources = suspicion.get("sources")
+        sources = suspicion.get("sources", [])
         if not isinstance(sources, list):
             raise RenderError("审核结果字段无效: " + prefix + ".sources")
         for source_index, source in enumerate(sources):
@@ -177,11 +177,15 @@ def _validate_suspicions(suspicions, rule_prefix):
                 continue
             if not isinstance(source, dict):
                 raise RenderError("审核结果字段无效: " + source_prefix)
-            for name in ("materialName", "materialId"):
-                _require_text(
-                    source.get(name),
-                    source_prefix + "." + name,
-                )
+            names = ("materialName", "materialId")
+            if not any(name in source for name in names):
+                raise RenderError("审核结果字段无效: " + source_prefix)
+            for name in names:
+                if name in source:
+                    _require_text(
+                        source[name],
+                        source_prefix + "." + name,
+                    )
 
 
 def validate_result(result):

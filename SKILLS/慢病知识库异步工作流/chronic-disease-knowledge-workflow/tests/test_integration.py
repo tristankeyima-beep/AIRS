@@ -46,7 +46,7 @@ class OfflineIntegrationTests(unittest.TestCase):
             )
         )
         config = {
-            "profile_name": "cloud",
+            "profile": "cloud",
             "api_host": "https://example.test",
             "app_id": "app-test",
             "app_key": "APPKEY_TEST_ONLY",
@@ -77,16 +77,16 @@ class OfflineIntegrationTests(unittest.TestCase):
             },
         ]
 
-        result = client.execute_workflow(
+        result = client.run_audit_workflow(
             config,
             audit_input,
             post=lambda *_: responses.pop(0),
-            visitor_id_factory=lambda: "visitor-test",
+            uuid_factory=lambda: "visitor-test",
             now_factory=lambda: "2026-08-01T01:30:00Z",
         )
 
         with tempfile.TemporaryDirectory() as directory:
-            json_path = client.write_result_json(result, directory)
+            json_path = client.write_result_atomic(result, directory)
             html_path = renderer.write_html(
                 result,
                 SKILL_ROOT / "assets" / "audit-result-template.html",
@@ -105,10 +105,9 @@ class OfflineIntegrationTests(unittest.TestCase):
 
             self.assertIsNotNone(embedded)
             self.assertEqual(json.loads(embedded.group(1)), delivered_json)
-            self.assertEqual(
-                {path.suffix for path in pathlib.Path(directory).iterdir()},
-                {".json", ".html"},
-            )
+            artifacts = list(pathlib.Path(directory).iterdir())
+            self.assertEqual(len(artifacts), 2)
+            self.assertEqual({path.suffix for path in artifacts}, {".json", ".html"})
             delivered_text = json_path.read_text(encoding="utf-8") + html
             self.assertNotIn("SECRET_KEY_TEST_ONLY", delivered_text)
             self.assertNotIn("materialContent", delivered_text)

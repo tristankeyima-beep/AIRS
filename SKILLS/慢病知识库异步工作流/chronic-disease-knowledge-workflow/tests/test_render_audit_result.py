@@ -304,6 +304,39 @@ class RenderAuditResultTests(unittest.TestCase):
                 with self.assertRaises(module.RenderError):
                     module.render_result(result, TEMPLATE_PATH)
 
+    def test_suspicion_sources_are_optional_and_accept_partial_objects(self):
+        module = self.require_module()
+        without_sources = sample_result()
+        without_sources["ruleResults"][0]["suspicionList"][0].pop("sources")
+        module.render_result(without_sources, TEMPLATE_PATH)
+
+        only_material_id = sample_result()
+        only_material_id["ruleResults"][0]["suspicionList"][0]["sources"] = [
+            {"materialId": "MAT-001"}
+        ]
+        module.render_result(only_material_id, TEMPLATE_PATH)
+
+        only_material_name = sample_result()
+        only_material_name["ruleResults"][0]["suspicionList"][0]["sources"] = [
+            {"materialName": "透析治疗记录"}
+        ]
+        module.render_result(only_material_name, TEMPLATE_PATH)
+
+    def test_suspicion_source_objects_require_one_typed_identifier(self):
+        module = self.require_module()
+        invalid_sources = (
+            [{}],
+            [{"materialId": 1}],
+            [{"materialName": None}],
+            [{"materialId": "MAT-001", "materialName": 2}],
+        )
+        for sources in invalid_sources:
+            result = sample_result()
+            result["ruleResults"][0]["suspicionList"][0]["sources"] = sources
+            with self.subTest(sources=sources):
+                with self.assertRaises(module.RenderError):
+                    module.render_result(result, TEMPLATE_PATH)
+
     def test_unsafe_audit_ids_are_rejected_without_directory_escape(self):
         module = self.require_module()
         unsafe_ids = (

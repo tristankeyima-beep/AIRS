@@ -539,8 +539,82 @@ def _normalize_rule_results(value, request_id):
                 error_type="response",
                 request_id=request_id,
             )
+        item = copy.deepcopy(item)
+        _validate_rule_result(item, request_id)
         result.append(item)
     return result
+
+
+def _rule_contract_error(request_id):
+    return AuditClientError(
+        "ruleResults 包含不符合稳定契约的字段",
+        error_type="response",
+        request_id=request_id,
+    )
+
+
+def _require_rule_string(container, name, request_id):
+    if name not in container or not isinstance(container[name], str):
+        raise _rule_contract_error(request_id)
+
+
+def _validate_rule_result(rule, request_id):
+    for name in (
+        "ruleCode",
+        "ruleContent",
+        "ruleResult",
+        "reasoningContent",
+    ):
+        _require_rule_string(rule, name, request_id)
+
+    guides = rule.get("ruleKeywordGuide")
+    if not isinstance(guides, list):
+        raise _rule_contract_error(request_id)
+    for guide in guides:
+        if not isinstance(guide, dict):
+            raise _rule_contract_error(request_id)
+        _require_rule_string(guide, "keyword", request_id)
+        evidence_list = guide.get("results")
+        if not isinstance(evidence_list, list):
+            raise _rule_contract_error(request_id)
+        for evidence in evidence_list:
+            if not isinstance(evidence, dict):
+                raise _rule_contract_error(request_id)
+            for name in (
+                "materialId",
+                "materialName",
+                "materialSource",
+                "rawText",
+                "value",
+            ):
+                _require_rule_string(evidence, name, request_id)
+
+    if "suspicionList" not in rule:
+        rule["suspicionList"] = []
+    suspicions = rule["suspicionList"]
+    if not isinstance(suspicions, list):
+        raise _rule_contract_error(request_id)
+    for suspicion in suspicions:
+        if not isinstance(suspicion, dict):
+            raise _rule_contract_error(request_id)
+        for name in ("suspicionType", "detail"):
+            _require_rule_string(suspicion, name, request_id)
+        if "sources" not in suspicion:
+            continue
+        sources = suspicion["sources"]
+        if not isinstance(sources, list):
+            raise _rule_contract_error(request_id)
+        for source in sources:
+            if isinstance(source, str):
+                continue
+            if not isinstance(source, dict):
+                raise _rule_contract_error(request_id)
+            names = ("materialId", "materialName")
+            if not any(name in source for name in names):
+                raise _rule_contract_error(request_id)
+            for name in names:
+                if name in source and not isinstance(source[name], str):
+                    raise _rule_contract_error(request_id)
 
 
 def _default_now():

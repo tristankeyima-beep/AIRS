@@ -3,8 +3,24 @@
   "auditId": "audit-test-001",
   "ruleResults": [
     {
-      "ruleName": "合成测试规则",
-      "result": "pass"
+      "ruleCode": "SYN-R-001",
+      "ruleContent": "合成测试规则：申请材料应包含必要证据",
+      "ruleResult": "通过",
+      "reasoningContent": "合成证据与测试规则一致。",
+      "ruleKeywordGuide": [
+        {
+          "keyword": "合成证据关键词",
+          "results": [
+            {
+              "materialId": "material-test-001",
+              "materialName": "合成测试材料",
+              "materialSource": "申请材料",
+              "rawText": "合成测试证据原文",
+              "value": "合成测试值"
+            }
+          ]
+        }
+      ]
     }
   ],
   "finalResult": "manual_review"
