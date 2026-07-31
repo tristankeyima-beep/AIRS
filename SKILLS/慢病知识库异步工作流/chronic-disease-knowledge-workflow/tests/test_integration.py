@@ -180,6 +180,152 @@ class OfflineIntegrationTests(unittest.TestCase):
             finally:
                 os.chdir(previous_directory)
 
+    def test_cli_rejects_control_character_audit_id_before_writing_result(self):
+        client = load_module(
+            "adp_audit_client_control_character",
+            SKILL_ROOT / "scripts" / "run_adp_audit_workflow.py",
+        )
+        invalid_input = json.loads(
+            (FIXTURES / "canonical-audit-input.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        invalid_input["auditId"] = "audit\nlinebreak"
+
+        with tempfile.TemporaryDirectory() as directory:
+            input_path = pathlib.Path(directory) / "input.json"
+            output_dir = pathlib.Path(directory) / "results"
+            input_path.write_text(
+                json.dumps(invalid_input, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with mock.patch.object(client, "load_config", return_value={}):
+                with mock.patch.object(
+                    client,
+                    "post_action",
+                    side_effect=AssertionError("invalid input reached network"),
+                ):
+                    exit_code = client.main(
+                        [
+                            "--config",
+                            "unused.json",
+                            "--input-file",
+                            str(input_path),
+                            "--output-dir",
+                            str(output_dir),
+                        ],
+                        stdout=stdout,
+                    )
+            self.assertEqual(exit_code, 1)
+            envelope = json.loads(stdout.getvalue())
+            self.assertFalse(envelope["ok"])
+            self.assertEqual(envelope["error"]["type"], "input")
+            self.assertNotIn("resultPath", envelope)
+            self.assertFalse(output_dir.exists())
+
+    def test_invalid_source_object_neither_produces_nor_renders_result(self):
+        client = load_module(
+            "adp_audit_client_invalid_source",
+            SKILL_ROOT / "scripts" / "run_adp_audit_workflow.py",
+        )
+        renderer = load_module(
+            "adp_audit_renderer_invalid_source",
+            SKILL_ROOT / "scripts" / "render_audit_result.py",
+        )
+        invalid_output = json.loads(
+            (FIXTURES / "successful-workflow-output.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        invalid_output["ruleResults"][0]["suspicionList"] = [
+            {
+                "suspicionType": "合成疑点",
+                "detail": "合成疑点详情",
+                "sources": [
+                    {"materialId": "material-test-001", "unexpected": 1}
+                ],
+            }
+        ]
+        config = {
+            "profile": "cloud",
+            "api_host": "https://example.test",
+            "app_id": "app-test",
+            "app_key": "APPKEY_TEST_ONLY",
+            "secret_id": "SECRET_ID_TEST_ONLY",
+            "secret_key": "SECRET_KEY_TEST_ONLY",
+            "run_env": 0,
+            "region": "1",
+            "service": "lke",
+            "version": "2023-11-30",
+            "poll_interval_seconds": 1,
+            "timeout_seconds": 5,
+        }
+        audit_input = json.loads(
+            (FIXTURES / "canonical-audit-input.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        responses = [
+            {
+                "Response": {
+                    "WorkflowRunId": "wfr-synthetic-001",
+                    "RequestId": "req-create",
+                }
+            },
+            {
+                "Response": {
+                    "WorkflowRun": {"State": 2, "Output": invalid_output},
+                    "RequestId": "req-synthetic-001",
+                }
+            },
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            output_dir = pathlib.Path(directory) / "results"
+            with self.assertRaises(client.AuditClientError):
+                client.run_audit_workflow(
+                    config,
+                    audit_input,
+                    post=lambda *_: responses.pop(0),
+                )
+            self.assertFalse(output_dir.exists())
+
+            invalid_result = json.loads(
+                (FIXTURES / "valid-audit-result.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            invalid_result["ruleResults"][0]["suspicionList"] = [
+                {
+                    "suspicionType": "合成疑点",
+                    "detail": "合成疑点详情",
+                    "sources": [
+                        {"materialId": "material-test-001", "unexpected": 1}
+                    ],
+                }
+            ]
+            input_path = pathlib.Path(directory) / "invalid-result.json"
+            input_path.write_text(
+                json.dumps(invalid_result, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            exit_code = renderer.main(
+                [
+                    "--input-json",
+                    str(input_path),
+                    "--template",
+                    str(SKILL_ROOT / "assets" / "audit-result-template.html"),
+                    "--output-dir",
+                    str(output_dir),
+                ],
+                stdout=stdout,
+            )
+            self.assertEqual(exit_code, 1)
+            self.assertFalse(json.loads(stdout.getvalue())["ok"])
+            self.assertFalse(output_dir.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

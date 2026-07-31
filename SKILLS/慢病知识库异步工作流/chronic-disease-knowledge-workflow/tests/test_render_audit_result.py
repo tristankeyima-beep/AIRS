@@ -322,6 +322,15 @@ class RenderAuditResultTests(unittest.TestCase):
         ]
         module.render_result(only_material_name, TEMPLATE_PATH)
 
+        string_extension = sample_result()
+        string_extension["ruleResults"][0]["suspicionList"][0]["sources"] = [
+            {
+                "materialId": "MAT-001",
+                "extension": "允许保留的字符串扩展字段",
+            }
+        ]
+        module.render_result(string_extension, TEMPLATE_PATH)
+
     def test_suspicion_source_objects_require_one_typed_identifier(self):
         module = self.require_module()
         invalid_sources = (
@@ -329,6 +338,9 @@ class RenderAuditResultTests(unittest.TestCase):
             [{"materialId": 1}],
             [{"materialName": None}],
             [{"materialId": "MAT-001", "materialName": 2}],
+            [{"materialId": "MAT-001", "unexpected": 1}],
+            [{"materialId": "MAT-001", "unexpected": True}],
+            [{"materialId": "MAT-001", "unexpected": {"nested": "object"}}],
         )
         for sources in invalid_sources:
             result = sample_result()

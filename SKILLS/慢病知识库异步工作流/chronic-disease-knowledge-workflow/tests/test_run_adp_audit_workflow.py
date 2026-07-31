@@ -361,6 +361,9 @@ class CoreContractTests(unittest.TestCase):
         traversal = canonical_input()
         traversal["auditId"] = "../../escape"
         bad_values.append(traversal)
+        control_character = canonical_input()
+        control_character["auditId"] = "audit\nlinebreak"
+        bad_values.append(control_character)
         for value in bad_values:
             with self.subTest(value=value):
                 with self.assertRaises(module.AuditClientError) as raised:
@@ -791,10 +794,24 @@ class WorkflowContractTests(unittest.TestCase):
             {
                 "suspicionType": "合成疑点",
                 "detail": "合成疑点详情",
-                "sources": [{"materialId": "material-test-001"}],
+                "sources": [
+                    {
+                        "materialId": "material-test-001",
+                        "extension": "允许保留的字符串扩展字段",
+                    }
+                ],
             }
         ]
-        module._normalize_rule_results([valid_partial_object], "req-source")
+        normalized_partial = module._normalize_rule_results(
+            [valid_partial_object],
+            "req-source",
+        )
+        self.assertEqual(
+            normalized_partial[0]["suspicionList"][0]["sources"][0][
+                "extension"
+            ],
+            "允许保留的字符串扩展字段",
+        )
 
         invalid_suspicions = (
             [None],
@@ -802,6 +819,9 @@ class WorkflowContractTests(unittest.TestCase):
             [{"suspicionType": "合成疑点", "detail": "合成疑点详情", "sources": {}}],
             [{"suspicionType": "合成疑点", "detail": "合成疑点详情", "sources": [{}]}],
             [{"suspicionType": "合成疑点", "detail": "合成疑点详情", "sources": [{"materialName": 3}]}],
+            [{"suspicionType": "合成疑点", "detail": "合成疑点详情", "sources": [{"materialId": "material-test-001", "unexpected": 1}]}],
+            [{"suspicionType": "合成疑点", "detail": "合成疑点详情", "sources": [{"materialId": "material-test-001", "unexpected": True}]}],
+            [{"suspicionType": "合成疑点", "detail": "合成疑点详情", "sources": [{"materialId": "material-test-001", "unexpected": {"nested": "object"}}]}],
         )
         for suspicion_list in invalid_suspicions:
             rule = json.loads(json.dumps(base))

@@ -180,12 +180,8 @@ def _validate_suspicions(suspicions, rule_prefix):
             names = ("materialName", "materialId")
             if not any(name in source for name in names):
                 raise RenderError("审核结果字段无效: " + source_prefix)
-            for name in names:
-                if name in source:
-                    _require_text(
-                        source[name],
-                        source_prefix + "." + name,
-                    )
+            for name, value in source.items():
+                _require_text(value, source_prefix + "." + str(name))
 
 
 def validate_result(result):

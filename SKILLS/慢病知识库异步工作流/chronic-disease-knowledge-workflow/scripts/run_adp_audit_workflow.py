@@ -16,6 +16,7 @@ import socket
 import sys
 import tempfile
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -184,7 +185,11 @@ def _validate_audit_id(value):
     if not _nonempty_string(value):
         raise _input_error("auditId 必须是非空字符串")
     value = value.strip()
-    if value in (".", "..") or any(char in value for char in ("/", "\\", "\0")):
+    if (
+        value in (".", "..")
+        or any(char in value for char in ("/", "\\"))
+        or any(unicodedata.category(char) == "Cc" for char in value)
+    ):
         raise _input_error("auditId 包含不安全的路径字符")
     return value
 
@@ -612,9 +617,8 @@ def _validate_rule_result(rule, request_id):
             names = ("materialId", "materialName")
             if not any(name in source for name in names):
                 raise _rule_contract_error(request_id)
-            for name in names:
-                if name in source and not isinstance(source[name], str):
-                    raise _rule_contract_error(request_id)
+            if any(not isinstance(value, str) for value in source.values()):
+                raise _rule_contract_error(request_id)
 
 
 def _default_now():
