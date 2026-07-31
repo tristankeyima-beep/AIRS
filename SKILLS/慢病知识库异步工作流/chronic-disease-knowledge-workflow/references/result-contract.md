@@ -28,9 +28,9 @@
 
 - `ruleResults` 的每一项必须是 object。
 - `ruleCode`、`ruleContent`、`ruleResult`、`reasoningContent` 必须是 string。
-- `ruleKeywordGuide` 必须是 array<object>；每个 guide 的 `results` 必须是 array<object>。
+- `ruleKeywordGuide` 必须是 array<object>；每个 guide 的 `keyword` 必须是 string；每个 guide 的 `results` 必须是 array<object>。
 - 每条 evidence result 的 `materialId`、`materialName`、`materialSource`、`rawText`、`value` 必须是 string；来源缺失时允许空字符串，但禁止补造。
-- `suspicionList` 若存在，必须是 array<object>；每项的 `suspicionType` 与 `detail` 必须是 string，`sources` 若存在，必须是 array。
+- `suspicionList` 若存在，必须是 array<object>；每项的 `suspicionType` 与 `detail` 必须是 string，`sources` 若存在，必须是 array。`sources` 的每个元素只能是 string 或 object；object 至少包含 `materialId` 或 `materialName` 之一，且 object 中存在的字段值均必须是 string。除上述受约束 object 外，禁止数字、布尔值和任意对象。
 
 “原样保留”仅指字段值不改写，不改变工作流给出的规则结论、证据或建议。“类型规范化”仅允许解包 JSON 字符串，以及把缺失的可选 `suspicionList` 视为空数组；不得强制转换其他字段或填充推测值，不生成新事实。
 

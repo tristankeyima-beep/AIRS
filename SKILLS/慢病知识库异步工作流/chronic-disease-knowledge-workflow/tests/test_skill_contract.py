@@ -182,6 +182,20 @@ class SkillContractTests(unittest.TestCase):
         ):
             self.assertIn(marker, text)
 
+    def test_result_contract_requires_keyword_strings(self):
+        text = self.read_required("references/result-contract.md")
+        self.assertIn("每个 guide 的 `keyword` 必须是 string", text)
+
+    def test_result_contract_restricts_suspicion_source_union(self):
+        text = self.read_required("references/result-contract.md")
+        for marker in (
+            "`sources` 的每个元素只能是 string 或 object",
+            "object 至少包含 `materialId` 或 `materialName` 之一",
+            "object 中存在的字段值均必须是 string",
+            "禁止数字、布尔值和任意对象",
+        ):
+            self.assertIn(marker, text)
+
     def test_deployment_documents_only_whitelisted_actions_and_secret_hygiene(self):
         text = self.read_required("references/internal-deployment.md")
         self.assertEqual(text.count("CreateWorkflowRun"), 1)
