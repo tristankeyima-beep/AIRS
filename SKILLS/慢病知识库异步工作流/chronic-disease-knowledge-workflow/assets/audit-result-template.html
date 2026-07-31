@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>慢病智能审核结果</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d9e1ec;
+      --paper: #fff;
+      --wash: #f3f6fa;
+      --good: #16794c;
+      --bad: #b42318;
+      --accent: #2457d6;
+    }
+    * { box-sizing: border-box; min-width: 0; }
+    body {
+      margin: 0;
+      background: var(--wash);
+      color: var(--ink);
+      font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI",
+        "PingFang SC", sans-serif;
+      overflow-wrap: anywhere;
+    }
+    main {
+      width: min(1120px, calc(100% - 32px));
+      margin: 32px auto;
+    }
+    section, .rule {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px;
+      margin: 14px 0;
+    }
+    h1, h2, h3 { line-height: 1.3; }
+    h1 { margin: 0 0 18px; }
+    h2 { margin: 0 0 14px; font-size: 20px; }
+    h3 { margin: 18px 0 8px; font-size: 16px; }
+    p { margin: 7px 0; }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .metric {
+      background: var(--wash);
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .label { color: var(--muted); font-size: 13px; }
+    .pass { color: var(--good); font-weight: 700; }
+    .fail { color: var(--bad); font-weight: 700; }
+    .evidence {
+      border-left: 3px solid var(--accent);
+      padding: 10px 0 10px 12px;
+      margin: 10px 0;
+      white-space: pre-wrap;
+    }
+    .empty { color: var(--muted); }
+    @media (max-width: 720px) {
+      .summary { grid-template-columns: 1fr 1fr; }
+      main { width: min(100% - 20px, 1120px); margin: 10px auto; }
+      section, .rule { padding: 16px; }
+    }
+    @media (max-width: 480px) {
+      .summary { grid-template-columns: 1fr; }
+      h1 { font-size: 24px; }
+    }
+    @media print {
+      body { background: #fff; }
+      main { width: 100%; margin: 0; }
+      section, .rule {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main id="app"><p>正在读取审核结果…</p></main>
+  <script id="audit-data" type="application/json">__AUDIT_DATA_JSON__</script>
+  <script>
+    (() => {
+      const data = JSON.parse(
+        document.getElementById("audit-data").textContent
+      );
+      const app = document.getElementById("app");
+      const node = (tag, text, className) => {
+        const element = document.createElement(tag);
+        if (className) element.className = className;
+        if (text !== undefined && text !== null) {
+          element.textContent = String(text);
+        }
+        return element;
+      };
+      const addField = (parent, label, value) => {
+        const item = node("div", null, "metric");
+        item.append(node("div", label, "label"), node("div", value));
+        parent.appendChild(item);
+      };
+      const valueOr = (value, fallback = "未提供") => {
+        return value === undefined || value === null || value === ""
+          ? fallback
+          : value;
+      };
+      const rules = Array.isArray(data.ruleResults)
+        ? data.ruleResults
+        : [];
+      const passed = rules.filter(
+        (rule) => rule.ruleResult === "通过"
+      ).length;
+      const failed = rules.filter(
+        (rule) => rule.ruleResult === "不通过"
+      ).length;
+      const fragment = document.createDocumentFragment();
+
+      fragment.appendChild(node("h1", "慢病智能审核结果"));
+
+      const overview = node("section");
+      overview.appendChild(node("h2", "报告概览"));
+      const summary = node("div", null, "summary");
+      addField(summary, "病种", data.audit.diseaseName);
+      addField(summary, "编码", data.audit.diseaseCode);
+      addField(summary, "审核流水号", data.audit.auditId);
+      addField(summary, "生成时间", data.generatedAt);
+      addField(summary, "总审核结论", data.audit.finalResult);
+      addField(summary, "申请材料数", data.audit.materialCount);
+      overview.appendChild(summary);
+      fragment.appendChild(overview);
+
+      const advice = node("section");
+      advice.append(
+        node("h2", "审核建议"),
+        node("p", data.audit.advice)
+      );
+      fragment.appendChild(advice);
+
+      const statistics = node("section");
+      statistics.appendChild(node("h2", "规则统计"));
+      const stats = node("div", null, "summary");
+      addField(stats, "规则总数", rules.length);
+      addField(stats, "通过", passed);
+      addField(stats, "不通过", failed);
+      statistics.appendChild(stats);
+      fragment.appendChild(statistics);
+
+      const detail = node("section");
+      detail.appendChild(node("h2", "逐条认定结果"));
+      rules.forEach((rule) => {
+        const card = node("article", null, "rule");
+        card.append(
+          node(
+            "h3",
+            `${valueOr(rule.ruleCode, "未编号")}｜${valueOr(
+              rule.ruleContent,
+              "未提供规则内容"
+            )}`
+          ),
+          node(
+            "p",
+            valueOr(rule.ruleResult),
+            rule.ruleResult === "通过" ? "pass" : "fail"
+          )
+        );
+
+        card.append(
+          node("h3", "推理说明"),
+          node("p", valueOr(rule.reasoningContent))
+        );
+
+        card.appendChild(node("h3", "疑点列表"));
+        const suspicions = Array.isArray(rule.suspicionList)
+          ? rule.suspicionList
+          : [];
+        if (!suspicions.length) {
+          card.appendChild(node("p", "无", "empty"));
+        }
+        suspicions.forEach((item) => {
+          const suspicion = node("div", null, "metric");
+          addField(
+            suspicion,
+            "疑点类型",
+            valueOr(item.suspicionType, "未分类")
+          );
+          addField(
+            suspicion,
+            "疑点说明",
+            valueOr(item.detail)
+          );
+          const sources = Array.isArray(item.sources)
+            ? item.sources.map((source) => {
+              if (typeof source === "string") return source;
+              const name = valueOr(source.materialName, "未命名材料");
+              const id = valueOr(source.materialId, "无材料 ID");
+              return `${name}（${id}）`;
+            }).join("、")
+            : "";
+          addField(suspicion, "关联材料", valueOr(sources, "无"));
+          card.appendChild(suspicion);
+        });
+
+        card.appendChild(node("h3", "证据详情"));
+        const guides = Array.isArray(rule.ruleKeywordGuide)
+          ? rule.ruleKeywordGuide
+          : [];
+        if (!guides.length) {
+          card.appendChild(node("p", "无", "empty"));
+        }
+        guides.forEach((guide) => {
+          card.appendChild(
+            node("p", `关键词：${valueOr(guide.keyword)}`, "label")
+          );
+          const results = Array.isArray(guide.results)
+            ? guide.results
+            : [];
+          if (!results.length) {
+            card.appendChild(node("p", "未发现证据片段", "empty"));
+          }
+          results.forEach((item) => {
+            const evidence = node("div", null, "evidence");
+            addField(evidence, "材料名称", valueOr(item.materialName));
+            addField(evidence, "材料 ID", valueOr(item.materialId));
+            addField(evidence, "材料来源", valueOr(item.materialSource));
+            addField(evidence, "材料原文", valueOr(item.rawText));
+            addField(evidence, "提取值", valueOr(item.value));
+            card.appendChild(evidence);
+          });
+        });
+        detail.appendChild(card);
+      });
+      fragment.appendChild(detail);
+
+      const execution = node("section");
+      execution.appendChild(node("h2", "执行信息"));
+      const executionFields = node("div", null, "summary");
+      addField(
+        executionFields,
+        "工作流实例 ID",
+        data.execution.workflowRunId
+      );
+      addField(executionFields, "请求 ID", data.execution.requestId);
+      addField(executionFields, "运行配置", data.execution.profile);
+      addField(executionFields, "运行环境", data.execution.runEnv);
+      execution.appendChild(executionFields);
+      fragment.appendChild(execution);
+
+      app.replaceChildren(fragment);
+    })();
+  </script>
+</body>
+</html>
