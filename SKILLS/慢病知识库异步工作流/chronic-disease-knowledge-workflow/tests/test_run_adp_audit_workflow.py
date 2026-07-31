@@ -724,6 +724,41 @@ class WorkflowContractTests(unittest.TestCase):
         )
         self.assertNotIn("material_list", result)
 
+    def test_workflow_rejects_success_response_without_request_id(self):
+        module = self.require_module()
+        response_sequences = (
+            [
+                {"Response": {"WorkflowRunId": "wfr-test"}},
+                {
+                    "Response": {
+                        "WorkflowRun": {"State": 2, "Output": successful_output()},
+                        "RequestId": "req-describe",
+                    }
+                },
+            ],
+            [
+                {
+                    "Response": {
+                        "WorkflowRunId": "wfr-test",
+                        "RequestId": "req-create",
+                    }
+                },
+                {"Response": {"WorkflowRun": {"State": 2, "Output": successful_output()}}},
+            ],
+        )
+
+        for responses in response_sequences:
+            with self.subTest(responses=responses):
+                queued = list(responses)
+                with self.assertRaises(module.AuditClientError) as raised:
+                    module.run_audit_workflow(
+                        loaded_profile(),
+                        canonical_input(),
+                        post=lambda config, action, payload: queued.pop(0),
+                    )
+                self.assertEqual(raised.exception.error_type, "response")
+                self.assertIsNone(raised.exception.request_id)
+
     def test_workflow_accepts_string_output_and_stringified_rule_results(self):
         module = self.require_module()
         output = successful_output()
@@ -807,6 +842,82 @@ class WorkflowContractTests(unittest.TestCase):
         )
         self.assertEqual(rules[0]["suspicionList"], [])
 
+    def test_workflow_strips_uncontracted_rule_payload_fields(self):
+        module = self.require_module()
+        output = successful_output()
+        rule = output["ruleResults"][0]
+        rule["unexpectedRawPayload"] = "must-not-reach-result"
+        guide = rule["ruleKeywordGuide"][0]
+        guide["unexpectedGuidePayload"] = "must-not-reach-result"
+        evidence = guide["results"][0]
+        evidence["unexpectedEvidencePayload"] = "must-not-reach-result"
+        rule["suspicionList"] = [
+            {
+                "suspicionType": "合成疑点",
+                "detail": "合成疑点详情",
+                "unexpectedSuspicionPayload": "must-not-reach-result",
+                "sources": [
+                    {
+                        "materialId": "material-test-001",
+                        "materialName": "合成测试材料",
+                        "unexpectedSourcePayload": "must-not-reach-result",
+                    }
+                ],
+            }
+        ]
+        responses = [
+            {"Response": {"WorkflowRunId": "wfr-test", "RequestId": "req-1"}},
+            {
+                "Response": {
+                    "WorkflowRun": {"State": 2, "Output": output},
+                    "RequestId": "req-2",
+                }
+            },
+        ]
+
+        result = module.run_audit_workflow(
+            loaded_profile(),
+            canonical_input(),
+            post=lambda config, action, payload: responses.pop(0),
+        )
+
+        normalized_rule = result["ruleResults"][0]
+        self.assertEqual(
+            set(normalized_rule),
+            {
+                "ruleCode",
+                "ruleContent",
+                "ruleResult",
+                "reasoningContent",
+                "ruleKeywordGuide",
+                "suspicionList",
+            },
+        )
+        self.assertEqual(
+            set(normalized_rule["ruleKeywordGuide"][0]),
+            {"keyword", "results"},
+        )
+        self.assertEqual(
+            set(normalized_rule["ruleKeywordGuide"][0]["results"][0]),
+            {
+                "materialId",
+                "materialName",
+                "materialSource",
+                "rawText",
+                "value",
+            },
+        )
+        suspicion = normalized_rule["suspicionList"][0]
+        self.assertEqual(
+            set(suspicion),
+            {"suspicionType", "detail", "sources"},
+        )
+        self.assertEqual(
+            suspicion["sources"],
+            [{"materialId": "material-test-001", "materialName": "合成测试材料"}],
+        )
+        self.assertNotIn("must-not-reach-result", json.dumps(result, ensure_ascii=False))
+
     def test_workflow_rejects_missing_or_wrongly_typed_rule_contract_fields(self):
         module = self.require_module()
         invalid_rules = []
@@ -874,7 +985,7 @@ class WorkflowContractTests(unittest.TestCase):
                 "sources": [
                     {
                         "materialId": "material-test-001",
-                        "extension": "允许保留的字符串扩展字段",
+                        "extension": "不应保留的字符串扩展字段",
                     }
                 ],
             }
@@ -884,10 +995,8 @@ class WorkflowContractTests(unittest.TestCase):
             "req-source",
         )
         self.assertEqual(
-            normalized_partial[0]["suspicionList"][0]["sources"][0][
-                "extension"
-            ],
-            "允许保留的字符串扩展字段",
+            normalized_partial[0]["suspicionList"][0]["sources"],
+            [{"materialId": "material-test-001"}],
         )
 
         invalid_suspicions = (

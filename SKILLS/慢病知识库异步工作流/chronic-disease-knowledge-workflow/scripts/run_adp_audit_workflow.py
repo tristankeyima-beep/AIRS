@@ -408,6 +408,11 @@ def _unwrap_response(data):
             code=code,
             request_id=request_id,
         )
+    if request_id is None:
+        raise AuditClientError(
+            "ADP 成功响应缺少 RequestId",
+            error_type="response",
+        )
     return response, request_id
 
 
@@ -548,7 +553,7 @@ def _normalize_rule_results(value, request_id):
             )
         item = copy.deepcopy(item)
         _validate_rule_result(item, request_id)
-        result.append(item)
+        result.append(_stable_rule_result(item))
     return result
 
 
@@ -621,6 +626,57 @@ def _validate_rule_result(rule, request_id):
                 raise _rule_contract_error(request_id)
             if any(not isinstance(value, str) for value in source.values()):
                 raise _rule_contract_error(request_id)
+
+
+def _stable_rule_result(rule):
+    """Copy only the documented rule-result fields into the stable output."""
+    result = {
+        name: rule[name]
+        for name in (
+            "ruleCode",
+            "ruleContent",
+            "ruleResult",
+            "reasoningContent",
+        )
+    }
+    result["ruleKeywordGuide"] = [
+        {
+            "keyword": guide["keyword"],
+            "results": [
+                {
+                    name: evidence[name]
+                    for name in (
+                        "materialId",
+                        "materialName",
+                        "materialSource",
+                        "rawText",
+                        "value",
+                    )
+                }
+                for evidence in guide["results"]
+            ],
+        }
+        for guide in rule["ruleKeywordGuide"]
+    ]
+    result["suspicionList"] = []
+    for suspicion in rule["suspicionList"]:
+        normalized_suspicion = {
+            "suspicionType": suspicion["suspicionType"],
+            "detail": suspicion["detail"],
+        }
+        if "sources" in suspicion:
+            normalized_suspicion["sources"] = [
+                source
+                if isinstance(source, str)
+                else {
+                    name: source[name]
+                    for name in ("materialId", "materialName")
+                    if name in source
+                }
+                for source in suspicion["sources"]
+            ]
+        result["suspicionList"].append(normalized_suspicion)
+    return result
 
 
 def _default_now():
