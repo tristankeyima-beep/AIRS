@@ -172,19 +172,20 @@ class SkillContractTests(unittest.TestCase):
             "每个 guide 的 `results` 必须是 array<object>",
             "`materialId`、`materialName`、`materialSource`、`rawText`、`value` 必须是 string",
             "来源缺失时允许空字符串，但禁止补造",
-            "`suspicionList` 若存在，必须是 array<object>",
+            "`suspicionList` 可缺失或为 `null`，两种情况均规范化为空数组",
             "`suspicionType` 与 `detail` 必须是 string",
             "`sources` 若存在，必须是 array",
             "“原样保留”仅指字段值不改写",
             "“类型规范化”仅允许解包 JSON 字符串",
-            "缺失的可选 `suspicionList` 视为空数组",
+            "缺失或 `null` 的可选 `suspicionList` 视为空数组",
             "不生成新事实",
         ):
             self.assertIn(marker, text)
 
-    def test_result_contract_requires_keyword_strings(self):
+    def test_result_contract_requires_keyword_code_and_found_types(self):
         text = self.read_required("references/result-contract.md")
-        self.assertIn("每个 guide 的 `keyword` 必须是 string", text)
+        self.assertIn("每个 guide 的 `keywordCode` 必须是 string", text)
+        self.assertIn("`found` 必须是 boolean", text)
 
     def test_result_contract_restricts_suspicion_source_union(self):
         text = self.read_required("references/result-contract.md")

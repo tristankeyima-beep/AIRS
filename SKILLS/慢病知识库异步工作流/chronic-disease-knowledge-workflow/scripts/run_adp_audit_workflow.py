@@ -585,7 +585,9 @@ def _validate_rule_result(rule, request_id):
     for guide in guides:
         if not isinstance(guide, dict):
             raise _rule_contract_error(request_id)
-        _require_rule_string(guide, "keyword", request_id)
+        _require_rule_string(guide, "keywordCode", request_id)
+        if not isinstance(guide.get("found"), bool):
+            raise _rule_contract_error(request_id)
         evidence_list = guide.get("results")
         if not isinstance(evidence_list, list):
             raise _rule_contract_error(request_id)
@@ -601,7 +603,7 @@ def _validate_rule_result(rule, request_id):
             ):
                 _require_rule_string(evidence, name, request_id)
 
-    if "suspicionList" not in rule:
+    if rule.get("suspicionList") is None:
         rule["suspicionList"] = []
     suspicions = rule["suspicionList"]
     if not isinstance(suspicions, list):
@@ -641,7 +643,8 @@ def _stable_rule_result(rule):
     }
     result["ruleKeywordGuide"] = [
         {
-            "keyword": guide["keyword"],
+            "keywordCode": guide["keywordCode"],
+            "found": guide["found"],
             "results": [
                 {
                     name: evidence[name]

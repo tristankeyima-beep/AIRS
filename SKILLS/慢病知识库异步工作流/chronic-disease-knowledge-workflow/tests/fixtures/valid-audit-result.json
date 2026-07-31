@@ -18,7 +18,8 @@
       "reasoningContent": "合成证据与测试规则一致。",
       "ruleKeywordGuide": [
         {
-          "keyword": "合成证据关键词",
+          "keywordCode": "SYNTHETIC-EVIDENCE-KEYWORD",
+          "found": true,
           "results": [
             {
               "materialId": "material-test-001",

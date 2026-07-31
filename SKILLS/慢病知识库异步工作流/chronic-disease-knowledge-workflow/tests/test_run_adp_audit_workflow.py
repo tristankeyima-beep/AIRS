@@ -834,13 +834,29 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIsInstance(result["ruleResults"], list)
         self.assertEqual(result["ruleResults"][0]["ruleResult"], "通过")
 
-    def test_workflow_normalizes_missing_suspicion_list_to_empty_array(self):
+    def test_workflow_normalizes_missing_or_null_suspicion_list_to_empty_array(self):
         module = self.require_module()
-        rules = module._normalize_rule_results(
+        missing_rules = module._normalize_rule_results(
             successful_output()["ruleResults"],
             "req-normalize",
         )
-        self.assertEqual(rules[0]["suspicionList"], [])
+        self.assertEqual(missing_rules[0]["suspicionList"], [])
+
+        null_output = successful_output()["ruleResults"]
+        null_output[0]["suspicionList"] = None
+        null_rules = module._normalize_rule_results(null_output, "req-normalize")
+        self.assertEqual(null_rules[0]["suspicionList"], [])
+
+    def test_workflow_preserves_false_keyword_found_flag(self):
+        module = self.require_module()
+        rules = successful_output()["ruleResults"]
+        rules[0]["ruleKeywordGuide"][0]["found"] = False
+
+        normalized = module._normalize_rule_results(rules, "req-guide")
+
+        guide = normalized[0]["ruleKeywordGuide"][0]
+        self.assertEqual(guide["keywordCode"], "SYNTHETIC-EVIDENCE-KEYWORD")
+        self.assertIs(guide["found"], False)
 
     def test_workflow_strips_uncontracted_rule_payload_fields(self):
         module = self.require_module()
@@ -895,7 +911,7 @@ class WorkflowContractTests(unittest.TestCase):
         )
         self.assertEqual(
             set(normalized_rule["ruleKeywordGuide"][0]),
-            {"keyword", "results"},
+            {"keywordCode", "found", "results"},
         )
         self.assertEqual(
             set(normalized_rule["ruleKeywordGuide"][0]["results"][0]),
@@ -930,9 +946,13 @@ class WorkflowContractTests(unittest.TestCase):
         wrong_guide_list[0]["ruleKeywordGuide"] = {}
         invalid_rules.append(wrong_guide_list)
 
-        wrong_keyword = successful_output()["ruleResults"]
-        wrong_keyword[0]["ruleKeywordGuide"][0]["keyword"] = 123
-        invalid_rules.append(wrong_keyword)
+        wrong_keyword_code = successful_output()["ruleResults"]
+        wrong_keyword_code[0]["ruleKeywordGuide"][0]["keywordCode"] = 123
+        invalid_rules.append(wrong_keyword_code)
+
+        missing_found = successful_output()["ruleResults"]
+        missing_found[0]["ruleKeywordGuide"][0].pop("found")
+        invalid_rules.append(missing_found)
 
         missing_evidence_field = successful_output()["ruleResults"]
         missing_evidence_field[0]["ruleKeywordGuide"][0]["results"][0].pop(

@@ -52,7 +52,7 @@ def sample_result():
                 "reasoningContent": "现有记录只覆盖两个月，未达到时长要求。",
                 "ruleKeywordGuide": [
                     {
-                        "keyword": "透析日期",
+                        "keywordCode": "DIALYSIS-DATE",
                         "found": True,
                         "results": [
                             {
@@ -281,6 +281,16 @@ class RenderAuditResultTests(unittest.TestCase):
         ][0]["materialId"] = 123
         invalid_results.append(wrong_evidence)
 
+        missing_found = sample_result()
+        missing_found["ruleResults"][0]["ruleKeywordGuide"][0].pop("found")
+        invalid_results.append(missing_found)
+
+        wrong_keyword_code = sample_result()
+        wrong_keyword_code["ruleResults"][0]["ruleKeywordGuide"][0][
+            "keywordCode"
+        ] = 123
+        invalid_results.append(wrong_keyword_code)
+
         wrong_suspicion = sample_result()
         wrong_suspicion["ruleResults"][0]["suspicionList"] = [None]
         invalid_results.append(wrong_suspicion)
@@ -303,6 +313,17 @@ class RenderAuditResultTests(unittest.TestCase):
             with self.subTest(index=index):
                 with self.assertRaises(module.RenderError):
                     module.render_result(result, TEMPLATE_PATH)
+
+    def test_null_suspicion_list_is_normalized_in_rendered_stable_result(self):
+        module = self.require_module()
+        result = sample_result()
+        result["ruleResults"][0]["suspicionList"] = None
+
+        html = module.render_result(result, TEMPLATE_PATH)
+        rendered = json.loads(SLOT_PATTERN.findall(html)[0])
+
+        self.assertEqual(rendered["ruleResults"][0]["suspicionList"], [])
+        self.assertIsNone(result["ruleResults"][0]["suspicionList"])
 
     def test_suspicion_sources_are_optional_and_accept_partial_objects(self):
         module = self.require_module()

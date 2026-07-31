@@ -2,6 +2,7 @@
 """Render a versioned ADP audit result with a fixed offline template."""
 
 import argparse
+import copy
 import json
 import os
 import pathlib
@@ -152,11 +153,11 @@ def _validate_guides(guides, rule_prefix):
             raise RenderError("审核结果字段无效: " + prefix)
         _reject_unknown_keys(
             guide,
-            {"keyword", "found", "results"},
+            {"keywordCode", "found", "results"},
             prefix,
         )
-        _require_text(guide.get("keyword"), prefix + ".keyword")
-        if "found" in guide and not isinstance(guide["found"], bool):
+        _require_text(guide.get("keywordCode"), prefix + ".keywordCode")
+        if not isinstance(guide.get("found"), bool):
             raise RenderError("审核结果字段无效: " + prefix + ".found")
         results = guide.get("results")
         if not isinstance(results, list):
@@ -290,6 +291,20 @@ def validate_result(result):
     _require_integer(execution.get("runEnv"), "execution.runEnv")
 
 
+def _normalize_result_for_rendering(result):
+    """Return a copy with the documented nullable workflow field normalized."""
+    canonical = copy.deepcopy(result)
+    if not isinstance(canonical, dict):
+        return canonical
+    rules = canonical.get("ruleResults")
+    if not isinstance(rules, list):
+        return canonical
+    for rule in rules:
+        if isinstance(rule, dict) and rule.get("suspicionList") is None:
+            rule["suspicionList"] = []
+    return canonical
+
+
 def _safe_embedded_json(result):
     try:
         serialized = json.dumps(
@@ -323,7 +338,8 @@ def _validate_template_slot(template):
 
 
 def render_result(result, template_path):
-    validate_result(result)
+    canonical_result = _normalize_result_for_rendering(result)
+    validate_result(canonical_result)
     try:
         template = pathlib.Path(template_path).read_text(encoding="utf-8")
     except OSError as error:
@@ -339,7 +355,7 @@ def render_result(result, template_path):
     ):
         raise RenderError("固定模板数据槽无效")
 
-    embedded = _safe_embedded_json(result)
+    embedded = _safe_embedded_json(canonical_result)
     html = template.replace(PLACEHOLDER, embedded, 1)
     rendered_matches = list(SLOT_PATTERN.finditer(html))
     if len(rendered_matches) != 1:
@@ -348,7 +364,7 @@ def render_result(result, template_path):
         rendered_result = json.loads(rendered_matches[0].group(2))
     except json.JSONDecodeError as error:
         raise RenderError("可视化数据与审核 JSON 不一致") from error
-    if rendered_result != result:
+    if rendered_result != canonical_result:
         raise RenderError("可视化数据与审核 JSON 不一致")
     return html
 

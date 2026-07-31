@@ -213,7 +213,13 @@
         }
         guides.forEach((guide) => {
           card.appendChild(
-            node("p", `关键词：${valueOr(guide.keyword)}`, "label")
+            node(
+              "p",
+              `关键词编号：${valueOr(guide.keywordCode)}；是否命中：${
+                guide.found ? "是" : "否"
+              }`,
+              "label"
+            )
           );
           const results = Array.isArray(guide.results)
             ? guide.results
