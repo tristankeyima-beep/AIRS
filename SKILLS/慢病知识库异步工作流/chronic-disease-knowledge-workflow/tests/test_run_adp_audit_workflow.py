@@ -1,6 +1,7 @@
 import importlib.util
 import io
 import json
+import os
 import pathlib
 import tempfile
 import unittest
@@ -593,6 +594,210 @@ class WorkflowContractTests(unittest.TestCase):
                         post=lambda config, action, payload: responses.pop(0),
                     )
                 self.assertEqual(raised.exception.error_type, "response")
+
+
+class CliContractTests(unittest.TestCase):
+    def require_module(self):
+        self.assertIsNotNone(MODULE)
+        for name in ("main", "print_error", "write_result_atomic"):
+            self.assertTrue(
+                hasattr(MODULE, name),
+                "run_adp_audit_workflow should expose " + name,
+            )
+        return MODULE
+
+    def write_config(self, directory):
+        path = pathlib.Path(directory) / "config.json"
+        path.write_text(
+            json.dumps(profile_config(), ensure_ascii=False),
+            encoding="utf-8",
+        )
+        return path
+
+    def test_atomic_writer_uses_replace_and_expected_filename(self):
+        module = self.require_module()
+        result = json.loads(
+            (FIXTURES / "valid-audit-result.json").read_text(encoding="utf-8")
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            real_replace = os.replace
+            replacements = []
+
+            def recording_replace(source, destination):
+                replacements.append((source, destination))
+                return real_replace(source, destination)
+
+            with mock.patch.object(
+                module.os,
+                "replace",
+                side_effect=recording_replace,
+            ):
+                output_path = module.write_result_atomic(result, directory)
+            self.assertEqual(
+                output_path.name,
+                "audit-test-001-智能审核结果.json",
+            )
+            self.assertEqual(len(replacements), 1)
+            self.assertEqual(pathlib.Path(replacements[0][1]), output_path)
+            self.assertFalse(pathlib.Path(replacements[0][0]).exists())
+            self.assertEqual(
+                json.loads(output_path.read_text(encoding="utf-8")),
+                result,
+            )
+
+    def test_cli_reads_input_file_writes_result_and_prints_safe_envelope(self):
+        module = self.require_module()
+        result = json.loads(
+            (FIXTURES / "valid-audit-result.json").read_text(encoding="utf-8")
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self.write_config(directory)
+            output_dir = pathlib.Path(directory) / "outputs"
+            stdout = io.StringIO()
+            with mock.patch.object(
+                module,
+                "run_audit_workflow",
+                return_value=result,
+            ) as run:
+                exit_code = module.main(
+                    [
+                        "--config",
+                        str(config_path),
+                        "--input-file",
+                        str(FIXTURES / "canonical-audit-input.json"),
+                        "--output-dir",
+                        str(output_dir),
+                    ],
+                    stdin=io.StringIO("unused"),
+                    stdout=stdout,
+                )
+            self.assertEqual(exit_code, 0)
+            envelope = json.loads(stdout.getvalue())
+            self.assertEqual(
+                envelope,
+                {
+                    "ok": True,
+                    "auditId": "audit-test-001",
+                    "outputPath": str(
+                        output_dir / "audit-test-001-智能审核结果.json"
+                    ),
+                },
+            )
+            self.assertNotIn("仅用于自动化测试的虚构内容", stdout.getvalue())
+            self.assertEqual(run.call_args.args[1]["auditId"], "audit-test-001")
+            self.assertTrue(pathlib.Path(envelope["outputPath"]).exists())
+
+    def test_cli_reads_jsonish_from_stdin(self):
+        module = self.require_module()
+        result = json.loads(
+            (FIXTURES / "valid-audit-result.json").read_text(encoding="utf-8")
+        )
+        stdin_value = "```json\n" + json.dumps(canonical_input(), ensure_ascii=False) + "\n```"
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self.write_config(directory)
+            stdout = io.StringIO()
+            with mock.patch.object(
+                module,
+                "run_audit_workflow",
+                return_value=result,
+            ) as run:
+                exit_code = module.main(
+                    [
+                        "--config",
+                        str(config_path),
+                        "--input-stdin",
+                        "--output-dir",
+                        directory,
+                    ],
+                    stdin=io.StringIO(stdin_value),
+                    stdout=stdout,
+                )
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(run.call_args.args[1]["auditId"], "audit-test-001")
+            self.assertTrue(json.loads(stdout.getvalue())["ok"])
+
+    def test_cli_rejects_missing_or_conflicting_input_mode_in_error_envelope(self):
+        module = self.require_module()
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self.write_config(directory)
+            argument_sets = [
+                ["--config", str(config_path), "--output-dir", directory],
+                [
+                    "--config",
+                    str(config_path),
+                    "--input-file",
+                    str(FIXTURES / "canonical-audit-input.json"),
+                    "--input-stdin",
+                    "--output-dir",
+                    directory,
+                ],
+            ]
+            for arguments in argument_sets:
+                stdout = io.StringIO()
+                with self.subTest(arguments=arguments):
+                    exit_code = module.main(
+                        arguments,
+                        stdin=io.StringIO(""),
+                        stdout=stdout,
+                    )
+                    self.assertEqual(exit_code, 1)
+                    envelope = json.loads(stdout.getvalue())
+                    self.assertFalse(envelope["ok"])
+                    self.assertEqual(envelope["error"]["type"], "config")
+
+    def test_cli_prints_classified_error_code_without_secrets(self):
+        module = self.require_module()
+        output = io.StringIO()
+        module.print_error(
+            module.AuditClientError(
+                "输入候选数量无效",
+                error_type="input",
+                code="multiple_certification_candidates",
+                request_id="req-safe",
+            ),
+            stream=output,
+        )
+        envelope = json.loads(output.getvalue())
+        self.assertEqual(envelope["error"]["type"], "input")
+        self.assertEqual(
+            envelope["error"]["code"],
+            "multiple_certification_candidates",
+        )
+        self.assertEqual(envelope["error"]["requestId"], "req-safe")
+        for secret in (
+            "APPKEY_TEST_ONLY",
+            "SECRET_TEST_ONLY",
+            "Signature=",
+        ):
+            self.assertNotIn(secret, output.getvalue())
+
+    def test_cli_unknown_exception_never_leaks_underlying_details(self):
+        module = self.require_module()
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self.write_config(directory)
+            stdout = io.StringIO()
+            sensitive = "SECRET_TEST_ONLY Signature=abc full-request-body"
+            with mock.patch.object(
+                module,
+                "run_audit_workflow",
+                side_effect=RuntimeError(sensitive),
+            ):
+                exit_code = module.main(
+                    [
+                        "--config",
+                        str(config_path),
+                        "--input-file",
+                        str(FIXTURES / "canonical-audit-input.json"),
+                        "--output-dir",
+                        directory,
+                    ],
+                    stdout=stdout,
+                )
+            self.assertEqual(exit_code, 1)
+            envelope = json.loads(stdout.getvalue())
+            self.assertEqual(envelope["error"]["type"], "response")
+            self.assertNotIn(sensitive, stdout.getvalue())
+            self.assertNotIn("Signature=", stdout.getvalue())
 
     def test_workflow_classifies_api_auth_error(self):
         module = self.require_module()

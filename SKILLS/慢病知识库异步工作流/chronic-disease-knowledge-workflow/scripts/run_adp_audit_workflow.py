@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run a chronic-disease audit through Tencent ADP async workflows."""
 
+import argparse
 import ast
 import copy
 import datetime
@@ -8,7 +9,11 @@ import hashlib
 import hmac
 import json
 import math
+import os
+import pathlib
 import socket
+import sys
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -600,3 +605,127 @@ def run_audit_workflow(
                 request_id=request_id,
             )
         sleep(min(interval, remaining))
+
+
+class _SafeArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        raise AuditClientError("命令行参数无效", error_type="config")
+
+
+def _argument_parser():
+    parser = _SafeArgumentParser(
+        description="调用 ADP 异步工作流执行慢病智能审核",
+    )
+    parser.add_argument("--config", required=True)
+    inputs = parser.add_mutually_exclusive_group(required=True)
+    inputs.add_argument("--input-file")
+    inputs.add_argument("--input-stdin", action="store_true")
+    parser.add_argument("--output-dir", required=True)
+    return parser
+
+
+def _read_input_text(args, stdin):
+    if args.input_stdin:
+        return stdin.read()
+    try:
+        return pathlib.Path(args.input_file).read_text(encoding="utf-8")
+    except OSError as error:
+        raise AuditClientError(
+            "无法读取审核输入文件",
+            error_type="input",
+        ) from error
+
+
+def write_result_atomic(result, output_dir):
+    """Atomically persist the stable result under its safe audit ID."""
+    try:
+        audit = result["audit"]
+        audit_id = _validate_audit_id(audit["auditId"])
+    except (KeyError, TypeError) as error:
+        raise AuditClientError(
+            "审核结果缺少有效 auditId",
+            error_type="response",
+        ) from error
+    directory = pathlib.Path(output_dir)
+    filename = audit_id + "-智能审核结果.json"
+    destination = directory / filename
+    temporary_path = None
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=directory,
+            prefix="." + audit_id + "-",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary:
+            temporary_path = pathlib.Path(temporary.name)
+            json.dump(
+                result,
+                temporary,
+                ensure_ascii=False,
+                indent=2,
+                allow_nan=False,
+            )
+            temporary.write("\n")
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        os.replace(temporary_path, destination)
+    except (OSError, TypeError, ValueError) as error:
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise AuditClientError(
+            "无法写入审核结果文件",
+            error_type="config",
+        ) from error
+    return destination
+
+
+def print_error(error, stream=sys.stdout):
+    error_data = {
+        "type": getattr(error, "error_type", "response"),
+        "message": str(error),
+    }
+    code = getattr(error, "code", None)
+    if _nonempty_string(code):
+        error_data["code"] = code
+    request_id = getattr(error, "request_id", None)
+    if _nonempty_string(request_id):
+        error_data["requestId"] = request_id
+    print(_compact_json({"ok": False, "error": error_data}), file=stream)
+
+
+def main(argv=None, stdin=sys.stdin, stdout=sys.stdout):
+    try:
+        args = _argument_parser().parse_args(argv)
+        config = load_config(args.config)
+        audit_input = parse_jsonish(_read_input_text(args, stdin))
+        result = run_audit_workflow(config, audit_input)
+        output_path = write_result_atomic(result, args.output_dir)
+        success = {
+            "ok": True,
+            "auditId": result["audit"]["auditId"],
+            "outputPath": str(output_path),
+        }
+        print(_compact_json(success), file=stdout)
+        return 0
+    except AuditClientError as error:
+        print_error(error, stream=stdout)
+        return 1
+    except Exception:
+        print_error(
+            AuditClientError(
+                "执行 ADP 智能审核时发生未知错误",
+                error_type="response",
+            ),
+            stream=stdout,
+        )
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
