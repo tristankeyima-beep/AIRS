@@ -342,12 +342,12 @@ class RenderAuditResultTests(unittest.TestCase):
 
     def test_cli_failure_is_render_error_without_traceback_or_user_text(self):
         module = self.require_module()
-        secret = "USER-PRIVATE-MATERIAL-TEXT"
+        private_text = "USER-PRIVATE-MATERIAL-TEXT"
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             input_path = root / "invalid.json"
             invalid = sample_result()
-            invalid["audit"]["advice"] = secret
+            invalid["audit"]["advice"] = private_text
             invalid["audit"]["materialCount"] = "two"
             input_path.write_text(
                 json.dumps(invalid, ensure_ascii=False),
@@ -374,7 +374,7 @@ class RenderAuditResultTests(unittest.TestCase):
             self.assertEqual(response["ok"], False)
             self.assertEqual(response["error"]["type"], "render")
             self.assertNotIn("Traceback", combined)
-            self.assertNotIn(secret, combined)
+            self.assertNotIn(private_text, combined)
             output_dir = root / "output"
             if output_dir.exists():
                 self.assertEqual(list(output_dir.iterdir()), [])
