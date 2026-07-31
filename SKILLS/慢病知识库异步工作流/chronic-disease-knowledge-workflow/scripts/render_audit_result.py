@@ -72,6 +72,71 @@ def _validate_rules(rules):
                 raise RenderError(
                     "审核结果字段无效: " + prefix + "." + name
                 )
+        _validate_guides(rule["ruleKeywordGuide"], prefix)
+        _validate_suspicions(rule["suspicionList"], prefix)
+
+
+def _validate_guides(guides, rule_prefix):
+    for guide_index, guide in enumerate(guides):
+        prefix = (
+            rule_prefix
+            + ".ruleKeywordGuide["
+            + str(guide_index)
+            + "]"
+        )
+        if not isinstance(guide, dict):
+            raise RenderError("审核结果字段无效: " + prefix)
+        _require_text(guide.get("keyword"), prefix + ".keyword")
+        results = guide.get("results")
+        if not isinstance(results, list):
+            raise RenderError("审核结果字段无效: " + prefix + ".results")
+        for result_index, evidence in enumerate(results):
+            evidence_prefix = (
+                prefix + ".results[" + str(result_index) + "]"
+            )
+            if not isinstance(evidence, dict):
+                raise RenderError("审核结果字段无效: " + evidence_prefix)
+            for name in (
+                "materialName",
+                "materialId",
+                "materialSource",
+                "rawText",
+                "value",
+            ):
+                _require_text(
+                    evidence.get(name),
+                    evidence_prefix + "." + name,
+                )
+
+
+def _validate_suspicions(suspicions, rule_prefix):
+    for suspicion_index, suspicion in enumerate(suspicions):
+        prefix = (
+            rule_prefix
+            + ".suspicionList["
+            + str(suspicion_index)
+            + "]"
+        )
+        if not isinstance(suspicion, dict):
+            raise RenderError("审核结果字段无效: " + prefix)
+        for name in ("suspicionType", "detail"):
+            _require_text(suspicion.get(name), prefix + "." + name)
+        sources = suspicion.get("sources")
+        if not isinstance(sources, list):
+            raise RenderError("审核结果字段无效: " + prefix + ".sources")
+        for source_index, source in enumerate(sources):
+            source_prefix = (
+                prefix + ".sources[" + str(source_index) + "]"
+            )
+            if isinstance(source, str):
+                continue
+            if not isinstance(source, dict):
+                raise RenderError("审核结果字段无效: " + source_prefix)
+            for name in ("materialName", "materialId"):
+                _require_text(
+                    source.get(name),
+                    source_prefix + "." + name,
+                )
 
 
 def validate_result(result):

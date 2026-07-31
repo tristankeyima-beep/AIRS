@@ -1,5 +1,4 @@
 import contextlib
-import copy
 import importlib.util
 import io
 import json
@@ -87,7 +86,7 @@ def sample_result():
             },
         ],
         "execution": {
-            "profile": "hz_miaoren_test",
+            "profile": "synthetic-profile",
             "runEnv": 1,
             "workflowRunId": "wfr-synthetic-001",
             "requestId": "req-synthetic-001",
@@ -224,6 +223,26 @@ class RenderAuditResultTests(unittest.TestCase):
         wrong_rule = sample_result()
         wrong_rule["ruleResults"] = ["not-an-object"]
         invalid_results.append(wrong_rule)
+
+        wrong_guide = sample_result()
+        wrong_guide["ruleResults"][0]["ruleKeywordGuide"] = [None]
+        invalid_results.append(wrong_guide)
+
+        wrong_evidence = sample_result()
+        wrong_evidence["ruleResults"][0]["ruleKeywordGuide"][0][
+            "results"
+        ][0]["materialId"] = 123
+        invalid_results.append(wrong_evidence)
+
+        wrong_suspicion = sample_result()
+        wrong_suspicion["ruleResults"][0]["suspicionList"] = [None]
+        invalid_results.append(wrong_suspicion)
+
+        wrong_source = sample_result()
+        wrong_source["ruleResults"][0]["suspicionList"][0]["sources"] = [
+            None
+        ]
+        invalid_results.append(wrong_source)
 
         missing_execution_field = sample_result()
         missing_execution_field["execution"].pop("workflowRunId")
