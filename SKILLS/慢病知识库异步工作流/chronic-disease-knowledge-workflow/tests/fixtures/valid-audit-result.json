@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "adp-audit-result-1.0",
+  "templateVersion": "audit-result-template-1.0",
+  "generatedAt": "2026-01-02T03:04:05Z",
+  "audit": {
+    "auditId": "audit-test-001",
+    "diseaseName": "合成测试病种",
+    "diseaseCode": "TEST-CD-001",
+    "finalResult": "manual_review",
+    "advice": "合成测试建议：请核对材料完整性",
+    "materialCount": 1
+  },
+  "ruleResults": [
+    {
+      "ruleCode": "SYN-R-001",
+      "ruleContent": "合成测试规则：申请材料应包含必要证据",
+      "ruleResult": "通过",
+      "reasoningContent": "合成证据与测试规则一致。",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "SYNTHETIC-EVIDENCE-KEYWORD",
+          "found": true,
+          "results": [
+            {
+              "materialId": "material-test-001",
+              "materialName": "合成测试材料",
+              "materialSource": "申请材料",
+              "rawText": "合成测试证据原文",
+              "value": "合成测试值"
+            }
+          ]
+        }
+      ],
+      "suspicionList": []
+    }
+  ],
+  "execution": {
+    "profile": "cloud",
+    "runEnv": 1,
+    "workflowRunId": "wfr-test-001",
+    "requestId": "req-describe-001"
+  }
+}

@@ -1,4 +1,4 @@
 interface:
-  display_name: "慢病知识库异步工作流"
-  short_description: "通过内网 ADP 异步工作流查询慢病认定标准、指南和专家共识"
-  default_prompt: "使用 $chronic-disease-knowledge-workflow 查询门诊慢特病认定标准。"
+  display_name: "慢病智能审核异步工作流"
+  short_description: "整理认定标准与申请材料，调用 ADP 异步工作流并生成可视化审核结果"
+  default_prompt: "使用 $chronic-disease-knowledge-workflow 整理认定标准和申请材料，执行慢病智能审核并生成 JSON 与 HTML 结果。"

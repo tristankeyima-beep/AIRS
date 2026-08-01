@@ -1,0 +1,47 @@
+{
+  "certification_list": {
+    "meta": {
+      "chronicDiseaseName": "合成测试病种",
+      "chronicDiseaseCode": "TEST-CD-001",
+      "version": "test-1.0",
+      "description": "仅用于自动化和云端冒烟验证的虚构认定标准",
+      "createdAt": "2026-08-01T00:00:00+08:00"
+    },
+    "ruleRepository": [
+      {
+        "airsCdCriteriaRuleId": "rule-test-001",
+        "ruleCode": "TEST-001",
+        "ruleContent": "合成测试规则：材料中应包含虚构诊断信息。",
+        "ruleSource": "合成测试依据",
+        "experience": "仅用于测试的虚构经验说明。",
+        "ruleKeywordGuide": ["合成测试诊断"],
+        "groupLevel1": {"groupCode": "TEST-G1", "groupName": "合成测试分组"},
+        "groupLevel0": {"groupCode": "TEST-G0", "groupName": "合成测试总组"}
+      }
+    ],
+    "logicTopology": {
+      "type": "GROUP",
+      "operator": "AND",
+      "groupCode": "TEST-G0",
+      "level": 0,
+      "children": [
+        {"type": "RULE_REF", "ruleCode": "TEST-001"}
+      ]
+    }
+  },
+  "material_list": [
+    {
+      "materialId": "material-test-001",
+      "materialName": "合成测试材料",
+      "materialType": "合成病历",
+      "uploadTime": "2026-08-01T00:00:00+08:00",
+      "reportDate": "2026-07-31",
+      "sourceHospital": "测试医院",
+      "hospitalLevel": "测试等级",
+      "materialSummary": "合成测试摘要",
+      "materialContent": "仅用于自动化测试的虚构内容：合成测试诊断。"
+    }
+  ],
+  "auditId": "audit-test-001",
+  "suspicion_type_options": "指标异常;信息缺失;资质不符;临床表现不足;材料不全"
+}
