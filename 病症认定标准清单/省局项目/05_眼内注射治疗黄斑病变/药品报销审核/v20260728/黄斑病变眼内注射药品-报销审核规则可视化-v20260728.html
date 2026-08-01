@@ -1,0 +1,487 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>黄斑病变眼内注射药品报销审核（V20260728）</title><style>
+:root{--bg:#eef4f9;--surface:#fff;--surface-2:#f6f9fc;--surface-3:#eaf1f7;--ink:#17293d;--muted:#617185;--line:#cfdeeb;--accent:#246bb2;--accent-soft:#dceeff;--good:#287149;--good-soft:#dcf4e3;--radius:10px}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#f9fcff,var(--bg) 360px);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;line-height:1.56}.page{width:min(1320px,calc(100% - 36px));margin:0 auto;padding:16px 0 56px}.panel{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);padding:20px;box-shadow:0 8px 22px rgba(31,63,96,.06)}h1,h2,h3,h4,p{margin:0}h2{font-size:19px;margin-bottom:8px}h3{font-size:16px;margin:18px 0 10px}h4{font-size:13px;margin-bottom:8px}.eyebrow,.sub{color:var(--muted);font-size:13px}.eyebrow{font-weight:800}.panel-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px}.panel-stats{display:flex;gap:10px;align-items:flex-start;color:var(--muted);font-size:13px;font-weight:800;flex-wrap:wrap;justify-content:flex-end}.pill{display:inline-flex;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:800}.pill.good{color:var(--good);background:var(--good-soft);border:1px solid #a8d9b5}.logic-topology{margin-top:12px;padding:14px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2);overflow:hidden}.logic-tree,.logic-tree ul{list-style:none;margin:10px 0 0;padding-left:18px}.logic-group,.logic-rule-ref{position:relative;margin:8px 0}.logic-group::before,.logic-rule-ref::before{content:"";position:absolute;left:-12px;top:13px;width:8px;border-top:1px solid #adbed0}.logic-operator{display:inline-flex;padding:4px 9px;border-radius:999px;background:var(--accent-soft);color:#18558d;font-size:12px;font-weight:800}.logic-rule-ref{padding:0;min-width:0}.overview-rule{display:block;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);overflow:hidden}.overview-rule summary{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start;padding:13px 14px;cursor:pointer;list-style:none}.overview-rule summary::-webkit-details-marker{display:none}.overview-rule summary::before{content:"展开";grid-column:1;grid-row:1;justify-self:start;padding:3px 8px;border-radius:999px;background:var(--accent-soft);color:#18558d;font-size:12px;font-weight:800;border:1px solid #7ab2e3}.overview-rule[open]>summary::before{content:"收起"}.overview-rule summary>span:first-of-type{grid-column:1;grid-row:1;padding-left:76px}.summary-actions{grid-column:2;grid-row:1}.logic-rule-title{display:block;margin-top:5px;font-size:14px;font-weight:760}.logic-rule-meta{display:block;margin-top:5px;color:var(--muted);font-size:12px;font-weight:760}.overview-rule-body{padding:14px;border-top:1px solid var(--line);background:var(--surface-2)}.repo-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}.repo-grid>div,.source-box{padding:10px;border:1px solid var(--line);border-radius:7px;background:var(--surface)}.source-box{margin-bottom:12px;white-space:pre-wrap}.keyword-definition-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}.keyword-definition-table th,.keyword-definition-table td{padding:10px 9px;border-top:1px solid var(--line);text-align:left;vertical-align:top;overflow-wrap:anywhere;word-break:break-word}.keyword-definition-table th{color:var(--muted);font-weight:800;background:var(--surface-3)}.keyword-definition-table th:nth-child(1){width:11%}.keyword-definition-table th:nth-child(3),.keyword-definition-table th:nth-child(4){width:8%}.keyword-definition-table th:nth-child(5){width:13%}.keyword-definition-table th:nth-child(6){width:25%}pre{margin:0;padding:12px;border-radius:7px;background:#1e2d3d;color:#eff6fd;overflow:auto;font-size:12px;line-height:1.52;white-space:pre-wrap;word-break:break-word}.inline-json summary,.raw-block summary{cursor:pointer;color:#18558d;font-weight:800}.raw-block{margin-top:12px;border:1px solid var(--line);border-radius:7px;background:var(--surface);padding:10px 12px}@media(max-width:900px){.page{width:min(100% - 20px,1320px)}.panel-head,.repo-grid{grid-template-columns:1fr}.keyword-definition-table{display:block;overflow:auto}.overview-rule summary>span:first-of-type{padding-left:0;margin-top:30px}}
+</style></head><body><main class="page"><section class="panel"><div class="panel-head"><div><p class="eyebrow">V20260728 · SJ05</p><h2>黄斑病变眼内注射药品报销审核</h2><p class="sub">来源：鲁社保函〔2018〕51号；八类疾病准入条件及细则-20260517.xlsx（Sheet1 C8:E10）；规则性质：某类药品报销审核。</p></div><div class="panel-stats"><span class="pill good">可解析</span><span>12 条规则</span><span>20 条提取项</span></div></div><h3>规则判定总览</h3><section class="logic-topology"><h4>逻辑拓扑</h4><p class="sub">按入参 logicTopology 展示规则之间的且或关系。</p><ul class="logic-tree"><li class="logic-group"><div class="logic-operator">AND · 全部条件满足</div><ul><li class="logic-group"><div class="logic-operator">OR · 任一条件满足</div><ul><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail"><summary><span><strong>规则 05001</strong><span class="logic-rule-title">规则原文：本次拟用雷珠单抗，且符合雷珠单抗限定适应范围。</span><span class="logic-rule-meta">来源分项：雷珠单抗 · 提取项 3 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>本次拟用雷珠单抗，且符合雷珠单抗限定适应范围。</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>雷珠单抗</p></div></div><h4>规则原文留存</h4><div class="source-box"><p>雷珠单抗限：50岁以上湿性AMD；DME引起的视力损害；CNV导致的视力损害；RVO继发黄斑水肿引起的视力损害。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>05001001</td><td>提取本次拟用药品是否为雷珠单抗。处方、药品申请单、医嘱或结算明细明确为雷珠单抗时为“是”；明确为其他药品时为“否”；未见或无法识别药品名称时为“无法判断”。</td><td>enum</td><td>是</td><td>是、否、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;提取本次拟用药品是否为雷珠单抗。处方、药品申请单、医嘱或结算明细明确为雷珠单抗时为“是”；明确为其他药品时为“否”；未见或无法识别药品名称时为“无法判断”。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;05001001&quot;
+}</pre></details></td></tr><tr><td>05001002</td><td>提取本次用药对应疾病范围：50岁以上湿性AMD、DME引起的视力损害、CNV导致的视力损害或RVO继发黄斑水肿引起的视力损害。病种审核结果或材料明确支持任一项为“符合”；明确不属于上述范围为“不符合”；诊断、病因或视力损害事实不足时为“无法判断”。</td><td>enum</td><td>是</td><td>符合、不符合、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;提取本次用药对应疾病范围：50岁以上湿性AMD、DME引起的视力损害、CNV导致的视力损害或RVO继发黄斑水肿引起的视力损害。病种审核结果或材料明确支持任一项为“符合”；明确不属于上述范围为“不符合”；诊断、病因或视力损害事实不足时为“无法判断”。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;符合&quot;,
+    &quot;不符合&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;05001002&quot;
+}</pre></details></td></tr><tr><td>05001003</td><td>AMD路径补充提取项（Excel E列）：年龄、AMD诊断、湿性AMD相关CNV／黄斑下出血／渗出／RPE脱离／纤维化瘢痕，以及OCT/OCTA、FFA/ICGA或眼底自发荧光所见。来源：病案首页、入出院记录、诊断证明、检查报告。</td><td>string</td><td>否</td><td>无</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;string&quot;,
+  &quot;required&quot;: false,
+  &quot;keywordContent&quot;: &quot;AMD路径补充提取项（Excel E列）：年龄、AMD诊断、湿性AMD相关CNV／黄斑下出血／渗出／RPE脱离／纤维化瘢痕，以及OCT/OCTA、FFA/ICGA或眼底自发荧光所见。来源：病案首页、入出院记录、诊断证明、检查报告。&quot;,
+  &quot;enumOptions&quot;: [],
+  &quot;keywordCode&quot;: &quot;05001003&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleContent&quot;: &quot;本次拟用雷珠单抗，且符合雷珠单抗限定适应范围。&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;sourceRuleContent&quot;: &quot;雷珠单抗限：50岁以上湿性AMD；DME引起的视力损害；CNV导致的视力损害；RVO继发黄斑水肿引起的视力损害。&quot;,
+  &quot;sourceMdFile&quot;: &quot;黄斑病变眼内注射药品-报销审核规则-v20260728.md&quot;,
+  &quot;sourceSection&quot;: &quot;雷珠单抗&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;提取本次拟用药品是否为雷珠单抗。处方、药品申请单、医嘱或结算明细明确为雷珠单抗时为“是”；明确为其他药品时为“否”；未见或无法识别药品名称时为“无法判断”。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;是&quot;,
+        &quot;否&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;05001001&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;提取本次用药对应疾病范围：50岁以上湿性AMD、DME引起的视力损害、CNV导致的视力损害或RVO继发黄斑水肿引起的视力损害。病种审核结果或材料明确支持任一项为“符合”；明确不属于上述范围为“不符合”；诊断、病因或视力损害事实不足时为“无法判断”。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;符合&quot;,
+        &quot;不符合&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;05001002&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;string&quot;,
+      &quot;required&quot;: false,
+      &quot;keywordContent&quot;: &quot;AMD路径补充提取项（Excel E列）：年龄、AMD诊断、湿性AMD相关CNV／黄斑下出血／渗出／RPE脱离／纤维化瘢痕，以及OCT/OCTA、FFA/ICGA或眼底自发荧光所见。来源：病案首页、入出院记录、诊断证明、检查报告。&quot;,
+      &quot;enumOptions&quot;: [],
+      &quot;keywordCode&quot;: &quot;05001003&quot;
+    }
+  ],
+  &quot;ruleCode&quot;: &quot;05001&quot;
+}</pre></details></div></div></details></li><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail"><summary><span><strong>规则 05002</strong><span class="logic-rule-title">规则原文：本次拟用康柏西普，且符合康柏西普限定适应范围。</span><span class="logic-rule-meta">来源分项：康柏西普 · 提取项 3 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>本次拟用康柏西普，且符合康柏西普限定适应范围。</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>康柏西普</p></div></div><h4>规则原文留存</h4><div class="source-box"><p>康柏西普限：50岁以上湿性AMD；DME引起的视力损害；CNV导致的视力损害；RVO（含BRVO或CRVO）继发黄斑水肿引起的视力损害。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>05002001</td><td>提取本次拟用药品是否为康柏西普。处方、药品申请单、医嘱或结算明细明确为康柏西普时为“是”；明确为其他药品时为“否”；未见或无法识别药品名称时为“无法判断”。</td><td>enum</td><td>是</td><td>是、否、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;提取本次拟用药品是否为康柏西普。处方、药品申请单、医嘱或结算明细明确为康柏西普时为“是”；明确为其他药品时为“否”；未见或无法识别药品名称时为“无法判断”。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;05002001&quot;
+}</pre></details></td></tr><tr><td>05002002</td><td>提取本次用药对应疾病范围：50岁以上湿性AMD、DME引起的视力损害、CNV导致的视力损害，或RVO（含BRVO或CRVO）继发黄斑水肿引起的视力损害。材料支持任一项为“符合”；明确不属于上述范围为“不符合”；证据不足为“无法判断”。</td><td>enum</td><td>是</td><td>符合、不符合、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;提取本次用药对应疾病范围：50岁以上湿性AMD、DME引起的视力损害、CNV导致的视力损害，或RVO（含BRVO或CRVO）继发黄斑水肿引起的视力损害。材料支持任一项为“符合”；明确不属于上述范围为“不符合”；证据不足为“无法判断”。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;符合&quot;,
+    &quot;不符合&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;05002002&quot;
+}</pre></details></td></tr><tr><td>05002003</td><td>AMD路径补充提取项（Excel E列）：年龄、AMD诊断、湿性AMD临床表现和OCT/OCTA、FFA/ICGA或眼底自发荧光检查所见。RVO路径同时提取BRVO／CRVO、黄斑水肿及视力损害记录。</td><td>string</td><td>否</td><td>无</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;string&quot;,
+  &quot;required&quot;: false,
+  &quot;keywordContent&quot;: &quot;AMD路径补充提取项（Excel E列）：年龄、AMD诊断、湿性AMD临床表现和OCT/OCTA、FFA/ICGA或眼底自发荧光检查所见。RVO路径同时提取BRVO／CRVO、黄斑水肿及视力损害记录。&quot;,
+  &quot;enumOptions&quot;: [],
+  &quot;keywordCode&quot;: &quot;05002003&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleContent&quot;: &quot;本次拟用康柏西普，且符合康柏西普限定适应范围。&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;sourceRuleContent&quot;: &quot;康柏西普限：50岁以上湿性AMD；DME引起的视力损害；CNV导致的视力损害；RVO（含BRVO或CRVO）继发黄斑水肿引起的视力损害。&quot;,
+  &quot;sourceMdFile&quot;: &quot;黄斑病变眼内注射药品-报销审核规则-v20260728.md&quot;,
+  &quot;sourceSection&quot;: &quot;康柏西普&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;提取本次拟用药品是否为康柏西普。处方、药品申请单、医嘱或结算明细明确为康柏西普时为“是”；明确为其他药品时为“否”；未见或无法识别药品名称时为“无法判断”。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;是&quot;,
+        &quot;否&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;05002001&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;提取本次用药对应疾病范围：50岁以上湿性AMD、DME引起的视力损害、CNV导致的视力损害，或RVO（含BRVO或CRVO）继发黄斑水肿引起的视力损害。材料支持任一项为“符合”；明确不属于上述范围为“不符合”；证据不足为“无法判断”。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;符合&quot;,
+        &quot;不符合&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;05002002&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;string&quot;,
+      &quot;required&quot;: false,
+      &quot;keywordContent&quot;: &quot;AMD路径补充提取项（Excel E列）：年龄、AMD诊断、湿性AMD临床表现和OCT/OCTA、FFA/ICGA或眼底自发荧光检查所见。RVO路径同时提取BRVO／CRVO、黄斑水肿及视力损害记录。&quot;,
+      &quot;enumOptions&quot;: [],
+      &quot;keywordCode&quot;: &quot;05002003&quot;
+    }
+  ],
+  &quot;ruleCode&quot;: &quot;05002&quot;
+}</pre></details></div></div></details></li><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail"><summary><span><strong>规则 05003</strong><span class="logic-rule-title">规则原文：本次拟用阿柏西普，且符合阿柏西普限定适应范围。</span><span class="logic-rule-meta">来源分项：阿柏西普 · 提取项 3 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>本次拟用阿柏西普，且符合阿柏西普限定适应范围。</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>阿柏西普</p></div></div><h4>规则原文留存</h4><div class="source-box"><p>阿柏西普限：50岁以上湿性AMD；DME引起的视力损害。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>05003001</td><td>提取本次拟用药品是否为阿柏西普。处方、药品申请单、医嘱或结算明细明确为阿柏西普时为“是”；明确为其他药品时为“否”；未见或无法识别药品名称时为“无法判断”。</td><td>enum</td><td>是</td><td>是、否、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;提取本次拟用药品是否为阿柏西普。处方、药品申请单、医嘱或结算明细明确为阿柏西普时为“是”；明确为其他药品时为“否”；未见或无法识别药品名称时为“无法判断”。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;05003001&quot;
+}</pre></details></td></tr><tr><td>05003002</td><td>提取本次用药是否为50岁以上湿性AMD或DME引起的视力损害。材料支持任一项为“符合”；明确为CNV、RVO或其他非列示范围为“不符合”；证据不足为“无法判断”。</td><td>enum</td><td>是</td><td>符合、不符合、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;提取本次用药是否为50岁以上湿性AMD或DME引起的视力损害。材料支持任一项为“符合”；明确为CNV、RVO或其他非列示范围为“不符合”；证据不足为“无法判断”。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;符合&quot;,
+    &quot;不符合&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;05003002&quot;
+}</pre></details></td></tr><tr><td>05003003</td><td>AMD路径补充提取项（Excel E列）：年龄、AMD诊断、湿性AMD临床表现和OCT/OCTA、FFA/ICGA或眼底自发荧光检查所见。</td><td>string</td><td>否</td><td>无</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;string&quot;,
+  &quot;required&quot;: false,
+  &quot;keywordContent&quot;: &quot;AMD路径补充提取项（Excel E列）：年龄、AMD诊断、湿性AMD临床表现和OCT/OCTA、FFA/ICGA或眼底自发荧光检查所见。&quot;,
+  &quot;enumOptions&quot;: [],
+  &quot;keywordCode&quot;: &quot;05003003&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleContent&quot;: &quot;本次拟用阿柏西普，且符合阿柏西普限定适应范围。&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;sourceRuleContent&quot;: &quot;阿柏西普限：50岁以上湿性AMD；DME引起的视力损害。&quot;,
+  &quot;sourceMdFile&quot;: &quot;黄斑病变眼内注射药品-报销审核规则-v20260728.md&quot;,
+  &quot;sourceSection&quot;: &quot;阿柏西普&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;提取本次拟用药品是否为阿柏西普。处方、药品申请单、医嘱或结算明细明确为阿柏西普时为“是”；明确为其他药品时为“否”；未见或无法识别药品名称时为“无法判断”。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;是&quot;,
+        &quot;否&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;05003001&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;提取本次用药是否为50岁以上湿性AMD或DME引起的视力损害。材料支持任一项为“符合”；明确为CNV、RVO或其他非列示范围为“不符合”；证据不足为“无法判断”。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;符合&quot;,
+        &quot;不符合&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;05003002&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;string&quot;,
+      &quot;required&quot;: false,
+      &quot;keywordContent&quot;: &quot;AMD路径补充提取项（Excel E列）：年龄、AMD诊断、湿性AMD临床表现和OCT/OCTA、FFA/ICGA或眼底自发荧光检查所见。&quot;,
+      &quot;enumOptions&quot;: [],
+      &quot;keywordCode&quot;: &quot;05003003&quot;
+    }
+  ],
+  &quot;ruleCode&quot;: &quot;05003&quot;
+}</pre></details></div></div></details></li></ul></li><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail"><summary><span><strong>规则 05004</strong><span class="logic-rule-title">规则原文：由三级医院眼科，或二级及以上眼科专科医院医师处方。</span><span class="logic-rule-meta">来源分项：共用支付条件 · 提取项 1 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>由三级医院眼科，或二级及以上眼科专科医院医师处方。</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>共用支付条件</p></div></div><h4>规则原文留存</h4><div class="source-box"><p>需三级医院眼科或二级及以上眼科专科医院医师处方。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>05004001</td><td>提取开方机构等级、是否为眼科专科医院、开方科室和开方医师。明确为三级医院眼科或二级及以上眼科专科医院医师处方为“符合”；明确不满足机构、专科或医师要求为“不符合”；机构等级、科室或开方医师不可确认时为“无法判断”。来源：处方、门诊病历、医嘱单、医疗机构主数据。</td><td>enum</td><td>是</td><td>符合、不符合、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;提取开方机构等级、是否为眼科专科医院、开方科室和开方医师。明确为三级医院眼科或二级及以上眼科专科医院医师处方为“符合”；明确不满足机构、专科或医师要求为“不符合”；机构等级、科室或开方医师不可确认时为“无法判断”。来源：处方、门诊病历、医嘱单、医疗机构主数据。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;符合&quot;,
+    &quot;不符合&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;05004001&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleContent&quot;: &quot;由三级医院眼科，或二级及以上眼科专科医院医师处方。&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;sourceRuleContent&quot;: &quot;需三级医院眼科或二级及以上眼科专科医院医师处方。&quot;,
+  &quot;sourceMdFile&quot;: &quot;黄斑病变眼内注射药品-报销审核规则-v20260728.md&quot;,
+  &quot;sourceSection&quot;: &quot;共用支付条件&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;提取开方机构等级、是否为眼科专科医院、开方科室和开方医师。明确为三级医院眼科或二级及以上眼科专科医院医师处方为“符合”；明确不满足机构、专科或医师要求为“不符合”；机构等级、科室或开方医师不可确认时为“无法判断”。来源：处方、门诊病历、医嘱单、医疗机构主数据。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;符合&quot;,
+        &quot;不符合&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;05004001&quot;
+    }
+  ],
+  &quot;ruleCode&quot;: &quot;05004&quot;
+}</pre></details></div></div></details></li><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail"><summary><span><strong>规则 05005</strong><span class="logic-rule-title">规则原文：首次处方时，病眼基线矫正视力在0.05–0.5范围内。</span><span class="logic-rule-meta">来源分项：共用支付条件 · 提取项 2 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>首次处方时，病眼基线矫正视力在0.05–0.5范围内。</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>共用支付条件</p></div></div><h4>规则原文留存</h4><div class="source-box"><p>首次处方时病眼基线矫正视力0.05-0.5。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>05005001</td><td>提取本次是否为首次处方。历史处方或申请记录支持首次时为“是”；明确为非首次时为“否”；无历史记录或无法确认时为“无法判断”。</td><td>enum</td><td>是</td><td>是、否、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;提取本次是否为首次处方。历史处方或申请记录支持首次时为“是”；明确为非首次时为“否”；无历史记录或无法确认时为“无法判断”。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;05005001&quot;
+}</pre></details></td></tr><tr><td>05005002</td><td>提取病眼侧别、首次处方日期、该时点基线矫正视力数值和检查日期。侧别不明、数值缺失或不能与首次处方对应时，规则结论应为“无法判断／待补材料”。来源：首次处方、眼科门诊病历、视力检查记录。</td><td>string</td><td>是</td><td>无</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;string&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;提取病眼侧别、首次处方日期、该时点基线矫正视力数值和检查日期。侧别不明、数值缺失或不能与首次处方对应时，规则结论应为“无法判断／待补材料”。来源：首次处方、眼科门诊病历、视力检查记录。&quot;,
+  &quot;enumOptions&quot;: [],
+  &quot;keywordCode&quot;: &quot;05005002&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleContent&quot;: &quot;首次处方时，病眼基线矫正视力在0.05–0.5范围内。&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;sourceRuleContent&quot;: &quot;首次处方时病眼基线矫正视力0.05-0.5。&quot;,
+  &quot;sourceMdFile&quot;: &quot;黄斑病变眼内注射药品-报销审核规则-v20260728.md&quot;,
+  &quot;sourceSection&quot;: &quot;共用支付条件&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;提取本次是否为首次处方。历史处方或申请记录支持首次时为“是”；明确为非首次时为“否”；无历史记录或无法确认时为“无法判断”。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;是&quot;,
+        &quot;否&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;05005001&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;string&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;提取病眼侧别、首次处方日期、该时点基线矫正视力数值和检查日期。侧别不明、数值缺失或不能与首次处方对应时，规则结论应为“无法判断／待补材料”。来源：首次处方、眼科门诊病历、视力检查记录。&quot;,
+      &quot;enumOptions&quot;: [],
+      &quot;keywordCode&quot;: &quot;05005002&quot;
+    }
+  ],
+  &quot;ruleCode&quot;: &quot;05005&quot;
+}</pre></details></div></div></details></li><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail"><summary><span><strong>规则 05006</strong><span class="logic-rule-title">规则原文：本次用药前已完成事前审核。</span><span class="logic-rule-meta">来源分项：共用支付条件 · 提取项 1 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>本次用药前已完成事前审核。</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>共用支付条件</p></div></div><h4>规则原文留存</h4><div class="source-box"><p>事前审查后方可用。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>05006001</td><td>提取事前审核结论、审核时间和本次用药／结算时间。审核通过且早于用药为“符合”；审核未通过或审核晚于用药为“不符合”；无审核记录或时点不可比对为“无法判断”。来源：事前审核系统记录、审批单、用药申请记录、结算记录。</td><td>enum</td><td>是</td><td>符合、不符合、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;提取事前审核结论、审核时间和本次用药／结算时间。审核通过且早于用药为“符合”；审核未通过或审核晚于用药为“不符合”；无审核记录或时点不可比对为“无法判断”。来源：事前审核系统记录、审批单、用药申请记录、结算记录。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;符合&quot;,
+    &quot;不符合&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;05006001&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleContent&quot;: &quot;本次用药前已完成事前审核。&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;sourceRuleContent&quot;: &quot;事前审查后方可用。&quot;,
+  &quot;sourceMdFile&quot;: &quot;黄斑病变眼内注射药品-报销审核规则-v20260728.md&quot;,
+  &quot;sourceSection&quot;: &quot;共用支付条件&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;提取事前审核结论、审核时间和本次用药／结算时间。审核通过且早于用药为“符合”；审核未通过或审核晚于用药为“不符合”；无审核记录或时点不可比对为“无法判断”。来源：事前审核系统记录、审批单、用药申请记录、结算记录。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;符合&quot;,
+        &quot;不符合&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;05006001&quot;
+    }
+  ],
+  &quot;ruleCode&quot;: &quot;05006&quot;
+}</pre></details></div></div></details></li><li class="logic-group"><div class="logic-operator">OR · 任一条件满足</div><ul><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail"><summary><span><strong>规则 05007</strong><span class="logic-rule-title">规则原文：初次申请时已提供血管造影影像证据。</span><span class="logic-rule-meta">来源分项：初次申请影像材料 · 提取项 1 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>初次申请时已提供血管造影影像证据。</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>初次申请影像材料</p></div></div><h4>规则原文留存</h4><div class="source-box"><p>初次申请需有血管造影或OCT证据。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>05007001</td><td>提取初次申请标识及血管造影影像／报告。初次申请且存在可识别血管造影证据为“符合”；明确为初次申请但无血管造影证据为“不符合本路径”；初次申请状态或影像材料不可识别为“无法判断”。来源：申请材料、影像报告、检查报告、病历。</td><td>enum</td><td>是</td><td>符合、不符合本路径、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;提取初次申请标识及血管造影影像／报告。初次申请且存在可识别血管造影证据为“符合”；明确为初次申请但无血管造影证据为“不符合本路径”；初次申请状态或影像材料不可识别为“无法判断”。来源：申请材料、影像报告、检查报告、病历。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;符合&quot;,
+    &quot;不符合本路径&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;05007001&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleContent&quot;: &quot;初次申请时已提供血管造影影像证据。&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;sourceRuleContent&quot;: &quot;初次申请需有血管造影或OCT证据。&quot;,
+  &quot;sourceMdFile&quot;: &quot;黄斑病变眼内注射药品-报销审核规则-v20260728.md&quot;,
+  &quot;sourceSection&quot;: &quot;初次申请影像材料&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;提取初次申请标识及血管造影影像／报告。初次申请且存在可识别血管造影证据为“符合”；明确为初次申请但无血管造影证据为“不符合本路径”；初次申请状态或影像材料不可识别为“无法判断”。来源：申请材料、影像报告、检查报告、病历。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;符合&quot;,
+        &quot;不符合本路径&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;05007001&quot;
+    }
+  ],
+  &quot;ruleCode&quot;: &quot;05007&quot;
+}</pre></details></div></div></details></li><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail"><summary><span><strong>规则 05008</strong><span class="logic-rule-title">规则原文：初次申请时已提供OCT影像证据。</span><span class="logic-rule-meta">来源分项：初次申请影像材料 · 提取项 1 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>初次申请时已提供OCT影像证据。</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>初次申请影像材料</p></div></div><h4>规则原文留存</h4><div class="source-box"><p>初次申请需有血管造影或OCT证据。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>05008001</td><td>提取初次申请标识及OCT影像／报告。初次申请且存在可识别OCT证据为“符合”；明确为初次申请但无OCT证据为“不符合本路径”；初次申请状态或影像材料不可识别为“无法判断”。来源：申请材料、OCT检查报告、病历。</td><td>enum</td><td>是</td><td>符合、不符合本路径、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;提取初次申请标识及OCT影像／报告。初次申请且存在可识别OCT证据为“符合”；明确为初次申请但无OCT证据为“不符合本路径”；初次申请状态或影像材料不可识别为“无法判断”。来源：申请材料、OCT检查报告、病历。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;符合&quot;,
+    &quot;不符合本路径&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;05008001&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleContent&quot;: &quot;初次申请时已提供OCT影像证据。&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;sourceRuleContent&quot;: &quot;初次申请需有血管造影或OCT证据。&quot;,
+  &quot;sourceMdFile&quot;: &quot;黄斑病变眼内注射药品-报销审核规则-v20260728.md&quot;,
+  &quot;sourceSection&quot;: &quot;初次申请影像材料&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;提取初次申请标识及OCT影像／报告。初次申请且存在可识别OCT证据为“符合”；明确为初次申请但无OCT证据为“不符合本路径”；初次申请状态或影像材料不可识别为“无法判断”。来源：申请材料、OCT检查报告、病历。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;符合&quot;,
+        &quot;不符合本路径&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;05008001&quot;
+    }
+  ],
+  &quot;ruleCode&quot;: &quot;05008&quot;
+}</pre></details></div></div></details></li><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail"><summary><span><strong>规则 05009</strong><span class="logic-rule-title">规则原文：初次申请时，因全身情况不允许进行血管造影或OCT，且已提供OCT血管成像证据。</span><span class="logic-rule-meta">来源分项：初次申请影像材料 · 提取项 2 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>初次申请时，因全身情况不允许进行血管造影或OCT，且已提供OCT血管成像证据。</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>初次申请影像材料</p></div></div><h4>规则原文留存</h4><div class="source-box"><p>全身情况不允许的患者可以提供OCT血管成像证据。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>05009001</td><td>提取初次申请标识及病历是否明确记录全身情况不允许进行血管造影或OCT。两项均明确为“符合前提”；明确无该限制为“不符合前提”；记录缺失或含糊为“无法判断”。来源：病历、检查申请单、诊断证明。</td><td>enum</td><td>是</td><td>符合前提、不符合前提、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;提取初次申请标识及病历是否明确记录全身情况不允许进行血管造影或OCT。两项均明确为“符合前提”；明确无该限制为“不符合前提”；记录缺失或含糊为“无法判断”。来源：病历、检查申请单、诊断证明。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;符合前提&quot;,
+    &quot;不符合前提&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;05009001&quot;
+}</pre></details></td></tr><tr><td>05009002</td><td>提取是否提供OCT血管成像（OCTA）影像／报告。存在可识别OCTA证据为“符合”；明确未提供为“不符合”；材料不可识别为“无法判断”。来源：申请材料、OCTA检查报告、病历。</td><td>enum</td><td>是</td><td>符合、不符合、无法判断</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;提取是否提供OCT血管成像（OCTA）影像／报告。存在可识别OCTA证据为“符合”；明确未提供为“不符合”；材料不可识别为“无法判断”。来源：申请材料、OCTA检查报告、病历。&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;符合&quot;,
+    &quot;不符合&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;05009002&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleContent&quot;: &quot;初次申请时，因全身情况不允许进行血管造影或OCT，且已提供OCT血管成像证据。&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;sourceRuleContent&quot;: &quot;全身情况不允许的患者可以提供OCT血管成像证据。&quot;,
+  &quot;sourceMdFile&quot;: &quot;黄斑病变眼内注射药品-报销审核规则-v20260728.md&quot;,
+  &quot;sourceSection&quot;: &quot;初次申请影像材料&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;提取初次申请标识及病历是否明确记录全身情况不允许进行血管造影或OCT。两项均明确为“符合前提”；明确无该限制为“不符合前提”；记录缺失或含糊为“无法判断”。来源：病历、检查申请单、诊断证明。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;符合前提&quot;,
+        &quot;不符合前提&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;05009001&quot;
+    },
+    {
+      &quot;dataType&quot;: &quot;enum&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;提取是否提供OCT血管成像（OCTA）影像／报告。存在可识别OCTA证据为“符合”；明确未提供为“不符合”；材料不可识别为“无法判断”。来源：申请材料、OCTA检查报告、病历。&quot;,
+      &quot;enumOptions&quot;: [
+        &quot;符合&quot;,
+        &quot;不符合&quot;,
+        &quot;无法判断&quot;
+      ],
+      &quot;keywordCode&quot;: &quot;05009002&quot;
+    }
+  ],
+  &quot;ruleCode&quot;: &quot;05009&quot;
+}</pre></details></div></div></details></li></ul></li><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail"><summary><span><strong>规则 05010</strong><span class="logic-rule-title">规则原文：本次申请病眼的累计支付支数不超过9支。</span><span class="logic-rule-meta">来源分项：支付限额和合并计数 · 提取项 1 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>本次申请病眼的累计支付支数不超过9支。</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>支付限额和合并计数</p></div></div><h4>规则原文留存</h4><div class="source-box"><p>每眼累计最多支付9支。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>05010001</td><td>提取本次申请病眼侧别、本次申请支数和该眼历史已支付支数；按阿柏西普、雷珠单抗、康柏西普、法瑞西单抗、布西珠单抗合并计算。累计加本次不超过9支为符合；超过9支为不符合；缺少侧别、支数或历史支付数据为无法判断／待补材料。来源：医保结算记录、药品支付明细、处方和申请记录。</td><td>string</td><td>是</td><td>无</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;string&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;提取本次申请病眼侧别、本次申请支数和该眼历史已支付支数；按阿柏西普、雷珠单抗、康柏西普、法瑞西单抗、布西珠单抗合并计算。累计加本次不超过9支为符合；超过9支为不符合；缺少侧别、支数或历史支付数据为无法判断／待补材料。来源：医保结算记录、药品支付明细、处方和申请记录。&quot;,
+  &quot;enumOptions&quot;: [],
+  &quot;keywordCode&quot;: &quot;05010001&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleContent&quot;: &quot;本次申请病眼的累计支付支数不超过9支。&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;sourceRuleContent&quot;: &quot;每眼累计最多支付9支。&quot;,
+  &quot;sourceMdFile&quot;: &quot;黄斑病变眼内注射药品-报销审核规则-v20260728.md&quot;,
+  &quot;sourceSection&quot;: &quot;支付限额和合并计数&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;string&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;提取本次申请病眼侧别、本次申请支数和该眼历史已支付支数；按阿柏西普、雷珠单抗、康柏西普、法瑞西单抗、布西珠单抗合并计算。累计加本次不超过9支为符合；超过9支为不符合；缺少侧别、支数或历史支付数据为无法判断／待补材料。来源：医保结算记录、药品支付明细、处方和申请记录。&quot;,
+      &quot;enumOptions&quot;: [],
+      &quot;keywordCode&quot;: &quot;05010001&quot;
+    }
+  ],
+  &quot;ruleCode&quot;: &quot;05010&quot;
+}</pre></details></div></div></details></li><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail"><summary><span><strong>规则 05011</strong><span class="logic-rule-title">规则原文：本次申请病眼在当前年度的支付支数不超过4支。</span><span class="logic-rule-meta">来源分项：支付限额和合并计数 · 提取项 1 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>本次申请病眼在当前年度的支付支数不超过4支。</p></div><div><h4>政策依据</h4><p>鲁社保函〔2018〕51号；八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>支付限额和合并计数</p></div></div><h4>规则原文留存</h4><div class="source-box"><p>用户确认口径：每个年度最多支付4支；Excel来源原文为“第1年度最多支付5支”。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>05011001</td><td>提取本次申请所属年度、病眼侧别、本次申请支数和该眼当年度已支付支数；按阿柏西普、雷珠单抗、康柏西普、法瑞西单抗、布西珠单抗合并计算。当年度累计加本次不超过4支为符合；超过4支为不符合；年度、侧别、支数或历史支付数据缺失为无法判断／待补材料。来源：医保结算记录、药品支付明细、处方和申请记录。</td><td>string</td><td>是</td><td>无</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;string&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;提取本次申请所属年度、病眼侧别、本次申请支数和该眼当年度已支付支数；按阿柏西普、雷珠单抗、康柏西普、法瑞西单抗、布西珠单抗合并计算。当年度累计加本次不超过4支为符合；超过4支为不符合；年度、侧别、支数或历史支付数据缺失为无法判断／待补材料。来源：医保结算记录、药品支付明细、处方和申请记录。&quot;,
+  &quot;enumOptions&quot;: [],
+  &quot;keywordCode&quot;: &quot;05011001&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleContent&quot;: &quot;本次申请病眼在当前年度的支付支数不超过4支。&quot;,
+  &quot;ruleSource&quot;: &quot;鲁社保函〔2018〕51号；八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;业务确认采用“每个年度最多支付4支”。&quot;,
+  &quot;sourceRuleContent&quot;: &quot;用户确认口径：每个年度最多支付4支；Excel来源原文为“第1年度最多支付5支”。&quot;,
+  &quot;sourceMdFile&quot;: &quot;黄斑病变眼内注射药品-报销审核规则-v20260728.md&quot;,
+  &quot;sourceSection&quot;: &quot;支付限额和合并计数&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;string&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;提取本次申请所属年度、病眼侧别、本次申请支数和该眼当年度已支付支数；按阿柏西普、雷珠单抗、康柏西普、法瑞西单抗、布西珠单抗合并计算。当年度累计加本次不超过4支为符合；超过4支为不符合；年度、侧别、支数或历史支付数据缺失为无法判断／待补材料。来源：医保结算记录、药品支付明细、处方和申请记录。&quot;,
+      &quot;enumOptions&quot;: [],
+      &quot;keywordCode&quot;: &quot;05011001&quot;
+    }
+  ],
+  &quot;ruleCode&quot;: &quot;05011&quot;
+}</pre></details></div></div></details></li><li class="logic-rule-ref logic-rule-item"><details class="overview-rule logic-rule-detail"><summary><span><strong>规则 05012</strong><span class="logic-rule-title">规则原文：本次及历史支付记录中的指定药品名称、支付支数和病眼侧别可识别，可纳入合并计数。</span><span class="logic-rule-meta">来源分项：支付限额和合并计数 · 提取项 1 条</span></span><span class="summary-actions"><span class="pill good">已维护</span></span></summary><div class="overview-rule-body"><div class="repo-detail"><h4>规则库详情</h4><div class="repo-grid"><div><h4>政策原文</h4><p>本次及历史支付记录中的指定药品名称、支付支数和病眼侧别可识别，可纳入合并计数。</p></div><div><h4>政策依据</h4><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div><h4>来源分项</h4><p>支付限额和合并计数</p></div></div><h4>规则原文留存</h4><div class="source-box"><p>阿柏西普、雷珠单抗、康柏西普、法瑞西单抗、布西珠单抗的药品支数合并计算。</p></div><h4>提取项说明</h4><table class="keyword-definition-table"><thead><tr><th>编号</th><th>内容</th><th>数据类型</th><th>是否必须</th><th>可选项</th><th>完整数据结构</th></tr></thead><tbody><tr><td>05012001</td><td>提取本次及历史记录的药品通用名、支付支数、支付日期和病眼侧别；仅汇总阿柏西普、雷珠单抗、康柏西普、法瑞西单抗、布西珠单抗。药品名称、支数或侧别不可识别时为无法判断／待补材料。来源：医保结算记录、药品支付明细、处方和申请记录。</td><td>string</td><td>是</td><td>无</td><td><details class="inline-json"><summary>展开</summary><pre>{
+  &quot;dataType&quot;: &quot;string&quot;,
+  &quot;required&quot;: true,
+  &quot;keywordContent&quot;: &quot;提取本次及历史记录的药品通用名、支付支数、支付日期和病眼侧别；仅汇总阿柏西普、雷珠单抗、康柏西普、法瑞西单抗、布西珠单抗。药品名称、支数或侧别不可识别时为无法判断／待补材料。来源：医保结算记录、药品支付明细、处方和申请记录。&quot;,
+  &quot;enumOptions&quot;: [],
+  &quot;keywordCode&quot;: &quot;05012001&quot;
+}</pre></details></td></tr></tbody></table><details class="raw-block"><summary>展开完整数据结构</summary><pre>{
+  &quot;ruleContent&quot;: &quot;本次及历史支付记录中的指定药品名称、支付支数和病眼侧别可识别，可纳入合并计数。&quot;,
+  &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+  &quot;experience&quot;: &quot;&quot;,
+  &quot;sourceRuleContent&quot;: &quot;阿柏西普、雷珠单抗、康柏西普、法瑞西单抗、布西珠单抗的药品支数合并计算。&quot;,
+  &quot;sourceMdFile&quot;: &quot;黄斑病变眼内注射药品-报销审核规则-v20260728.md&quot;,
+  &quot;sourceSection&quot;: &quot;支付限额和合并计数&quot;,
+  &quot;ruleKeywordGuide&quot;: [
+    {
+      &quot;dataType&quot;: &quot;string&quot;,
+      &quot;required&quot;: true,
+      &quot;keywordContent&quot;: &quot;提取本次及历史记录的药品通用名、支付支数、支付日期和病眼侧别；仅汇总阿柏西普、雷珠单抗、康柏西普、法瑞西单抗、布西珠单抗。药品名称、支数或侧别不可识别时为无法判断／待补材料。来源：医保结算记录、药品支付明细、处方和申请记录。&quot;,
+      &quot;enumOptions&quot;: [],
+      &quot;keywordCode&quot;: &quot;05012001&quot;
+    }
+  ],
+  &quot;ruleCode&quot;: &quot;05012&quot;
+}</pre></details></div></div></details></li></ul></li></ul></section></section></main></body></html>

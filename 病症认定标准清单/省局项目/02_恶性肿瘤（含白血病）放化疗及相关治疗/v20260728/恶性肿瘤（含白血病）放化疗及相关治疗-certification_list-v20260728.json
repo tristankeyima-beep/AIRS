@@ -1,0 +1,310 @@
+{
+  "meta": {
+    "version": "V20260728",
+    "chronicDiseaseName": "恶性肿瘤（含白血病）放化疗及相关治疗",
+    "chronicDiseaseCode": "SJ02",
+    "createdAt": "2026-07-28",
+    "description": "省局项目认定标准结构化版本：显式区分准入逻辑、取证指引与支付限制",
+    "sourceFile": "八类疾病准入条件及细则-20260517.xlsx"
+  },
+  "ruleRepository": [
+    {
+      "ruleCode": "02001",
+      "ruleContent": "经病理学或细胞学诊断明确恶性肿瘤",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "经病理学或细胞学诊断明确恶性肿瘤",
+      "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260728.md",
+      "sourceSection": "准入逻辑；Excel E列提取项细则",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "02001001",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "提取项：恶性肿瘤诊断是否明确。一般来源材料：病案首页、出院记录或诊断证明。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ]
+        },
+        {
+          "keywordCode": "02001002",
+          "dataType": "string",
+          "required": true,
+          "keywordContent": "提取项：病理学或细胞学诊断的恶性肿瘤结论，提取诊断原文、标本类型和结论。一般来源材料：病案首页、出院记录、门诊记录或诊断证明。",
+          "enumOptions": []
+        },
+        {
+          "keywordCode": "02001003",
+          "dataType": "string",
+          "required": true,
+          "keywordContent": "提取项：无法取病理时的临床诊断支持，提取三级医院专科医师诊断证明及超声、CT、MRI、内窥镜、肿瘤标志物等辅助检查结果。一般来源材料：出院记录或诊断证明。",
+          "enumOptions": []
+        },
+        {
+          "keywordCode": "02001004",
+          "dataType": "string",
+          "required": true,
+          "keywordContent": "提取项：治疗方案，提取放疗、化疗、内分泌治疗、靶向或介入等方案和记录。一般来源材料：出院记录、门诊记录或诊断证明。",
+          "enumOptions": []
+        }
+      ]
+    },
+    {
+      "ruleCode": "02002",
+      "ruleContent": "经临床诊断为恶性肿瘤",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "经临床诊断为恶性肿瘤",
+      "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260728.md",
+      "sourceSection": "准入逻辑",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "02002001",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否可明确支持：经临床诊断为恶性肿瘤。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ]
+        }
+      ]
+    },
+    {
+      "ruleCode": "02003",
+      "ruleContent": "病史、症状、体征及辅助检查支持恶性肿瘤临床诊断",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "病史、症状、体征及辅助检查支持恶性肿瘤临床诊断",
+      "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260728.md",
+      "sourceSection": "准入逻辑",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "02003001",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否可明确支持：病史、症状、体征及辅助检查支持恶性肿瘤临床诊断。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ]
+        }
+      ]
+    },
+    {
+      "ruleCode": "02004",
+      "ruleContent": "临床诊断由二级及以上医疗机构作出",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "临床诊断由二级及以上医疗机构作出",
+      "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260728.md",
+      "sourceSection": "准入逻辑",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "02004001",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否可明确支持：临床诊断由二级及以上医疗机构作出。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ]
+        }
+      ]
+    },
+    {
+      "ruleCode": "02005",
+      "ruleContent": "提供恶性肿瘤诊断证明",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "提供恶性肿瘤诊断证明",
+      "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260728.md",
+      "sourceSection": "准入逻辑",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "02005001",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否可明确支持：提供恶性肿瘤诊断证明。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ]
+        }
+      ]
+    },
+    {
+      "ruleCode": "02006",
+      "ruleContent": "占位性病变需按恶性肿瘤处理，且有术后复发、转移、放疗或化疗任一相关病历资料",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "对于部分需要按恶性肿瘤处理的占位性病变，需提交术后复发、转移或放疗、化疗等任一相关病历资料。",
+      "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260728.md",
+      "sourceSection": "准入逻辑",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "02006001",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否明确：占位性病变需按恶性肿瘤处理。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ]
+        },
+        {
+          "keywordCode": "02006002",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否提供术后复发、转移、放疗或化疗任一相关病历资料。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ]
+        }
+      ]
+    },
+    {
+      "ruleCode": "02007",
+      "ruleContent": "符合白血病临床表现",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "符合白血病临床表现",
+      "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260728.md",
+      "sourceSection": "准入逻辑；Excel E列提取项细则",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "02007001",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "提取项：白血病诊断是否明确。一般来源材料：出院记录或诊断证明。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ]
+        },
+        {
+          "keywordCode": "02007002",
+          "dataType": "string",
+          "required": true,
+          "keywordContent": "提取项：白血病临床表现，提取贫血（面色苍白、乏力）、中性粒细胞减少（发热、感染）、血小板减少（出血、瘀斑）、脾大、淋巴结肿大、骨骼疼痛、牙龈增生及中枢神经系统症状（头痛、呕吐）等记录。一般来源材料：入院记录、出院记录。",
+          "enumOptions": []
+        },
+        {
+          "keywordCode": "02007003",
+          "dataType": "string",
+          "required": true,
+          "keywordContent": "提取项：实验室检查，提取骨髓或外周血原始细胞比例（关注≥20%）、流式细胞学免疫分型、染色体核型和分子生物学（基因测序）检测结果。一般来源材料：出院记录或诊断证明。",
+          "enumOptions": []
+        }
+      ]
+    },
+    {
+      "ruleCode": "02008",
+      "ruleContent": "血液及骨髓等相关检查有相应异常改变",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "血液及骨髓等相关检查有相应异常改变",
+      "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260728.md",
+      "sourceSection": "准入逻辑",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "02008001",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否可明确支持：血液及骨髓等相关检查有相应异常改变。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ]
+        }
+      ]
+    },
+    {
+      "ruleCode": "02009",
+      "ruleContent": "由二级及以上医疗机构确诊白血病",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "由二级及以上医疗机构确诊白血病",
+      "sourceMdFile": "恶性肿瘤（含白血病）放化疗及相关治疗-认定标准-v20260728.md",
+      "sourceSection": "准入逻辑",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "02009001",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否可明确支持：由二级及以上医疗机构确诊白血病。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ]
+        }
+      ]
+    }
+  ],
+  "logicTopology": {
+    "type": "GROUP",
+    "operator": "OR",
+    "children": [
+      {
+        "type": "RULE_REF",
+        "ruleCode": "02001"
+      },
+      {
+        "type": "GROUP",
+        "operator": "AND",
+        "children": [
+          {
+            "type": "RULE_REF",
+            "ruleCode": "02002"
+          },
+          {
+            "type": "RULE_REF",
+            "ruleCode": "02003"
+          },
+          {
+            "type": "RULE_REF",
+            "ruleCode": "02004"
+          },
+          {
+            "type": "RULE_REF",
+            "ruleCode": "02005"
+          }
+        ]
+      },
+      {
+        "type": "RULE_REF",
+        "ruleCode": "02006"
+      },
+      {
+        "type": "GROUP",
+        "operator": "AND",
+        "children": [
+          {
+            "type": "RULE_REF",
+            "ruleCode": "02007"
+          },
+          {
+            "type": "RULE_REF",
+            "ruleCode": "02008"
+          },
+          {
+            "type": "RULE_REF",
+            "ruleCode": "02009"
+          }
+        ]
+      }
+    ]
+  }
+}

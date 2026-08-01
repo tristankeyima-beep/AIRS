@@ -1,0 +1,108 @@
+{
+  "meta": {
+    "version": "V20260728",
+    "chronicDiseaseName": "眼内注射治疗黄斑病变",
+    "chronicDiseaseCode": "SJ05",
+    "createdAt": "2026-07-28",
+    "description": "省局项目病种认定标准结构化版本：仅保留黄斑病变的疾病诊断与分型范围。首次申请影像、处方、视力阈值、事前审核和支数限额转入“药品报销审核”资料。",
+    "sourceFile": "八类疾病准入条件及细则-20260517.xlsx"
+  },
+  "ruleRepository": [
+    {
+      "ruleCode": "05001",
+      "ruleContent": "湿性年龄相关性黄斑变性（AMD）诊断明确",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "黄斑变性（AMD）诊断明确。",
+      "sourceMdFile": "眼内注射治疗黄斑病变-认定标准-v20260728.md",
+      "sourceSection": "病种认定逻辑；Excel E列提取项细则",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "05001001",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "提取项：黄斑变性（AMD）诊断是否明确。一般来源材料：病案首页、出院诊断或诊断证明。",
+          "enumOptions": ["是", "否", "无法判断"]
+        },
+        {
+          "keywordCode": "05001002",
+          "dataType": "string",
+          "required": true,
+          "keywordContent": "提取项：AMD 临床表现与分型，提取干性 AMD 的玻璃膜疣、RPE 改变或地图样萎缩，以及湿性 AMD 的 CNV、黄斑下出血、渗出、RPE 脱离或纤维化瘢痕等记录。一般来源材料：病案首页、入院记录、出院记录或诊断证明。",
+          "enumOptions": []
+        },
+        {
+          "keywordCode": "05001003",
+          "dataType": "string",
+          "required": true,
+          "keywordContent": "提取项：AMD 诊断检查，提取 OCT/OCTA、FFA/ICGA、眼底自发荧光等检查所见和结论。一般来源材料：出院记录或诊断证明。",
+          "enumOptions": []
+        }
+      ]
+    },
+    {
+      "ruleCode": "05002",
+      "ruleContent": "糖尿病性黄斑水肿（DME）引起的视力损害",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "糖尿病性黄斑水肿（DME）引起的视力损害。",
+      "sourceMdFile": "眼内注射治疗黄斑病变-认定标准-v20260728.md",
+      "sourceSection": "病种认定逻辑",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "05002001",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否明确支持：糖尿病性黄斑水肿（DME）引起的视力损害。",
+          "enumOptions": ["是", "否", "无法判断"]
+        }
+      ]
+    },
+    {
+      "ruleCode": "05003",
+      "ruleContent": "脉络膜新生血管（CNV）导致的视力损害",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "脉络膜新生血管（CNV）导致的视力损害。",
+      "sourceMdFile": "眼内注射治疗黄斑病变-认定标准-v20260728.md",
+      "sourceSection": "病种认定逻辑",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "05003001",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否明确支持：脉络膜新生血管（CNV）导致的视力损害。",
+          "enumOptions": ["是", "否", "无法判断"]
+        }
+      ]
+    },
+    {
+      "ruleCode": "05004",
+      "ruleContent": "继发于视网膜静脉阻塞（RVO）的黄斑水肿引起的视力损害",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "继发于视网膜静脉阻塞（RVO）的黄斑水肿引起的视力损害。",
+      "sourceMdFile": "眼内注射治疗黄斑病变-认定标准-v20260728.md",
+      "sourceSection": "病种认定逻辑",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "05004001",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否明确支持：继发于视网膜静脉阻塞（RVO）的黄斑水肿引起的视力损害。",
+          "enumOptions": ["是", "否", "无法判断"]
+        }
+      ]
+    }
+  ],
+  "logicTopology": {
+    "type": "GROUP",
+    "operator": "OR",
+    "children": [
+      {"type": "RULE_REF", "ruleCode": "05001"},
+      {"type": "RULE_REF", "ruleCode": "05002"},
+      {"type": "RULE_REF", "ruleCode": "05003"},
+      {"type": "RULE_REF", "ruleCode": "05004"}
+    ]
+  }
+}

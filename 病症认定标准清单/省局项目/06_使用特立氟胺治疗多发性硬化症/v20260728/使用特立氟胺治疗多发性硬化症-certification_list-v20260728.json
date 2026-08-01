@@ -1,0 +1,91 @@
+{
+  "meta": {
+    "version": "V20260728",
+    "chronicDiseaseName": "使用特立氟胺治疗多发性硬化症",
+    "chronicDiseaseCode": "SJ06",
+    "createdAt": "2026-07-28",
+    "description": "省局项目认定标准结构化版本：显式区分准入逻辑、取证指引与支付限制",
+    "sourceFile": "八类疾病准入条件及细则-20260517.xlsx"
+  },
+  "ruleRepository": [
+    {
+      "ruleCode": "06001",
+      "ruleContent": "确诊为多发性硬化症",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "确诊为多发性硬化症",
+      "sourceMdFile": "使用特立氟胺治疗多发性硬化症-认定标准-v20260728.md",
+      "sourceSection": "准入逻辑；Excel E列提取项细则",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "06001001",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "提取项：多发性硬化症诊断是否明确。一般来源材料：病案首页、出院记录或诊断证明。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ]
+        },
+        {
+          "keywordCode": "06001002",
+          "dataType": "string",
+          "required": true,
+          "keywordContent": "提取项：核心症状，提取视力障碍（急性视神经炎、核间性眼肌麻痹）、运动与感觉症状（肢体无力、痉挛性瘫痪、感觉异常、Lhermitte征）及其他常见症状（疲劳、膀胱/肠道功能障碍、小脑性共济失调）等记录。一般来源材料：入院记录、出院记录或诊断证明。",
+          "enumOptions": []
+        },
+        {
+          "keywordCode": "06001003",
+          "dataType": "string",
+          "required": true,
+          "keywordContent": "提取项：临床分型，提取复发缓解型、继发进展型或原发进展型。一般来源材料：病案首页、出院记录或诊断证明。",
+          "enumOptions": []
+        },
+        {
+          "keywordCode": "06001004",
+          "dataType": "string",
+          "required": true,
+          "keywordContent": "提取项：诊断标准与支持证据，提取空间多发性（DIS）累及区域、Kappa 游离轻链指数、中心静脉征、顺磁性边缘病变及放射学孤立综合征（RIS）等记录。一般来源材料：出院记录或诊断证明。",
+          "enumOptions": []
+        }
+      ]
+    },
+    {
+      "ruleCode": "06002",
+      "ruleContent": "常规治疗无效",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "常规治疗无效",
+      "sourceMdFile": "使用特立氟胺治疗多发性硬化症-认定标准-v20260728.md",
+      "sourceSection": "准入逻辑",
+      "ruleKeywordGuide": [
+        {
+          "keywordCode": "06002001",
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料中是否可明确支持：常规治疗无效。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ]
+        }
+      ]
+    }
+  ],
+  "logicTopology": {
+    "type": "GROUP",
+    "operator": "AND",
+    "children": [
+      {
+        "type": "RULE_REF",
+        "ruleCode": "06001"
+      },
+      {
+        "type": "RULE_REF",
+        "ruleCode": "06002"
+      }
+    ]
+  }
+}
