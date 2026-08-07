@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>严重精神障碍</title>
+  <style>
+    :root {
+      --color-page: #eef3f8;
+      --color-surface: #ffffff;
+      --color-surface-muted: #f7f9fc;
+      --color-ink: #17212f;
+      --color-muted: #5d6c7d;
+      --color-line: #d6e0eb;
+      --color-accent: #2563a8;
+      --color-accent-soft: #e8f1fb;
+      --color-required: #8a3b12;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --space-1: .375rem;
+      --space-2: .75rem;
+      --space-3: 1.125rem;
+      --space-4: 1.75rem;
+      --space-5: 2.5rem;
+      --radius: .75rem;
+      --shadow: 0 12px 28px rgba(30, 54, 79, .08);
+      --focus: 0 0 0 3px rgba(37, 99, 168, .35);
+    }
+
+    * { box-sizing: border-box; }
+    html { color-scheme: light dark; }
+    body { margin: 0; background: var(--color-page); color: var(--color-ink); font: 16px/1.65 var(--font-sans); }
+    a { color: inherit; }
+    .skip-link { position: absolute; left: var(--space-3); top: -5rem; z-index: 2; background: var(--color-surface); color: var(--color-ink); padding: var(--space-2); border-radius: var(--radius); }
+    .skip-link:focus { top: var(--space-3); }
+    :focus-visible { outline: none; box-shadow: var(--focus); }
+    .page-header { border-bottom: 1px solid var(--color-line); background: var(--color-surface); }
+    .header-inner, main { width: min(74rem, calc(100% - 2.5rem)); margin: 0 auto; }
+    .header-inner { padding: var(--space-5) 0 var(--space-4); }
+    .eyebrow { margin: 0 0 var(--space-1); color: var(--color-accent); font-weight: 700; letter-spacing: .08em; font-size: .78rem; }
+    h1, h2, h3 { color: var(--color-ink); line-height: 1.25; }
+    h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 2.8rem); letter-spacing: -.025em; }
+    h2 { margin: 0 0 var(--space-3); font-size: 1.25rem; }
+    h3 { margin: var(--space-3) 0 var(--space-2); font-size: 1rem; }
+    main { padding: var(--space-4) 0 var(--space-5); }
+    section { margin-bottom: var(--space-3); }
+    .panel { background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius); box-shadow: var(--shadow); padding: var(--space-4); }
+    .lede { margin: 0; color: var(--color-muted); }
+    .meta-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2) var(--space-3); margin: 0; }
+    .meta-grid div { min-width: 0; }
+    dt { color: var(--color-muted); font-size: .78rem; font-weight: 700; }
+    dd { margin: var(--space-1) 0 0; overflow-wrap: anywhere; }
+    .logic-tree, .logic-tree ul { list-style: none; margin: 0; padding-left: 0; }
+    .logic-tree ul { margin: var(--space-2) 0 0 var(--space-3); padding-left: var(--space-3); border-left: 3px solid var(--color-accent); }
+    .logic-group { position: relative; padding: var(--space-2) 0; }
+    .logic-group::before { content: ""; position: absolute; left: -1.125rem; top: 0; bottom: 0; width: 3px; background: var(--color-accent); }
+    .logic-operator { display: inline-block; background: var(--color-accent-soft); color: var(--color-accent); border-radius: 999px; padding: .16rem .65rem; font-size: .85rem; font-weight: 750; }
+    .rule-card { margin-top: var(--space-2); padding: var(--space-3); border: 1px solid var(--color-line); border-radius: calc(var(--radius) - .2rem); background: var(--color-surface-muted); }
+    .rule-card summary { cursor: pointer; color: var(--color-ink); font-weight: 750; }
+    .rule-card summary::marker { color: var(--color-accent); }
+    .rule-title { margin-right: var(--space-1); color: var(--color-accent); font-family: var(--font-mono); font-size: .9em; }
+    .rule-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2) var(--space-3); margin: var(--space-3) 0; }
+    .rule-fields div { min-width: 0; }
+    .rule-fields .wide { grid-column: 1 / -1; }
+    .rule-fields p { margin: var(--space-1) 0 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+    .rule-fields p.field-label { margin: 0; color: var(--color-muted); font-size: .85rem; font-weight: 700; }
+    .guide-table-wrap { overflow-x: auto; border: 1px solid var(--color-line); border-radius: calc(var(--radius) - .2rem); }
+    table { width: 100%; min-width: 44rem; border-collapse: collapse; }
+    th, td { padding: var(--space-2); text-align: left; vertical-align: top; border-bottom: 1px solid var(--color-line); overflow-wrap: anywhere; }
+    th { background: var(--color-accent-soft); color: var(--color-ink); font-size: .82rem; }
+    tbody tr:last-child td { border-bottom: 0; }
+    code { font-family: var(--font-mono); font-size: .9em; }
+    .required { color: var(--color-required); font-weight: 700; }
+    .optional { color: var(--color-muted); }
+    .options { margin: 0; padding-left: 1.2rem; }
+    .empty { color: var(--color-muted); }
+    .raw-data { margin-top: var(--space-2); border-top: 1px solid var(--color-line); padding-top: var(--space-2); }
+    .raw-data summary { cursor: pointer; color: var(--color-accent); font-weight: 700; }
+    pre { margin: var(--space-2) 0 0; padding: var(--space-2); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--color-surface-muted); border: 1px solid var(--color-line); border-radius: .5rem; color: var(--color-ink); font: .8rem/1.55 var(--font-mono); }
+
+    @media (prefers-color-scheme: dark) {
+      :root { --color-page: #111b27; --color-surface: #172534; --color-surface-muted: #1c2c3e; --color-ink: #edf4fb; --color-muted: #b5c3d2; --color-line: #395068; --color-accent: #8dc2ff; --color-accent-soft: #203e5a; --color-required: #ffc28e; --shadow: 0 12px 28px rgba(0, 0, 0, .22); --focus: 0 0 0 3px rgba(141, 194, 255, .5); }
+    }
+
+    @media (max-width: 42rem) {
+      .header-inner, main { width: min(100% - 1.5rem, 74rem); }
+      .header-inner { padding: var(--space-4) 0 var(--space-3); }
+      .panel { padding: var(--space-3); }
+      .meta-grid, .rule-fields { grid-template-columns: 1fr; }
+      .rule-fields .wide { grid-column: auto; }
+      .logic-tree ul { margin-left: var(--space-2); padding-left: var(--space-2); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+    }
+
+    @media print {
+      :root { color-scheme: light; --color-page: #ffffff; --color-surface: #ffffff; --color-surface-muted: #f8fafc; --color-ink: #111827; --color-muted: #475569; --color-line: #cbd5e1; --color-accent: #1d4f91; --color-accent-soft: #eaf2fb; --color-required: #7c2d12; --shadow: none; }
+      body { background: #fff; font-size: 10pt; }
+      .skip-link { display: none; }
+      .header-inner, main { width: 100%; }
+      .page-header, .panel { border-color: var(--color-line); box-shadow: none; }
+      .panel { break-inside: avoid; }
+      details { display: block; }
+      details > *:not(summary) { display: block; }
+      details:not([open]) > *:not(summary) { display: block !important; }
+      .guide-table-wrap { overflow: visible; }
+      table { min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#document-main">跳至正文</a>
+  <header class="page-header"><div class="header-inner"><p class="eyebrow">门诊慢特病 · 认定标准</p><h1>严重精神障碍</h1><p class="lede">原省局项目“精神病”标准拆分后的独立病种认定标准。V20260805为本次整理生成日期，不是政策发布日期。</p></div></header><main id="document-main"><section class="panel" aria-labelledby="meta-heading"><h2 id="meta-heading">标准信息</h2><dl class="meta-grid"><div><dt>标准版本</dt><dd>V20260805</dd></div><div><dt>病种名称</dt><dd>严重精神障碍</dd></div><div><dt>病种编码</dt><dd>M02111</dd></div><div><dt>创建时间</dt><dd>2026-08-05</dd></div><div><dt>标准说明</dt><dd>原省局项目“精神病”标准拆分后的独立病种认定标准。V20260805为本次整理生成日期，不是政策发布日期。</dd></div><div><dt>来源文件</dt><dd>八类疾病准入条件及细则-20260517.xlsx</dd></div></dl></section><section class="panel" aria-labelledby="logic-heading"><h2 id="logic-heading">认定逻辑</h2><p class="lede">沿蓝色逻辑脊柱读取条件组合；每个规则均保留完整来源与取证指引。</p><ul class="logic-tree"><li class="logic-group"><span class="logic-operator">AND · 全部条件满足</span><ul><li><article class="rule-card" data-rule-code="11001"><details><summary><span class="rule-title" title="11001">11001</span>诊断属于严重精神障碍包含的任一病种</summary><div class="rule-fields"><div class="wide"><p class="field-label">认定条件</p><p>诊断属于严重精神障碍包含的任一病种</p></div><div class=""><p class="field-label">政策依据</p><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div class=""><p class="field-label">业务经验</p><p></p></div><div class="wide"><p class="field-label">来源规则原文</p><p>严重精神障碍(包含精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍、伴有严重冲动伤人行为的其他精神障碍)。</p></div><div class=""><p class="field-label">来源 Markdown 文件</p><p>严重精神障碍-认定标准-v20260805.md</p></div><div class=""><p class="field-label">来源章节</p><p>准入逻辑；Excel E列提取细则映射</p></div></div><h3>取证与判断指引</h3><div class="guide-table-wrap"><table><caption>规则 11001 的取证与判断指引</caption><thead><tr><th scope="col">关键词编码</th><th scope="col">取证/判断指引</th><th scope="col">数据类型</th><th scope="col">是否必填</th><th scope="col">枚举选项</th><th scope="col">完整数据结构</th></tr></thead><tbody><tr><td><code title="11001001">11001001</code></td><td>判断严重精神障碍诊断是否明确。材料明确诊断为精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍，或伴有严重冲动伤人行为的其他精神障碍时为是；诊断明确不属于上述范围时为否；缺少明确诊断或材料不足时为无法判断。优先查看病案首页、出院记录或诊断证明。</td><td>enum</td><td><span class="required">是</span></td><td><ul class="options"><li>是</li><li>否</li><li>无法判断</li></ul></td><td><details class="guide-data"><summary>展开完整数据</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;11001001&quot;,
+  &quot;keywordContent&quot;: &quot;判断严重精神障碍诊断是否明确。材料明确诊断为精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍，或伴有严重冲动伤人行为的其他精神障碍时为是；诊断明确不属于上述范围时为否；缺少明确诊断或材料不足时为无法判断。优先查看病案首页、出院记录或诊断证明。&quot;,
+  &quot;required&quot;: true
+}</pre></details></td></tr><tr><td><code title="11001002">11001002</code></td><td>提取严重精神障碍核心定义相关记录，包括症状严重、社会适应等功能严重损害、不能完整认识自身健康状况或客观现实、不能处理自身事务。未找到相关记录时填写未找到，不得根据一般症状推断。优先查看入院记录、出院记录或诊断证明。</td><td>string</td><td><span class="required">是</span></td><td><span class="empty">无</span></td><td><details class="guide-data"><summary>展开完整数据</summary><pre>{
+  &quot;dataType&quot;: &quot;string&quot;,
+  &quot;enumOptions&quot;: [],
+  &quot;keywordCode&quot;: &quot;11001002&quot;,
+  &quot;keywordContent&quot;: &quot;提取严重精神障碍核心定义相关记录，包括症状严重、社会适应等功能严重损害、不能完整认识自身健康状况或客观现实、不能处理自身事务。未找到相关记录时填写未找到，不得根据一般症状推断。优先查看入院记录、出院记录或诊断证明。&quot;,
+  &quot;required&quot;: true
+}</pre></details></td></tr><tr><td><code title="11001003">11001003</code></td><td>提取行为异常记录，包括无故冲动、伤人毁物、离家出走、行为古怪、蓬头垢面、自语自笑、过分话多或活动多、兴奋激动、自杀行为或企图。未找到相关记录时填写未找到，不得补充材料外事实。优先查看入院记录、出院记录或诊断证明。</td><td>string</td><td><span class="required">是</span></td><td><span class="empty">无</span></td><td><details class="guide-data"><summary>展开完整数据</summary><pre>{
+  &quot;dataType&quot;: &quot;string&quot;,
+  &quot;enumOptions&quot;: [],
+  &quot;keywordCode&quot;: &quot;11001003&quot;,
+  &quot;keywordContent&quot;: &quot;提取行为异常记录，包括无故冲动、伤人毁物、离家出走、行为古怪、蓬头垢面、自语自笑、过分话多或活动多、兴奋激动、自杀行为或企图。未找到相关记录时填写未找到，不得补充材料外事实。优先查看入院记录、出院记录或诊断证明。&quot;,
+  &quot;required&quot;: true
+}</pre></details></td></tr></tbody></table></div></details></article></li><li><article class="rule-card" data-rule-code="11002"><details><summary><span class="rule-title" title="11002">11002</span>符合国际疾病分类中精神与行为障碍相关疾病诊断标准</summary><div class="rule-fields"><div class="wide"><p class="field-label">认定条件</p><p>符合国际疾病分类中精神与行为障碍相关疾病诊断标准</p></div><div class=""><p class="field-label">政策依据</p><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div class=""><p class="field-label">业务经验</p><p></p></div><div class="wide"><p class="field-label">来源规则原文</p><p>1.符合国际疾病分类中精神与行为障碍相关疾病诊断标准。</p></div><div class=""><p class="field-label">来源 Markdown 文件</p><p>严重精神障碍-认定标准-v20260805.md</p></div><div class=""><p class="field-label">来源章节</p><p>准入逻辑</p></div></div><h3>取证与判断指引</h3><div class="guide-table-wrap"><table><caption>规则 11002 的取证与判断指引</caption><thead><tr><th scope="col">关键词编码</th><th scope="col">取证/判断指引</th><th scope="col">数据类型</th><th scope="col">是否必填</th><th scope="col">枚举选项</th><th scope="col">完整数据结构</th></tr></thead><tbody><tr><td><code title="11002001">11002001</code></td><td>判断材料是否明确支持符合国际疾病分类中精神与行为障碍相关疾病诊断标准。明确支持时为是，明确不符合时为否，只有症状描述或证据不足时为无法判断。优先查看诊断证明、出院记录或门诊诊疗记录。</td><td>enum</td><td><span class="required">是</span></td><td><ul class="options"><li>是</li><li>否</li><li>无法判断</li></ul></td><td><details class="guide-data"><summary>展开完整数据</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;11002001&quot;,
+  &quot;keywordContent&quot;: &quot;判断材料是否明确支持符合国际疾病分类中精神与行为障碍相关疾病诊断标准。明确支持时为是，明确不符合时为否，只有症状描述或证据不足时为无法判断。优先查看诊断证明、出院记录或门诊诊疗记录。&quot;,
+  &quot;required&quot;: true
+}</pre></details></td></tr></tbody></table></div></details></article></li><li><article class="rule-card" data-rule-code="11003"><details><summary><span class="rule-title" title="11003">11003</span>提供精神专科医疗机构或二级及以上综合医疗机构诊断证明</summary><div class="rule-fields"><div class="wide"><p class="field-label">认定条件</p><p>提供精神专科医疗机构或二级及以上综合医疗机构诊断证明</p></div><div class=""><p class="field-label">政策依据</p><p>八类疾病准入条件及细则-20260517.xlsx</p></div><div class=""><p class="field-label">业务经验</p><p></p></div><div class="wide"><p class="field-label">来源规则原文</p><p>2.提供精神专科医疗机构或二级及以上综合医疗机构诊断证明。</p></div><div class=""><p class="field-label">来源 Markdown 文件</p><p>严重精神障碍-认定标准-v20260805.md</p></div><div class=""><p class="field-label">来源章节</p><p>准入逻辑</p></div></div><h3>取证与判断指引</h3><div class="guide-table-wrap"><table><caption>规则 11003 的取证与判断指引</caption><thead><tr><th scope="col">关键词编码</th><th scope="col">取证/判断指引</th><th scope="col">数据类型</th><th scope="col">是否必填</th><th scope="col">枚举选项</th><th scope="col">完整数据结构</th></tr></thead><tbody><tr><td><code title="11003001">11003001</code></td><td>判断是否提供精神专科医疗机构或二级及以上综合医疗机构出具的诊断证明。诊断证明及机构性质或等级均满足时为是，明确不满足时为否，证明或机构信息不足时为无法判断。优先查看诊断证明、机构名称和医院等级字段。</td><td>enum</td><td><span class="required">是</span></td><td><ul class="options"><li>是</li><li>否</li><li>无法判断</li></ul></td><td><details class="guide-data"><summary>展开完整数据</summary><pre>{
+  &quot;dataType&quot;: &quot;enum&quot;,
+  &quot;enumOptions&quot;: [
+    &quot;是&quot;,
+    &quot;否&quot;,
+    &quot;无法判断&quot;
+  ],
+  &quot;keywordCode&quot;: &quot;11003001&quot;,
+  &quot;keywordContent&quot;: &quot;判断是否提供精神专科医疗机构或二级及以上综合医疗机构出具的诊断证明。诊断证明及机构性质或等级均满足时为是，明确不满足时为否，证明或机构信息不足时为无法判断。优先查看诊断证明、机构名称和医院等级字段。&quot;,
+  &quot;required&quot;: true
+}</pre></details></td></tr></tbody></table></div></details></article></li></ul></li></ul></section><section class="panel" aria-labelledby="raw-heading"><h2 id="raw-heading">原始标准数据</h2><details class="raw-data"><summary>展开完整 JSON（已转义，仅供核对）</summary><pre>{
+  &quot;logicTopology&quot;: {
+    &quot;children&quot;: [
+      {
+        &quot;ruleCode&quot;: &quot;11001&quot;,
+        &quot;type&quot;: &quot;RULE_REF&quot;
+      },
+      {
+        &quot;ruleCode&quot;: &quot;11002&quot;,
+        &quot;type&quot;: &quot;RULE_REF&quot;
+      },
+      {
+        &quot;ruleCode&quot;: &quot;11003&quot;,
+        &quot;type&quot;: &quot;RULE_REF&quot;
+      }
+    ],
+    &quot;operator&quot;: &quot;AND&quot;,
+    &quot;type&quot;: &quot;GROUP&quot;
+  },
+  &quot;meta&quot;: {
+    &quot;chronicDiseaseCode&quot;: &quot;M02111&quot;,
+    &quot;chronicDiseaseName&quot;: &quot;严重精神障碍&quot;,
+    &quot;createdAt&quot;: &quot;2026-08-05&quot;,
+    &quot;description&quot;: &quot;原省局项目“精神病”标准拆分后的独立病种认定标准。V20260805为本次整理生成日期，不是政策发布日期。&quot;,
+    &quot;sourceFile&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+    &quot;version&quot;: &quot;V20260805&quot;
+  },
+  &quot;ruleRepository&quot;: [
+    {
+      &quot;experience&quot;: &quot;&quot;,
+      &quot;ruleCode&quot;: &quot;11001&quot;,
+      &quot;ruleContent&quot;: &quot;诊断属于严重精神障碍包含的任一病种&quot;,
+      &quot;ruleKeywordGuide&quot;: [
+        {
+          &quot;dataType&quot;: &quot;enum&quot;,
+          &quot;enumOptions&quot;: [
+            &quot;是&quot;,
+            &quot;否&quot;,
+            &quot;无法判断&quot;
+          ],
+          &quot;keywordCode&quot;: &quot;11001001&quot;,
+          &quot;keywordContent&quot;: &quot;判断严重精神障碍诊断是否明确。材料明确诊断为精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍，或伴有严重冲动伤人行为的其他精神障碍时为是；诊断明确不属于上述范围时为否；缺少明确诊断或材料不足时为无法判断。优先查看病案首页、出院记录或诊断证明。&quot;,
+          &quot;required&quot;: true
+        },
+        {
+          &quot;dataType&quot;: &quot;string&quot;,
+          &quot;enumOptions&quot;: [],
+          &quot;keywordCode&quot;: &quot;11001002&quot;,
+          &quot;keywordContent&quot;: &quot;提取严重精神障碍核心定义相关记录，包括症状严重、社会适应等功能严重损害、不能完整认识自身健康状况或客观现实、不能处理自身事务。未找到相关记录时填写未找到，不得根据一般症状推断。优先查看入院记录、出院记录或诊断证明。&quot;,
+          &quot;required&quot;: true
+        },
+        {
+          &quot;dataType&quot;: &quot;string&quot;,
+          &quot;enumOptions&quot;: [],
+          &quot;keywordCode&quot;: &quot;11001003&quot;,
+          &quot;keywordContent&quot;: &quot;提取行为异常记录，包括无故冲动、伤人毁物、离家出走、行为古怪、蓬头垢面、自语自笑、过分话多或活动多、兴奋激动、自杀行为或企图。未找到相关记录时填写未找到，不得补充材料外事实。优先查看入院记录、出院记录或诊断证明。&quot;,
+          &quot;required&quot;: true
+        }
+      ],
+      &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+      &quot;sourceMdFile&quot;: &quot;严重精神障碍-认定标准-v20260805.md&quot;,
+      &quot;sourceRuleContent&quot;: &quot;严重精神障碍(包含精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍、伴有严重冲动伤人行为的其他精神障碍)。&quot;,
+      &quot;sourceSection&quot;: &quot;准入逻辑；Excel E列提取细则映射&quot;
+    },
+    {
+      &quot;experience&quot;: &quot;&quot;,
+      &quot;ruleCode&quot;: &quot;11002&quot;,
+      &quot;ruleContent&quot;: &quot;符合国际疾病分类中精神与行为障碍相关疾病诊断标准&quot;,
+      &quot;ruleKeywordGuide&quot;: [
+        {
+          &quot;dataType&quot;: &quot;enum&quot;,
+          &quot;enumOptions&quot;: [
+            &quot;是&quot;,
+            &quot;否&quot;,
+            &quot;无法判断&quot;
+          ],
+          &quot;keywordCode&quot;: &quot;11002001&quot;,
+          &quot;keywordContent&quot;: &quot;判断材料是否明确支持符合国际疾病分类中精神与行为障碍相关疾病诊断标准。明确支持时为是，明确不符合时为否，只有症状描述或证据不足时为无法判断。优先查看诊断证明、出院记录或门诊诊疗记录。&quot;,
+          &quot;required&quot;: true
+        }
+      ],
+      &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+      &quot;sourceMdFile&quot;: &quot;严重精神障碍-认定标准-v20260805.md&quot;,
+      &quot;sourceRuleContent&quot;: &quot;1.符合国际疾病分类中精神与行为障碍相关疾病诊断标准。&quot;,
+      &quot;sourceSection&quot;: &quot;准入逻辑&quot;
+    },
+    {
+      &quot;experience&quot;: &quot;&quot;,
+      &quot;ruleCode&quot;: &quot;11003&quot;,
+      &quot;ruleContent&quot;: &quot;提供精神专科医疗机构或二级及以上综合医疗机构诊断证明&quot;,
+      &quot;ruleKeywordGuide&quot;: [
+        {
+          &quot;dataType&quot;: &quot;enum&quot;,
+          &quot;enumOptions&quot;: [
+            &quot;是&quot;,
+            &quot;否&quot;,
+            &quot;无法判断&quot;
+          ],
+          &quot;keywordCode&quot;: &quot;11003001&quot;,
+          &quot;keywordContent&quot;: &quot;判断是否提供精神专科医疗机构或二级及以上综合医疗机构出具的诊断证明。诊断证明及机构性质或等级均满足时为是，明确不满足时为否，证明或机构信息不足时为无法判断。优先查看诊断证明、机构名称和医院等级字段。&quot;,
+          &quot;required&quot;: true
+        }
+      ],
+      &quot;ruleSource&quot;: &quot;八类疾病准入条件及细则-20260517.xlsx&quot;,
+      &quot;sourceMdFile&quot;: &quot;严重精神障碍-认定标准-v20260805.md&quot;,
+      &quot;sourceRuleContent&quot;: &quot;2.提供精神专科医疗机构或二级及以上综合医疗机构诊断证明。&quot;,
+      &quot;sourceSection&quot;: &quot;准入逻辑&quot;
+    }
+  ]
+}</pre></details></section></main>
+</body>
+</html>

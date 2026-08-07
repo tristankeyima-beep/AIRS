@@ -1,0 +1,102 @@
+{
+  "meta": {
+    "version": "V20260805",
+    "chronicDiseaseName": "其他精神障碍",
+    "chronicDiseaseCode": "M02000",
+    "createdAt": "2026-08-05",
+    "description": "原省局项目“精神病”标准拆分后的独立病种认定标准；住院与门诊材料路径因系统两层逻辑限制合并为组合规则。V20260805为本次整理生成日期，不是政策发布日期。",
+    "sourceFile": "八类疾病准入条件及细则-20260517.xlsx"
+  },
+  "ruleRepository": [
+    {
+      "ruleContent": "符合国际疾病分类中精神与行为障碍相关疾病诊断标准",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "1.符合国际疾病分类中精神与行为障碍相关疾病诊断标准。",
+      "sourceMdFile": "其他精神障碍-认定标准-v20260805.md",
+      "sourceSection": "准入逻辑；Excel E列提取细则映射",
+      "ruleKeywordGuide": [
+        {
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断其他精神障碍诊断是否明确且符合国际疾病分类中精神与行为障碍相关疾病诊断标准。明确支持时为是，明确不符合时为否，只有症状描述、暂时无法归类或材料不足时为无法判断。优先查看病案首页、出院记录、门诊诊疗记录或诊断证明。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ],
+          "keywordCode": "00001001"
+        },
+        {
+          "dataType": "string",
+          "required": true,
+          "keywordContent": "提取其他精神障碍临床定义相关记录，包括显著痛苦或功能损害、但不能完全符合特定精神障碍诊断标准。未找到相关记录时填写未找到，不得根据一般症状推断。优先查看病案首页、入院记录、出院记录或诊断证明。",
+          "enumOptions": [],
+          "keywordCode": "00001002"
+        },
+        {
+          "dataType": "string",
+          "required": true,
+          "keywordContent": "提取功能用语，包括不符合典型疾病范式的症状群，或因信息不足暂时无法明确归类的状态。未找到相关记录时填写未找到。优先查看入院记录、出院记录或诊断证明。",
+          "enumOptions": [],
+          "keywordCode": "00001003"
+        },
+        {
+          "dataType": "string",
+          "required": true,
+          "keywordContent": "提取临床表现，包括幻觉、妄想、思维和言语紊乱、异常运动行为、阴性症状等。未找到相关记录时填写未找到，不得补充材料外事实。优先查看入院记录、出院记录或诊断证明。",
+          "enumOptions": [],
+          "keywordCode": "00001004"
+        }
+      ],
+      "ruleCode": "00001"
+    },
+    {
+      "ruleContent": "满足其他精神障碍住院材料路径或未经住院治疗的门诊材料路径",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "2.需提供明确诊断的精神专科医疗机构或二级及以上综合医疗机构近两年内的住院病历复印件(住院时间需超过一周) ；未经住院治疗的，需有近期连续就诊超过三个月的精神专科医疗机构或二级及以上综合医疗机构的门诊诊疗记录并同时提供该医院的诊断证明。",
+      "sourceMdFile": "其他精神障碍-认定标准-v20260805.md",
+      "sourceSection": "准入逻辑；住院材料路径或门诊材料路径",
+      "ruleKeywordGuide": [
+        {
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断是否满足住院材料路径：提供明确诊断的精神专科医疗机构或二级及以上综合医疗机构近两年内住院病历复印件，且住院时间超过一周。全部满足时为是，任一条件明确不满足时为否，日期、时长、诊断或机构信息不足时为无法判断。优先查看病案首页、住院病历、出院记录、入出院日期和机构等级字段。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ],
+          "keywordCode": "00002001"
+        },
+        {
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断是否满足门诊材料路径：患者未经住院治疗，近期在精神专科医疗机构或二级及以上综合医疗机构连续就诊超过三个月，并同时提供该医院诊断证明。全部满足时为是，任一条件明确不满足时为否，就诊连续性、时长、未住院状态、诊断证明或机构信息不足时为无法判断。优先查看门诊诊疗记录、就诊日期、诊断证明及机构等级字段。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ],
+          "keywordCode": "00002002"
+        }
+      ],
+      "ruleCode": "00002"
+    }
+  ],
+  "logicTopology": {
+    "type": "GROUP",
+    "operator": "AND",
+    "children": [
+      {
+        "type": "RULE_REF",
+        "ruleCode": "00001"
+      },
+      {
+        "type": "RULE_REF",
+        "ruleCode": "00002"
+      }
+    ]
+  }
+}

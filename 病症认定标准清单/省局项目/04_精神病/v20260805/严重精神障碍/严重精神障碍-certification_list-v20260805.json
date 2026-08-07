@@ -1,0 +1,110 @@
+{
+  "meta": {
+    "version": "V20260805",
+    "chronicDiseaseName": "严重精神障碍",
+    "chronicDiseaseCode": "M02111",
+    "createdAt": "2026-08-05",
+    "description": "原省局项目“精神病”标准拆分后的独立病种认定标准。V20260805为本次整理生成日期，不是政策发布日期。",
+    "sourceFile": "八类疾病准入条件及细则-20260517.xlsx"
+  },
+  "ruleRepository": [
+    {
+      "ruleContent": "诊断属于严重精神障碍包含的任一病种",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "严重精神障碍(包含精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍、伴有严重冲动伤人行为的其他精神障碍)。",
+      "sourceMdFile": "严重精神障碍-认定标准-v20260805.md",
+      "sourceSection": "准入逻辑；Excel E列提取细则映射",
+      "ruleKeywordGuide": [
+        {
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断严重精神障碍诊断是否明确。材料明确诊断为精神分裂症、分裂情感性精神障碍、偏执型精神障碍、双相情感障碍、癫痫伴发精神障碍、精神发育迟缓伴发精神障碍，或伴有严重冲动伤人行为的其他精神障碍时为是；诊断明确不属于上述范围时为否；缺少明确诊断或材料不足时为无法判断。优先查看病案首页、出院记录或诊断证明。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ],
+          "keywordCode": "11001001"
+        },
+        {
+          "dataType": "string",
+          "required": true,
+          "keywordContent": "提取严重精神障碍核心定义相关记录，包括症状严重、社会适应等功能严重损害、不能完整认识自身健康状况或客观现实、不能处理自身事务。未找到相关记录时填写未找到，不得根据一般症状推断。优先查看入院记录、出院记录或诊断证明。",
+          "enumOptions": [],
+          "keywordCode": "11001002"
+        },
+        {
+          "dataType": "string",
+          "required": true,
+          "keywordContent": "提取行为异常记录，包括无故冲动、伤人毁物、离家出走、行为古怪、蓬头垢面、自语自笑、过分话多或活动多、兴奋激动、自杀行为或企图。未找到相关记录时填写未找到，不得补充材料外事实。优先查看入院记录、出院记录或诊断证明。",
+          "enumOptions": [],
+          "keywordCode": "11001003"
+        }
+      ],
+      "ruleCode": "11001"
+    },
+    {
+      "ruleContent": "符合国际疾病分类中精神与行为障碍相关疾病诊断标准",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "1.符合国际疾病分类中精神与行为障碍相关疾病诊断标准。",
+      "sourceMdFile": "严重精神障碍-认定标准-v20260805.md",
+      "sourceSection": "准入逻辑",
+      "ruleKeywordGuide": [
+        {
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断材料是否明确支持符合国际疾病分类中精神与行为障碍相关疾病诊断标准。明确支持时为是，明确不符合时为否，只有症状描述或证据不足时为无法判断。优先查看诊断证明、出院记录或门诊诊疗记录。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ],
+          "keywordCode": "11002001"
+        }
+      ],
+      "ruleCode": "11002"
+    },
+    {
+      "ruleContent": "提供精神专科医疗机构或二级及以上综合医疗机构诊断证明",
+      "ruleSource": "八类疾病准入条件及细则-20260517.xlsx",
+      "experience": "",
+      "sourceRuleContent": "2.提供精神专科医疗机构或二级及以上综合医疗机构诊断证明。",
+      "sourceMdFile": "严重精神障碍-认定标准-v20260805.md",
+      "sourceSection": "准入逻辑",
+      "ruleKeywordGuide": [
+        {
+          "dataType": "enum",
+          "required": true,
+          "keywordContent": "判断是否提供精神专科医疗机构或二级及以上综合医疗机构出具的诊断证明。诊断证明及机构性质或等级均满足时为是，明确不满足时为否，证明或机构信息不足时为无法判断。优先查看诊断证明、机构名称和医院等级字段。",
+          "enumOptions": [
+            "是",
+            "否",
+            "无法判断"
+          ],
+          "keywordCode": "11003001"
+        }
+      ],
+      "ruleCode": "11003"
+    }
+  ],
+  "logicTopology": {
+    "type": "GROUP",
+    "operator": "AND",
+    "children": [
+      {
+        "type": "RULE_REF",
+        "ruleCode": "11001"
+      },
+      {
+        "type": "RULE_REF",
+        "ruleCode": "11002"
+      },
+      {
+        "type": "RULE_REF",
+        "ruleCode": "11003"
+      }
+    ]
+  }
+}
